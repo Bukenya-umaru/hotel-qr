@@ -1,0 +1,268 @@
+import { useEffect, useMemo, useState } from 'react'
+import { io } from 'socket.io-client'
+import {
+  Activity, ArrowDownRight, ArrowRight, ArrowUpRight, Bell, Check, ChefHat, ChevronDown,
+  ChevronLeft, ChevronRight, CircleHelp, Clock3, Coffee, Command, CreditCard, Download,
+  Eye, EyeOff, Filter, Globe2, Hotel, LayoutDashboard, Leaf, LogOut, Menu, MoreHorizontal,
+  Package, Plus, Search, Settings2, ShieldCheck, ShoppingBag, SlidersHorizontal,
+  Sparkles, TrendingUp, Users, Utensils, Wallet, X,
+} from 'lucide-react'
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar } from 'recharts'
+import { API_BASE_URL, api } from '../../lib/api.js'
+import { money, today, cx, orderCode, orderTime, navItems } from '../../lib/ui.js'
+import { AccessCard } from '../AccessCard/AccessCard.jsx'
+import { KitchenBoard } from '../KitchenBoard/KitchenBoard.jsx'
+import { MenuPage } from '../MenuPage/MenuPage.jsx'
+import { OrdersTable } from '../OrdersTable/OrdersTable.jsx'
+import { Reports } from '../Reports/Reports.jsx'
+import { AccountsPage } from '../AccountsPage/AccountsPage.jsx'
+import { DeveloperDashboard } from '../DeveloperDashboard/DeveloperDashboard.jsx'
+import { Overview } from '../Overview/Overview.jsx'
+import { Sidebar } from '../Sidebar/Sidebar.jsx'
+import { Brand } from '../Brand/Brand.jsx'
+import { Header } from '../Header/Header.jsx'
+import { LoginModal } from '../LoginModal/LoginModal.jsx'
+import { AccountModal } from '../AccountModal/AccountModal.jsx'
+import { MenuItemModal } from '../MenuItemModal/MenuItemModal.jsx'
+import { ResetPasswordModal } from '../ResetPasswordModal/ResetPasswordModal.jsx'
+import { AccountEditModal } from '../AccountEditModal/AccountEditModal.jsx'
+import { TablesPage } from '../TablesPage/TablesPage.jsx'
+
+export default function App() {
+  const [user, setUser] = useState(null)
+  const role = user?.role || 'OWNER'
+  const [page, setPage] = useState(role === 'DEVELOPER' ? 'Platform overview' : role === 'KITCHEN' ? 'Chef orders' : 'Overview')
+  const [orders, setOrders] = useState([])
+  const [menu, setMenu] = useState([])
+  const [users, setUsers] = useState([])
+  const [analytics, setAnalytics] = useState({
+    totalOrdersCount: 0,
+    totalRevenue: 0,
+    netProfit: 0,
+    series: [],
+    weekRevenue: 0,
+    weekProfit: 0,
+    weekOrders: 0,
+    isActual: false,
+  })
+  const [platformOverview, setPlatformOverview] = useState({
+    businessCount: 0,
+    userCount: 0,
+    activeOrdersCount: 0,
+    databaseStatus: 'Disconnected',
+  })
+  const [modal, setModal] = useState('')
+  const [editingMenu, setEditingMenu] = useState(null)
+  const [editingUser, setEditingUser] = useState(null)
+  const [resettingUser, setResettingUser] = useState(null)
+  const [toast, setToast] = useState('')
+  const [apiError, setApiError] = useState('')
+  const [mobileNav, setMobileNav] = useState(false)
+  const hotelName = user?.hotel?.name || (role === 'DEVELOPER' ? 'WAGA BITS support' : 'Your business')
+
+  useEffect(() => {
+    api('/api/auth/me').then(data => { setUser(data.user); if (data.user.role) setPage(data.user.role === 'DEVELOPER' ? 'Platform overview' : data.user.role === 'KITCHEN' ? 'Chef orders' : 'Overview') }).catch(() => {})
+  }, [])
+  useEffect(() => {
+    if (user && user.role !== 'DEVELOPER') {
+      api('/api/orders/active').then(data => setOrders(data.orders)).catch(err => setApiError(err.message))
+      api('/api/owner/menu').then(data => setMenu(data.items)).catch(err => setApiError(err.message))
+    }
+    if (user && ['OWNER', 'DEVELOPER'].includes(user.role)) {
+      const end = new Date()
+      const start = new Date()
+      start.setDate(start.getDate() - 6)
+      const from = start.toISOString().slice(0, 10)
+      const to = end.toISOString().slice(0, 10)
+      Promise.all([
+        api('/api/owner/analytics/daily'),
+        api(`/api/owner/analytics/reports?from=${from}&to=${to}`),
+      ]).then(([daily, weekly]) => setAnalytics({
+        ...daily,
+        series: weekly.series,
+        weekRevenue: weekly.totalRevenue,
+        weekProfit: weekly.netProfit,
+        weekOrders: weekly.totalOrdersCount,
+        reportOrders: weekly.orders,
+        isActual: true,
+      })).catch(err => setApiError(err.message))
+    }
+    if (user?.role === 'OWNER') {
+      api('/api/owner/staff').then(data => setUsers(data.users)).catch(err => setApiError(err.message))
+    }
+    if (user?.role === 'DEVELOPER') {
+      api('/api/developer/users').then(data => setUsers(data.users)).catch(err => setApiError(err.message))
+      api('/api/developer/orders').then(data => setOrders(data.orders)).catch(err => setApiError(err.message))
+      api('/api/developer/overview').then(data => setPlatformOverview(data)).catch(err => setApiError(err.message))
+    }
+  }, [user])
+  useEffect(() => { setPage(role === 'DEVELOPER' ? 'Platform overview' : role === 'KITCHEN' ? 'Chef orders' : 'Overview') }, [role])
+  useEffect(() => {
+    if (!user) return undefined
+    const socket = io(API_BASE_URL || undefined, { withCredentials: true })
+    const businessId = user.role === 'DEVELOPER' ? platformOverview.business?._id : user.hotelId
+    if (businessId) socket.emit('join_hotel', businessId)
+    if (user.hotel?.slug) socket.emit('join_menu', user.hotel.slug)
+    const refreshSupportOverview = () => {
+      if (user.role !== 'DEVELOPER') return
+      api('/api/developer/overview').then(data => {
+        setPlatformOverview(data)
+      }).catch(err => setApiError(err.message))
+    }
+    socket.on('new_order', order => {
+      setOrders(previous => [order, ...previous])
+      if (user.role === 'KITCHEN') playNewOrderChime()
+      refreshSupportOverview()
+    })
+    socket.on('order_status', update => setOrders(previous => previous.map(order => (order._id || order.id) === update._id ? { ...order, ...update } : order)))
+    socket.on('order_updated', update => {
+      setOrders(previous => previous.map(order => (order._id || order.id) === update._id ? { ...order, ...update } : order))
+      refreshSupportOverview()
+    })
+    return () => socket.disconnect()
+  }, [user, platformOverview.business?._id])
+  useEffect(() => {
+    if (!toast) return undefined
+    const timeout = window.setTimeout(() => setToast(''), 3200)
+    return () => window.clearTimeout(timeout)
+  }, [toast])
+
+  const currentNav = navItems[role] || navItems.OWNER
+  const advanceOrder = async order => {
+    const next = { Pending: 'Preparing', Preparing: 'Ready', Ready: 'Served' }[order.status]
+    if (!next) return
+    if (user) {
+      try {
+        const data = await api(`/api/orders/${order._id}/status`, { method: 'PATCH', body: JSON.stringify({ status: next }) })
+        setOrders(previous => previous.map(entry => entry._id === order._id ? { ...entry, ...data.order } : entry))
+      } catch (err) { setToast(err.message) }
+    } else setOrders(previous => previous.map(entry => entry.id === order.id ? { ...entry, status: next } : entry))
+  }
+  const playNewOrderChime = () => {
+    if (!window.AudioContext) return
+    const audio = new window.AudioContext()
+    const oscillator = audio.createOscillator()
+    const volume = audio.createGain()
+    oscillator.type = 'sine'
+    oscillator.frequency.setValueAtTime(880, audio.currentTime)
+    oscillator.frequency.setValueAtTime(1175, audio.currentTime + 0.13)
+    volume.gain.setValueAtTime(0.12, audio.currentTime)
+    volume.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.38)
+    oscillator.connect(volume)
+    volume.connect(audio.destination)
+    oscillator.start()
+    oscillator.stop(audio.currentTime + 0.38)
+    oscillator.onended = () => audio.close()
+  }
+  const login = async (email, password) => {
+    const data = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
+    setUser(data.user)
+    setModal('')
+    setToast(`Welcome back, ${data.user.name.split(' ')[0]}`)
+  }
+  const logout = async () => {
+    try { await api('/api/auth/logout', { method: 'POST' }) } catch (err) { setToast(err.message) }
+    setUser(null)
+  }
+  const createAccount = async form => {
+    if (!user || user.role !== 'OWNER') throw new Error('Sign in as the business owner to create a chef account.')
+    const data = await api('/api/owner/staff', { method: 'POST', body: JSON.stringify(form) })
+    setUsers(previous => [data.user, ...previous])
+    setModal('')
+    setToast('Chef account created successfully')
+  }
+  const loadReportRange = async (from, to) => {
+    if (!user) return
+    try {
+      const report = await api(`/api/owner/analytics/reports?from=${from}&to=${to}`)
+      setAnalytics(previous => ({
+        ...previous,
+        series: report.series,
+        weekRevenue: report.totalRevenue,
+        weekProfit: report.netProfit,
+        weekOrders: report.totalOrdersCount,
+        reportOrders: report.orders,
+        isActual: true,
+      }))
+    } catch (err) { setToast(err.message) }
+  }
+  const createMenuItem = async form => {
+    if (!user || !['OWNER', 'KITCHEN'].includes(user.role)) throw new Error('Sign in as the business owner or chef to manage the menu.')
+    const data = editingMenu
+      ? await api(`/api/owner/menu/${editingMenu._id}`, { method: 'PATCH', body: form })
+      : await api('/api/owner/menu', { method: 'POST', body: form })
+    setMenu(previous => editingMenu
+      ? previous.map(entry => entry._id === editingMenu._id ? { ...entry, ...data.item } : entry)
+      : [data.item, ...previous])
+    setEditingMenu(null)
+    setModal('')
+    setToast(editingMenu ? 'Menu item updated' : 'Menu item added')
+  }
+  const deleteMenuItem = async item => {
+    if (!window.confirm(`Remove ${item.name} from the menu?`)) return
+    if (!user || !['OWNER', 'KITCHEN'].includes(user.role)) return
+    try { await api(`/api/owner/menu/${item._id}`, { method: 'DELETE' }) } catch (err) { setToast(err.message); return }
+    setMenu(previous => previous.filter(entry => entry._id !== item._id && entry.id !== item.id))
+    setToast('Menu item removed')
+  }
+  const resetUserPassword = async password => {
+    if (!user || user.role !== 'DEVELOPER') throw new Error('Sign in as a developer to manage accounts.')
+    await api(`/api/developer/users/${resettingUser._id}`, { method: 'PATCH', body: JSON.stringify({ password }) })
+    setResettingUser(null)
+    setModal('')
+    setToast('Password reset successfully')
+  }
+  const updateUser = async details => {
+    if (!user || user.role !== 'DEVELOPER') throw new Error('Sign in as a developer to manage accounts.')
+    await api(`/api/developer/users/${editingUser._id}`, { method: 'PATCH', body: JSON.stringify(details) })
+    setUsers(previous => previous.map(entry =>
+      (editingUser._id ? entry._id === editingUser._id : entry.id === editingUser.id)
+        ? { ...entry, ...details, email: details.email.toLowerCase() }
+        : entry,
+    ))
+    setEditingUser(null)
+    setModal('')
+    setToast('Account updated')
+  }
+  const toggleMenuItem = async item => {
+    const available = !(item.isAvailable ?? item.available)
+    if (user && ['OWNER', 'KITCHEN'].includes(user.role)) {
+      try {
+        const data = await api(`/api/owner/menu/${item._id}`, { method: 'PATCH', body: JSON.stringify({ isAvailable: available }) })
+        setMenu(previous => previous.map(entry => entry._id === item._id ? { ...entry, ...data.item, available: data.item.isAvailable } : entry))
+        return
+      } catch (err) { setToast(err.message); return }
+    }
+  }
+  const toggleUser = async account => {
+    const active = account.isActive === false
+    if (!user || !['DEVELOPER', 'OWNER'].includes(user.role)) return
+    const endpoint = user.role === 'OWNER' ? `/api/owner/staff/${account._id}` : `/api/developer/users/${account._id}`
+    try { await api(endpoint, { method: 'PATCH', body: JSON.stringify({ isActive: active }) }) } catch (err) { setToast(err.message); return }
+    setUsers(previous => previous.map(entry => entry._id === account._id ? { ...entry, isActive: active } : entry))
+    setToast(active ? 'Account reactivated' : 'Account deactivated')
+  }
+
+  let content
+  if (!user) content = <AccessCard onLogin={() => setModal('login')} />
+  else if (role === 'KITCHEN' && page === 'Chef orders') content = <KitchenBoard orders={orders} onAdvance={advanceOrder} />
+  else if (page === 'Menu') content = <MenuPage menu={menu} role={role} onAdd={() => { setEditingMenu(null); setModal('menu') }} onToggle={toggleMenuItem} onEdit={item => { setEditingMenu(item); setModal('menu') }} onDelete={deleteMenuItem} />
+  else if (page === 'Tables' && ['OWNER', 'KITCHEN'].includes(role)) content = <TablesPage user={user} />
+  else if (page === 'Orders') content = <OrdersTable orders={orders} onAdvance={role === 'KITCHEN' || role === 'OWNER' ? advanceOrder : undefined} />
+  else if (page === 'Reports') content = <Reports orders={orders} analytics={analytics} currency="UGX" onRange={loadReportRange} />
+  else if (page === 'Accounts' || page === 'Chefs') content = <AccountsPage users={users} role={role} onCreate={() => setModal('account')} onToggle={toggleUser} onReset={account => { setResettingUser(account); setModal('reset') }} onEdit={account => { setEditingUser(account); setModal('edit-account') }} />
+  else if (role === 'DEVELOPER') content = <DeveloperDashboard users={users} orders={orders} onNavigate={setPage} overview={platformOverview} />
+  else content = <Overview orders={orders} menu={menu} hotelName={hotelName} onNavigate={setPage} analytics={analytics} currency="UGX" />
+
+  return <div className="min-h-screen bg-[#f7f7f4]">
+    <Sidebar role={role} page={page} setPage={setPage} user={user} onLogin={() => setModal('login')} onLogout={logout} hotelName={hotelName} />
+    {mobileNav && <div className="fixed inset-0 z-30 bg-[#1f291d]/30 lg:hidden" onClick={() => setMobileNav(false)}><div className="flex h-full max-h-[100dvh] w-[min(270px,85vw)] flex-col overflow-y-auto bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" onClick={e => e.stopPropagation()}><div className="flex items-center justify-between px-2 py-2"><Brand /><button onClick={() => setMobileNav(false)} aria-label="Close navigation" className="grid size-9 place-items-center rounded-lg hover:bg-[#f7f8f5]"><X size={18} /></button></div><div className="mt-5 rounded-xl border border-[#eceee8] p-3"><p className="truncate text-[11px] font-semibold">{hotelName}</p><p className="mt-1 text-[10px] text-[#999d94]">{user?.name || 'WAGA BITS'}</p></div><p className="mb-2 mt-6 px-2 text-[10px] font-bold uppercase tracking-[1.3px] text-[#a3a79d]">{role === 'DEVELOPER' ? 'Developer support' : role === 'KITCHEN' ? 'Chef portal' : 'Owner portal'}</p><nav className="space-y-1">{currentNav.map(item => <button key={item.label} onClick={() => { setPage(item.label); setMobileNav(false) }} className={cx('flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-[12px]', page === item.label ? 'bg-[#fff1e6] text-[#a34b16]' : 'text-[#70776d]')}><item.icon size={17} />{item.label}</button>)}</nav><div className="mt-auto space-y-1 pt-5">{user ? <button onClick={() => { setMobileNav(false); logout() }} className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-[12px] text-[#70776d] hover:bg-[#f7f8f5]"><LogOut size={16} />Sign out</button> : <button onClick={() => { setMobileNav(false); setModal('login') }} className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-[12px] text-[#70776d] hover:bg-[#f7f8f5]"><ShieldCheck size={16} />Sign in</button>}</div></div></div>}
+    <div className="min-h-screen min-w-0 lg:pl-[250px]"><div className="flex items-center border-b border-[#eaece6] bg-[#f7f7f4]/90 px-3 sm:px-4 lg:hidden"><button onClick={() => setMobileNav(true)} className="mr-2 grid size-10 shrink-0 place-items-center text-[#687061]" aria-label="Open navigation"><Menu size={19} /></button><Brand /></div><Header role={role} page={page} onLogin={() => setModal('login')} user={user} hotelName={hotelName} titleOverride={role === 'OWNER' && page === 'Overview' ? `Good morning, ${user?.name?.split(' ')[0] || ''}` : undefined} /><main className="mx-auto min-w-0 max-w-[1420px] px-3 py-4 sm:px-6 sm:py-6 lg:px-9 lg:py-7">{apiError && user && <div className="mb-4 flex items-center justify-between rounded-lg bg-[#fbf1df] px-3 py-2.5 text-[10px] text-[#8c6b35]"><span className="min-w-0 break-words">{apiError}</span><button onClick={() => setApiError('')} className="ml-2 shrink-0"><X size={14} /></button></div>}{content}</main></div>
+    {modal === 'login' && <LoginModal onClose={() => setModal('')} onLogin={login} />}
+    {modal === 'account' && role === 'OWNER' && <AccountModal onClose={() => setModal('')} onSubmit={createAccount} />}
+    {modal === 'menu' && <MenuItemModal role={role} categories={[...new Set(menu.map(item => item.category))]} onClose={() => { setModal(''); setEditingMenu(null) }} onSubmit={createMenuItem} initial={editingMenu} />}
+    {modal === 'reset' && resettingUser && <ResetPasswordModal account={resettingUser} onClose={() => { setModal(''); setResettingUser(null) }} onSubmit={resetUserPassword} />}
+    {modal === 'edit-account' && editingUser && <AccountEditModal account={editingUser} onClose={() => { setModal(''); setEditingUser(null) }} onSubmit={updateUser} />}
+    {toast && <div className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] left-3 right-3 z-[60] flex items-center justify-center gap-2 rounded-xl bg-[#283426] px-4 py-3 text-center text-[11px] font-medium text-white shadow-lg sm:bottom-5 sm:left-auto sm:right-5"><Check className="shrink-0 text-[#f1c49e]" size={15} />{toast}</div>}
+  </div>
+}

@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "DM Sans", sans-serif;
+  --font-display: "Manrope", sans-serif;
+}
+
+* { box-sizing: border-box; }
+#root { min-height: 100vh; min-height: 100dvh; }
+body { margin: 0; background: #fafaf7; color: #263125; font-family: "DM Sans", sans-serif; }
+button, input, textarea { font: inherit; }
+button { cursor: pointer; }
+.font-display { font-family: "Manrope", sans-serif; }

@@ -1,0 +1,24 @@
+{
+  "name": "stayserve",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "frontend/admin",
+    "frontend/customer",
+    "backend"
+  ],
+  "scripts": {
+    "dev:frontend": "concurrently -k \"npm run dev:admin\" \"npm run dev:customer\"",
+    "dev:admin": "npm run dev --workspace @stayserve/admin",
+    "dev:customer": "npm run dev --workspace @stayserve/customer",
+    "dev:backend": "npm run dev --workspace backend",
+    "build": "npm run build:admin && npm run build:customer",
+    "build:admin": "npm run build --workspace @stayserve/admin",
+    "build:customer": "npm run build --workspace @stayserve/customer",
+    "seed:developer": "npm run seed:developer --workspace backend",
+    "seed:business-owner": "npm run seed:business-owner --workspace backend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
