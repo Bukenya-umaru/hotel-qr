@@ -20,3 +20,31 @@ button { cursor: pointer; }
 .scrollbar-hidden::-webkit-scrollbar { display: none; }
 .pulse-dot { animation: pulse-dot 1.8s infinite; }
 @keyframes pulse-dot { 50% { box-shadow: 0 0 0 5px rgba(185,88,28,.13); } }
+
+/* Print support: hide the dashboard shell, show only the selected ticket. */
+@media print {
+  #root { display: none !important; }
+  .print-ticket {
+    font-family: "DM Sans", sans-serif;
+    color: #000;
+    max-width: 80mm;
+    margin: 0;
+    padding: 2mm 0;
+    font-size: 12pt;
+    line-height: 1.45;
+  }
+  .print-ticket h1 { font-size: 16pt; font-weight: 800; margin: 2mm 0; }
+  .print-ticket-brand { text-transform: uppercase; letter-spacing: 2px; font-size: 8pt; color: #555; margin: 0; }
+  .print-ticket-meta { font-size: 9pt; color: #444; margin: 0 0 3mm; }
+  .print-guest { font-size: 13pt; font-weight: 800; margin: 0 0 1mm; }
+  .print-ticket table { width: 100%; border-collapse: collapse; border-top: 1px dashed #000; border-bottom: 1px dashed #000; }
+  .print-ticket td { padding: 1.2mm 0; vertical-align: top; }
+  .print-item { font-weight: 700; }
+  .print-line { text-align: right; white-space: nowrap; }
+  .print-note { font-size: 9pt; margin: 2mm 0 0; }
+  .print-total { font-weight: 800; margin: 2mm 0 0; }
+}
+
+/* Screen: the print area stays invisible until printing. */
+.print-ticket { display: none; }
+@media print { .print-ticket { display: block; } }

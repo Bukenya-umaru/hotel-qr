@@ -12,6 +12,7 @@ const schema = new mongoose.Schema({
   hotelId: { type: mongoose.Schema.Types.ObjectId, ref: 'Hotel', required: true, index: true },
   tableNumber: { type: String, required: true, trim: true },
   guestCount: { type: Number, required: true, min: 1, default: 1 },
+  customerName: { type: String, default: '', maxlength: 80, trim: true },
   items: { type: [itemSchema], required: true },
   totalAmount: { type: Number, required: true, min: 0 },
   totalCost: { type: Number, required: true, min: 0 },

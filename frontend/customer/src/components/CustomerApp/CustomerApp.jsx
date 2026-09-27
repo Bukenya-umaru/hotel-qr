@@ -21,8 +21,10 @@ export default function CustomerApp() {
   const [tables, setTables] = useState([])
   const [category, setCategory] = useState('All')
   const [cart, setCart] = useState([])
+  const [quantityDraft, setQuantityDraft] = useState({})
   const [order, setOrder] = useState(null)
   const [notes, setNotes] = useState('')
+  const [customerName, setCustomerName] = useState(sessionStorage.getItem('waga-bits-guest-name') || '')
   const [busy, setBusy] = useState(false)
   const [loadingMenu, setLoadingMenu] = useState(true)
   const [error, setError] = useState('')
@@ -105,12 +107,45 @@ export default function CustomerApp() {
   const enoughSeats = Boolean(selectedTableInfo && (visitId || partySize <= selectedTableInfo.availableSeats))
   const sortedTables = [...tables].sort((left, right) => left.tableNumber.localeCompare(right.tableNumber, undefined, { numeric: true, sensitivity: 'base' }))
 
-  const changeQuantity = (item, amount) => setCart(previous => {
-    const existing = previous.find(entry => entry._id === item._id)
-    if (!existing && amount > 0) return [...previous, { ...item, quantity: 1 }]
-    return previous.map(entry => entry._id === item._id
-      ? { ...entry, quantity: entry.quantity + amount }
-      : entry).filter(entry => entry.quantity > 0)
+  const updateName = value => {
+    setCustomerName(value)
+    try { sessionStorage.setItem('waga-bits-guest-name', value) } catch { /* storage unavailable */ }
+  }
+
+  const changeQuantity = (item, amount) => {
+    setQuantityDraft(previous => {
+      if (!(item._id in previous)) return previous
+      const next = { ...previous }
+      delete next[item._id]
+      return next
+    })
+    setCart(previous => {
+      const existing = previous.find(entry => entry._id === item._id)
+      if (!existing && amount > 0) return [...previous, { ...item, quantity: 1 }]
+      return previous.map(entry => entry._id === item._id
+        ? { ...entry, quantity: entry.quantity + amount }
+        : entry).filter(entry => entry.quantity > 0)
+    })
+  }
+
+  // The customer types the exact amount they want, e.g. 2 teas or 5 chapati.
+  const setQuantity = (item, raw) => {
+    setQuantityDraft(previous => ({ ...previous, [item._id]: raw }))
+    if (!/^\d+$/.test(raw)) return
+    const quantity = Math.min(50, Number(raw))
+    setCart(previous => {
+      if (quantity === 0) return previous.filter(entry => entry._id !== item._id)
+      const existing = previous.find(entry => entry._id === item._id)
+      if (!existing) return [...previous, { ...item, quantity }]
+      return previous.map(entry => entry._id === item._id ? { ...entry, quantity } : entry)
+    })
+  }
+
+  const clearQuantityDraft = itemId => setQuantityDraft(previous => {
+    if (!(itemId in previous)) return previous
+    const next = { ...previous }
+    delete next[itemId]
+    return next
   })
 
   const adoptTableState = (previous, tableNumber, table) => previous.map(entry => entry.tableNumber === tableNumber
@@ -248,6 +283,7 @@ export default function CustomerApp() {
           guestCount: partySize,
           visitId: currentVisitId,
           notes,
+          customerName: customerName.trim().slice(0, 80),
           items: cart.map(item => ({ menuItem: item._id, quantity: item.quantity })),
         }),
       })
@@ -315,6 +351,9 @@ export default function CustomerApp() {
               </select>
               {!tables.length && <span className="mt-1 block text-[9px] font-normal text-[#a44f3d]">No tables are available yet. Please ask staff for help.</span>}
             </label>
+            <label className="block text-[10px] font-semibold text-stone-600">Your name (optional)
+              <input type="text" maxLength="80" value={customerName} onChange={event => updateName(event.target.value)} placeholder="e.g. Sarah" className="mt-1 block w-full rounded-lg border border-stone-200 bg-white px-3 py-2.5 text-xs outline-none focus:border-[#d08445]" />
+            </label>
             <label className="block text-[10px] font-semibold text-stone-600">People in your group
               <input required type="number" min="1" max={selectedTableInfo?.capacity || 1} step="1" value={partySize} disabled={!selectedTable || pendingReservation || busy} onChange={event => changePartySize(Number(event.target.value))} className="mt-1 block w-full rounded-lg border border-stone-200 bg-white px-3 py-2.5 text-xs outline-none focus:border-[#d08445] disabled:bg-stone-50" />
               {selectedTableInfo && <span className={`mt-1 block text-[9px] font-normal ${enoughSeats ? 'text-stone-500' : 'text-[#a44f3d]'}`}>{visitId ? `${partySize} ${partySize === 1 ? 'seat is' : 'seats are'} reserved for your table visit.` : enoughSeats ? `${selectedTableInfo.availableSeats} seats currently free.` : 'Not enough free seats for this group. Choose another table or reduce the group size.'}</span>}
@@ -330,13 +369,13 @@ export default function CustomerApp() {
             return <article key={item._id} className="overflow-hidden rounded-2xl border border-stone-200/80 bg-white shadow-[0_4px_20px_rgba(40,48,36,.035)]">
               {item.imageUrl ? <img src={apiAssetUrl(item.imageUrl)} alt={item.name} className="h-48 w-full object-cover" /> : <div className="grid h-48 place-items-center bg-[#fff4eb] text-[#b77b52]"><ChefHat size={34} strokeWidth={1.4} /></div>}
               <div className="p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0 flex-1"><span className="text-[9px] font-bold uppercase tracking-[1px] text-[#d88340]">{item.category}</span><h2 className="font-display mt-1 break-words text-sm font-bold">{item.name}</h2></div><b className="shrink-0 whitespace-nowrap text-sm">{money(item.price)}</b></div><p className="mt-2 min-h-9 break-words text-xs leading-5 text-stone-500">{item.description}</p>
-                {quantity ? <div className="mt-3 flex items-center justify-between rounded-xl bg-[#fff5ed] p-1"><button onClick={() => changeQuantity(item, -1)} className="grid size-9 place-items-center rounded-lg bg-white text-[#c65d1b]" aria-label={`Remove ${item.name}`}><Minus size={15} /></button><span className="text-xs font-bold">{quantity} in order</span><button onClick={() => changeQuantity(item, 1)} className="grid size-9 place-items-center rounded-lg bg-[#c65d1b] text-white" aria-label={`Add ${item.name}`}><Plus size={15} /></button></div> :
+                {quantity ? <div className="mt-3 flex items-center justify-between rounded-xl bg-[#fff5ed] p-1"><button onClick={() => changeQuantity(item, -1)} className="grid size-9 place-items-center rounded-lg bg-white text-[#c65d1b]" aria-label={`Remove ${item.name}`}><Minus size={15} /></button><label className="flex items-center gap-1.5"><input type="number" min="1" max="50" step="1" inputMode="numeric" value={quantityDraft[item._id] ?? String(quantity)} onChange={event => setQuantity(item, event.target.value)} onBlur={() => clearQuantityDraft(item._id)} aria-label={`Amount of ${item.name}`} className="w-14 rounded-lg border border-[#f0dfd1] bg-white px-2 py-1.5 text-center text-xs font-bold text-[#7a431f] outline-none focus:border-[#d08445] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" /><span className="text-[9px] font-semibold text-[#a3765a]">in order</span></label><button onClick={() => changeQuantity(item, 1)} className="grid size-9 place-items-center rounded-lg bg-[#c65d1b] text-white" aria-label={`Add ${item.name}`}><Plus size={15} /></button></div> :
                   <button onClick={() => changeQuantity(item, 1)} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[#fff4eb] py-2.5 text-xs font-semibold text-[#c65d1b] hover:bg-[#fff1e6]"><Plus size={14} />Add to order</button>}
               </div>
             </article>
           })}</div>}
       </>}
     </main>
-    {itemCount > 0 && !order && <div className="fixed inset-x-0 bottom-0 border-t border-stone-200 bg-white/95 px-3 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-6px_24px_rgba(40,48,36,.06)] backdrop-blur sm:px-4"><div className="mx-auto flex max-w-5xl flex-wrap items-end justify-between gap-3"><label className="block w-full text-[10px] font-semibold text-stone-500 sm:max-w-sm">Special instructions<textarea rows="1" value={notes} onChange={event => setNotes(event.target.value)} placeholder="Allergies or preferences?" className="mt-1 block w-full resize-none rounded-lg border border-stone-200 px-3 py-2 text-xs outline-none focus:border-[#d08445]" /></label><div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end sm:gap-4"><div className="min-w-0 text-left sm:text-right"><p className="text-xs font-bold">{itemCount} {itemCount === 1 ? 'item' : 'items'}{selectedTable ? ` · Table ${selectedTable}` : ''}</p><p className="mt-0.5 text-[10px] text-stone-500">{money(subtotal)}</p></div><button disabled={busy || !selectedTableInfo || !enoughSeats} onClick={submitOrder} className="flex shrink-0 items-center gap-2 rounded-xl bg-[#c65d1b] px-4 py-3 text-xs font-semibold text-white disabled:opacity-60">{busy ? 'Sending…' : 'Place order'}<ArrowRight size={15} /></button></div></div></div>}
+    {itemCount > 0 && !order && <div className="fixed inset-x-0 bottom-0 border-t border-stone-200 bg-white/95 px-3 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-6px_24px_rgba(40,48,36,.06)] backdrop-blur sm:px-4"><div className="mx-auto flex max-w-5xl flex-wrap items-end justify-between gap-3"><label className="block w-full text-[10px] font-semibold text-stone-500 sm:max-w-sm">Your name (optional)<input type="text" maxLength="80" value={customerName} onChange={event => updateName(event.target.value)} placeholder="Who is this order for?" className="mt-1 block w-full rounded-lg border border-stone-200 px-3 py-2 text-xs outline-none focus:border-[#d08445]" /></label><label className="block w-full text-[10px] font-semibold text-stone-500 sm:max-w-sm">Special instructions<textarea rows="1" value={notes} onChange={event => setNotes(event.target.value)} placeholder="Allergies or preferences?" className="mt-1 block w-full resize-none rounded-lg border border-stone-200 px-3 py-2 text-xs outline-none focus:border-[#d08445]" /></label><div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end sm:gap-4"><div className="min-w-0 text-left sm:text-right"><p className="text-xs font-bold">{itemCount} {itemCount === 1 ? 'item' : 'items'}{selectedTable ? ` · Table ${selectedTable}` : ''}</p><p className="mt-0.5 text-[10px] text-stone-500">{money(subtotal)}</p></div><button disabled={busy || !selectedTableInfo || !enoughSeats} onClick={submitOrder} className="flex shrink-0 items-center gap-2 rounded-xl bg-[#c65d1b] px-4 py-3 text-xs font-semibold text-white disabled:opacity-60">{busy ? 'Sending…' : 'Place order'}<ArrowRight size={15} /></button></div></div></div>}
   </div>
 }

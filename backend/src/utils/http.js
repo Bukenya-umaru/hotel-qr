@@ -18,6 +18,7 @@ export const guestOrder = order => ({
   _id: order._id,
   tableNumber: order.tableNumber,
   guestCount: order.guestCount || 1,
+  customerName: order.customerName || '',
   items: order.items.map(({ name, price, quantity }) => ({ name, price, quantity })),
   totalAmount: order.totalAmount,
   status: order.status,

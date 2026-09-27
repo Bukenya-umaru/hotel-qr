@@ -5,6 +5,7 @@ import { authenticate, authorize, hotelScope } from '../middleware/auth.js'
 import { DiningTable } from '../models/DiningTable.js'
 import { User } from '../models/User.js'
 import { MenuItem } from '../models/MenuItem.js'
+import { MenuCategory } from '../models/MenuCategory.js'
 import { Order } from '../models/Order.js'
 import { removeUploadedImage, uploadMenuImage } from '../middleware/upload.js'
 import { asyncRoute, idIsValid, safeMenuItem } from '../utils/http.js'
@@ -89,6 +90,64 @@ router.delete('/tables/:id', authenticate, authorize('OWNER', 'KITCHEN'), asyncR
   res.status(204).end()
 }))
 
+router.get('/categories', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  const scope = hotelScope(req)
+  if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
+  const categories = await MenuCategory.find({ hotelId: scope }).sort({ name: 1 })
+  res.json({ categories: categories.map(category => ({ _id: category._id, name: category.name })) })
+}))
+
+router.post('/categories', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  const name = String(req.body.name || '').trim().slice(0, 60)
+  if (!name) return res.status(400).json({ message: 'Provide a category name.' })
+  const scope = hotelScope(req)
+  if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
+  const category = await MenuCategory.findOneAndUpdate(
+    { hotelId: scope, name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+    { $setOnInsert: { hotelId: scope, name } },
+    { new: true, upsert: true },
+  )
+  req.app.get('io').to(`menu:${scope}`).emit('menu_updated', { categoriesChanged: true })
+  res.status(201).json({ category: { _id: category._id, name: category.name } })
+}))
+
+router.patch('/categories/:id', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Category not found.' })
+  const name = String(req.body.name || '').trim().slice(0, 60)
+  if (!name) return res.status(400).json({ message: 'Provide a category name.' })
+  const scope = hotelScope(req)
+  const category = await MenuCategory.findOne({ _id: req.params.id, hotelId: scope })
+  if (!category) return res.status(404).json({ message: 'Category not found.' })
+  const previousName = category.name
+  if (previousName !== name) {
+    category.name = name
+    await category.save().catch(async error => {
+      if (error.code === 11000) {
+        const merged = await MenuCategory.findOne({ hotelId: scope, name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') })
+        if (!merged) throw error
+        await MenuItem.updateMany({ hotelId: scope, category: previousName }, { $set: { category: name } })
+        await category.deleteOne()
+        req.app.get('io').to(`menu:${scope}`).emit('menu_updated', { categoriesChanged: true })
+        return res.json({ category: { _id: merged._id, name: merged.name }, merged: true })
+      }
+      throw error
+    })
+    if (res.headersSent) return
+    await MenuItem.updateMany({ hotelId: scope, category: previousName }, { $set: { category: name } })
+  }
+  req.app.get('io').to(`menu:${scope}`).emit('menu_updated', { categoriesChanged: true })
+  res.json({ category: { _id: category._id, name: category.name } })
+}))
+
+router.delete('/categories/:id', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Category not found.' })
+  const scope = hotelScope(req)
+  const category = await MenuCategory.findOneAndDelete({ _id: req.params.id, hotelId: scope })
+  if (!category) return res.status(404).json({ message: 'Category not found.' })
+  req.app.get('io').to(`menu:${scope}`).emit('menu_updated', { categoriesChanged: true })
+  res.status(204).end()
+}))
+
 router.get('/staff', authenticate, authorize('OWNER'), asyncRoute(async (req, res) => {
   const users = await User.find({ hotelId: req.user.hotelId._id, role: 'KITCHEN' }).sort({ createdAt: -1 })
   res.json({ users: users.map(user => ({
@@ -161,6 +220,11 @@ router.post('/menu', authenticate, authorize('OWNER', 'KITCHEN'), uploadMenuImag
     costPrice: req.user.role === 'OWNER' ? Number(costPrice) : 0,
     imageUrl: req.file ? `/uploads/${req.file.filename}` : '',
   })
+  await MenuCategory.findOneAndUpdate(
+    { hotelId: scope, name: new RegExp(`^${String(category).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+    { $setOnInsert: { hotelId: scope, name: String(category).trim() } },
+    { upsert: true },
+  )
   req.app.get('io').to(`menu:${item.hotelId}`).emit('menu_updated', safeMenuItem(item))
   res.status(201).json({ item: req.user.role === 'OWNER' ? item : safeMenuItem(item) })
 }))
@@ -184,8 +248,16 @@ router.patch('/menu/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadMen
   const item = await MenuItem.findOne({ _id: req.params.id, hotelId: scope }).select('+costPrice')
   if (!item) return res.status(404).json({ message: 'Menu item not found.' })
   const previousImage = item.imageUrl
+  const previousCategory = item.category
   Object.assign(item, updates)
   await item.save()
+  if (updates.category && updates.category !== previousCategory) {
+    await MenuCategory.findOneAndUpdate(
+      { hotelId: scope, name: new RegExp(`^${String(updates.category).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+      { $setOnInsert: { hotelId: scope, name: String(updates.category).trim() } },
+      { upsert: true },
+    )
+  }
   if (req.file && previousImage) await removeUploadedImage(previousImage)
   req.app.get('io').to(`menu:${item.hotelId}`).emit('menu_updated', safeMenuItem(item))
   res.json({ item: req.user.role === 'OWNER' ? item : safeMenuItem(item) })

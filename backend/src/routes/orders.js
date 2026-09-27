@@ -16,6 +16,7 @@ router.post('/', asyncRoute(async (req, res) => {
   const visitId = String(req.body.visitId || '').trim()
   const items = req.body.items
   const notes = String(req.body.notes || '').trim()
+  const customerName = String(req.body.customerName || '').trim().slice(0, 80)
   if (!slug || !tableNumber || tableNumber.length > 32) return res.status(400).json({ message: 'Select a valid table.' })
   if (!Number.isInteger(guestCount) || guestCount < 1 || guestCount > 100 ||
       !/^[a-z\d-]{16,80}$/i.test(visitId)) {
@@ -87,6 +88,7 @@ router.post('/', asyncRoute(async (req, res) => {
       hotelId: hotel._id,
       tableNumber,
       guestCount,
+      customerName,
       items: lines,
       totalAmount,
       totalCost,
