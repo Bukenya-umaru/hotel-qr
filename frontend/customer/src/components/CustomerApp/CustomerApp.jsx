@@ -1,12 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
 import { io } from 'socket.io-client'
-import { ArrowRight, ChefHat, Leaf, Minus, Plus, Users, X } from 'lucide-react'
+import { ArrowRight, Check, ChefHat, Clock3, Leaf, Minus, Plus, Users, X } from 'lucide-react'
 import { API_BASE_URL, apiAssetUrl, request } from '../../lib/api.js'
 import { money } from '../../lib/money.js'
 import { Brand } from '../Brand/Brand.jsx'
 import { OrderProgress } from '../OrderProgress/OrderProgress.jsx'
 
 const visitKey = (hotelId, tableNumber) => `waga-bits-visit:${hotelId}:${tableNumber}`
+const activeOrderKey = hotelId => `waga-bits-active-order:${hotelId}`
+const ORDER_STEPS = ['Pending', 'Preparing', 'Ready', 'Served']
+const STATUS_COPY = {
+  Pending: 'The kitchen has received your order.',
+  Preparing: 'The kitchen is preparing your food.',
+  Ready: 'Your food is ready — a waiter is bringing it over.',
+  Served: 'Enjoy your meal! This order has been served.',
+  Cancelled: 'This order was cancelled. Please ask staff for help.',
+}
 
 export default function CustomerApp() {
   const params = new URLSearchParams(window.location.search)
@@ -18,11 +27,13 @@ export default function CustomerApp() {
   const [checkInError, setCheckInError] = useState('')
   const [hotel, setHotel] = useState(null)
   const [menu, setMenu] = useState([])
+  const [categoriesFromServer, setCategoriesFromServer] = useState([])
   const [tables, setTables] = useState([])
   const [category, setCategory] = useState('All')
   const [cart, setCart] = useState([])
   const [quantityDraft, setQuantityDraft] = useState({})
   const [order, setOrder] = useState(null)
+  const [trackingOpen, setTrackingOpen] = useState(false)
   const [notes, setNotes] = useState('')
   const [customerName, setCustomerName] = useState(sessionStorage.getItem('waga-bits-guest-name') || '')
   const [busy, setBusy] = useState(false)
@@ -35,6 +46,7 @@ export default function CustomerApp() {
     setHotel(response.hotel)
     setSlug(response.hotel.slug)
     setMenu(response.items)
+    setCategoriesFromServer(Array.isArray(response.categories) ? response.categories : [])
     setTables(response.tables || [])
     setError('')
   }
@@ -99,7 +111,29 @@ export default function CustomerApp() {
     return () => socket.disconnect()
   }, [order?._id])
 
-  const categories = useMemo(() => ['All', ...new Set(menu.map(item => item.category))], [menu])
+  // After a refresh, reconnect to the order the guest placed so they keep
+  // seeing where their food has reached.
+  useEffect(() => {
+    if (!hotel?._id) return undefined
+    let stored
+    try { stored = JSON.parse(sessionStorage.getItem(activeOrderKey(hotel._id)) || 'null') } catch { stored = null }
+    if (!stored?.id) return undefined
+    request(`/api/orders/${stored.id}/status`)
+      .then(response => {
+        setOrder(response.order)
+        setTrackingOpen(false)
+      })
+      .catch(() => sessionStorage.removeItem(activeOrderKey(hotel._id)))
+    return undefined
+  }, [hotel?._id])
+
+  // Show every category the kitchen created, even ones without any menu items yet.
+  const categories = useMemo(() => {
+    const fromCategories = (categoriesFromServer && categoriesFromServer.length)
+      ? categoriesFromServer
+      : [...new Set(menu.map(item => item.category))]
+    return ['All', ...fromCategories]
+  }, [categoriesFromServer, menu])
   const visibleItems = category === 'All' ? menu : menu.filter(item => item.category === category)
   const itemCount = cart.reduce((total, item) => total + item.quantity, 0)
   const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0)
@@ -291,6 +325,9 @@ export default function CustomerApp() {
         ? { ...entry, occupiedSeats: response.table.occupiedSeats, availableSeats: response.table.capacity - response.table.occupiedSeats }
         : entry))
       setOrder(response.order)
+      setTrackingOpen(true)
+      try { sessionStorage.setItem(activeOrderKey(hotel._id), JSON.stringify({ id: response.order._id })) } catch { /* storage unavailable */ }
+      setNotes('')
       setCart([])
     } catch (err) {
       setError(err.message)
@@ -334,10 +371,19 @@ export default function CustomerApp() {
         <div className="min-w-0 text-right"><p className="truncate text-xs font-semibold">{hotel?.name || 'Loading menu…'}</p><p className="mt-0.5 text-[10px] text-stone-500">{selectedTable ? `Table ${selectedTable}` : 'Choose a table when ordering'}</p></div>
       </div>
     </header>
-    <main className="mx-auto max-w-5xl px-3 pb-36 pt-6 sm:px-6 sm:pb-32 sm:pt-8">
-      <div className="mb-7"><p className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-[#bd6424]"><Leaf size={13} /> Fresh from the kitchen</p><h1 className="font-display text-3xl font-extrabold tracking-[-1px] sm:text-4xl">Good food, right<br className="sm:hidden" /> where you are.</h1><p className="mt-2 text-sm text-stone-500">Browse the menu and order straight to your table. The kitchen sees your table the moment you check in.</p></div>
+    <main className="mx-auto max-w-5xl px-3 pb-36 pt-4 sm:px-6 sm:pb-32 sm:pt-8">
+      <div className="mb-5 sm:mb-7"><p className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-[#bd6424]"><Leaf size={13} /> Fresh from the kitchen</p><h1 className="font-display text-2xl font-extrabold tracking-[-1px] min-[400px]:text-3xl sm:text-4xl">Good food, right<br className="sm:hidden" /> where you are.</h1><p className="mt-2 text-sm text-stone-500">Browse the menu and order straight to your table. The kitchen sees your table the moment you check in.</p></div>
       {error && <div className="mb-4 flex items-center justify-between rounded-xl bg-[#fae9e5] p-3 text-xs text-[#a44f3d]"><span>{error}</span><button onClick={() => setError('')} aria-label="Dismiss"><X size={15} /></button></div>}
-      {order ? <OrderProgress order={order} table={selectedTable || order.tableNumber} onNewOrder={() => { setOrder(null); setNotes('') }} /> : <>
+      {order && trackingOpen ? <OrderProgress order={order} table={selectedTable || order.tableNumber} onNewOrder={() => setTrackingOpen(false)} /> : <>
+        {order && <button onClick={() => setTrackingOpen(true)} className="mb-5 flex w-full items-center gap-3 rounded-2xl border border-[#f0dfd1] bg-[#fff9f4] p-3 text-left shadow-sm sm:mb-6 sm:p-4">
+          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#b5571d] text-white">{order.status === 'Served' ? <Check size={18} /> : <Clock3 size={18} />}</span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs font-bold">Order #{String(order._id).slice(-6).toUpperCase()} · Table {order.tableNumber}</span>
+            <span className="mt-0.5 flex items-center gap-1.5 text-[10px] text-stone-500"><span className={`size-1.5 shrink-0 rounded-full ${order.status === 'Served' ? 'bg-emerald-500' : 'animate-pulse bg-[#c65d1b]'}`} />{STATUS_COPY[order.status] || order.status}</span>
+            <span className="mt-2 flex gap-1">{ORDER_STEPS.map((step, index) => <i key={step} className={`h-1 flex-1 rounded-full ${index <= ORDER_STEPS.indexOf(order.status) ? 'bg-[#c65d1b]' : 'bg-[#f0dfd1]'}`} />)}</span>
+          </span>
+          <ArrowRight size={15} className="shrink-0 text-[#b5571d]" />
+        </button>}
         <section className="mb-6 rounded-2xl border border-[#f0dfd1] bg-[#fff9f4] p-4 sm:p-5">
           <h2 className="font-display text-sm font-bold">Choose your table</h2>
           <p className="mt-1 text-[10px] text-stone-500">Pick your table and group size — checking in tells the kitchen you have arrived.</p>
@@ -362,20 +408,22 @@ export default function CustomerApp() {
           {checkInError && <div className="mt-3 rounded-lg bg-[#fae9e5] px-3 py-2 text-[10px] text-[#a44f3d]">{checkInError}</div>}
           {visitId && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#fff5ed] px-3 py-2 text-[10px] text-[#a34b16]"><span className="flex items-center gap-1.5"><Users size={12} />{partySize} {partySize === 1 ? 'person is' : 'people are'} seated at table {selectedTable}.</span><button disabled={busy || pendingReservation} onClick={releaseSeats} className="rounded-lg border border-[#ecd9c3] bg-white px-2.5 py-1.5 text-[9px] font-semibold text-[#a34b16] disabled:opacity-60">Leaving — release seats</button></div>}
         </section>
-        <div className="scrollbar-hidden mb-5 flex gap-2 overflow-x-auto pb-1">{categories.map(item => <button key={item} onClick={() => setCategory(item)} className={`whitespace-nowrap rounded-full border px-4 py-2 text-xs font-semibold ${item === category ? 'border-[#c65d1b] bg-[#c65d1b] text-white' : 'border-stone-200 bg-white text-stone-600'}`}>{item}</button>)}</div>
+        <div className="scrollbar-hidden mb-4 flex gap-1.5 overflow-x-auto pb-1 sm:mb-5 sm:gap-2">{categories.map(item => <button key={item} onClick={() => setCategory(item)} className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-[11px] font-semibold sm:px-4 sm:py-2 sm:text-xs ${item === category ? 'border-[#c65d1b] bg-[#c65d1b] text-white' : 'border-stone-200 bg-white text-stone-600'}`}>{item}</button>)}</div>
         {menu.length === 0 ? <div className="rounded-2xl border border-dashed border-stone-300 bg-white px-5 py-14 text-center"><ChefHat className="mx-auto text-[#d88340]" size={28} /><p className="mt-3 text-sm font-semibold">The menu is being prepared</p><p className="mt-1 text-xs text-stone-500">Please check again in a little while.</p></div> :
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{visibleItems.map(item => {
+          visibleItems.length === 0 ? <div className="rounded-2xl border border-dashed border-stone-300 bg-white px-5 py-14 text-center"><ChefHat className="mx-auto text-[#d88340]" size={28} /><p className="mt-3 text-sm font-semibold">Nothing in {category} yet</p><p className="mt-1 text-xs text-stone-500">The kitchen is still working on this category. Check back soon.</p></div> :
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-3">{visibleItems.map(item => {
             const quantity = cart.find(entry => entry._id === item._id)?.quantity || 0
-            return <article key={item._id} className="overflow-hidden rounded-2xl border border-stone-200/80 bg-white shadow-[0_4px_20px_rgba(40,48,36,.035)]">
-              {item.imageUrl ? <img src={apiAssetUrl(item.imageUrl)} alt={item.name} className="h-48 w-full object-cover" /> : <div className="grid h-48 place-items-center bg-[#fff4eb] text-[#b77b52]"><ChefHat size={34} strokeWidth={1.4} /></div>}
-              <div className="p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0 flex-1"><span className="text-[9px] font-bold uppercase tracking-[1px] text-[#d88340]">{item.category}</span><h2 className="font-display mt-1 break-words text-sm font-bold">{item.name}</h2></div><b className="shrink-0 whitespace-nowrap text-sm">{money(item.price)}</b></div><p className="mt-2 min-h-9 break-words text-xs leading-5 text-stone-500">{item.description}</p>
-                {quantity ? <div className="mt-3 flex items-center justify-between rounded-xl bg-[#fff5ed] p-1"><button onClick={() => changeQuantity(item, -1)} className="grid size-9 place-items-center rounded-lg bg-white text-[#c65d1b]" aria-label={`Remove ${item.name}`}><Minus size={15} /></button><label className="flex items-center gap-1.5"><input type="number" min="1" max="50" step="1" inputMode="numeric" value={quantityDraft[item._id] ?? String(quantity)} onChange={event => setQuantity(item, event.target.value)} onBlur={() => clearQuantityDraft(item._id)} aria-label={`Amount of ${item.name}`} className="w-14 rounded-lg border border-[#f0dfd1] bg-white px-2 py-1.5 text-center text-xs font-bold text-[#7a431f] outline-none focus:border-[#d08445] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" /><span className="text-[9px] font-semibold text-[#a3765a]">in order</span></label><button onClick={() => changeQuantity(item, 1)} className="grid size-9 place-items-center rounded-lg bg-[#c65d1b] text-white" aria-label={`Add ${item.name}`}><Plus size={15} /></button></div> :
-                  <button onClick={() => changeQuantity(item, 1)} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[#fff4eb] py-2.5 text-xs font-semibold text-[#c65d1b] hover:bg-[#fff1e6]"><Plus size={14} />Add to order</button>}
+            return <article key={item._id} className="flex flex-col overflow-hidden rounded-2xl border border-stone-200/80 bg-white shadow-[0_4px_20px_rgba(40,48,36,.035)]">
+              {item.imageUrl ? <img src={apiAssetUrl(item.imageUrl)} alt={item.name} className="h-28 w-full object-cover sm:h-48" /> : <div className="grid h-28 w-full place-items-center bg-[#fff4eb] text-[#b77b52] sm:h-48"><ChefHat className="h-7 w-7 sm:h-[34px] sm:w-[34px]" strokeWidth={1.4} /></div>}
+              <div className="flex flex-1 flex-col p-2.5 sm:p-4"><div className="flex items-start justify-between gap-2 sm:gap-3"><div className="min-w-0 flex-1"><span className="text-[8px] font-bold uppercase tracking-[1px] text-[#d88340] sm:text-[9px]">{item.category}</span><h2 className="font-display mt-0.5 break-words text-xs font-bold sm:mt-1 sm:text-sm">{item.name}</h2></div><b className="shrink-0 whitespace-nowrap text-xs font-bold text-[#7a431f] sm:text-sm sm:font-normal sm:text-inherit">{money(item.price)}</b></div><p className="mt-1.5 line-clamp-2 break-words text-[10px] leading-4 text-stone-500 sm:mt-2 sm:line-clamp-none sm:min-h-9 sm:text-xs sm:leading-5">{item.description}</p>
+                <div className="mt-auto" />
+                {quantity ? <div className="mt-2 flex items-center justify-between rounded-xl bg-[#fff5ed] p-1 sm:mt-3"><button onClick={() => changeQuantity(item, -1)} className="grid size-8 place-items-center rounded-lg bg-white text-[#c65d1b] sm:size-9" aria-label={`Remove ${item.name}`}><Minus size={14} /></button><label className="flex items-center gap-1"><input type="number" min="1" max="50" step="1" inputMode="numeric" value={quantityDraft[item._id] ?? String(quantity)} onChange={event => setQuantity(item, event.target.value)} onBlur={() => clearQuantityDraft(item._id)} aria-label={`Amount of ${item.name}`} className="w-10 rounded-lg border border-[#f0dfd1] bg-white px-1.5 py-1.5 text-center text-xs font-bold text-[#7a431f] outline-none focus:border-[#d08445] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none sm:w-14 sm:px-2" /><span className="hidden text-[9px] font-semibold text-[#a3765a] sm:inline">in order</span></label><button onClick={() => changeQuantity(item, 1)} className="grid size-8 place-items-center rounded-lg bg-[#c65d1b] text-white sm:size-9" aria-label={`Add ${item.name}`}><Plus size={14} /></button></div> :
+                  <button onClick={() => changeQuantity(item, 1)} className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#fff4eb] py-2 text-[11px] font-semibold text-[#c65d1b] hover:bg-[#fff1e6] sm:mt-3 sm:gap-2 sm:py-2.5 sm:text-xs"><Plus size={13} />Add to order</button>}
               </div>
             </article>
           })}</div>}
       </>}
     </main>
-    {itemCount > 0 && !order && <div className="fixed inset-x-0 bottom-0 border-t border-stone-200 bg-white/95 px-3 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-6px_24px_rgba(40,48,36,.06)] backdrop-blur sm:px-4"><div className="mx-auto flex max-w-5xl flex-wrap items-end justify-between gap-3"><label className="block w-full text-[10px] font-semibold text-stone-500 sm:max-w-sm">Your name (optional)<input type="text" maxLength="80" value={customerName} onChange={event => updateName(event.target.value)} placeholder="Who is this order for?" className="mt-1 block w-full rounded-lg border border-stone-200 px-3 py-2 text-xs outline-none focus:border-[#d08445]" /></label><label className="block w-full text-[10px] font-semibold text-stone-500 sm:max-w-sm">Special instructions<textarea rows="1" value={notes} onChange={event => setNotes(event.target.value)} placeholder="Allergies or preferences?" className="mt-1 block w-full resize-none rounded-lg border border-stone-200 px-3 py-2 text-xs outline-none focus:border-[#d08445]" /></label><div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end sm:gap-4"><div className="min-w-0 text-left sm:text-right"><p className="text-xs font-bold">{itemCount} {itemCount === 1 ? 'item' : 'items'}{selectedTable ? ` · Table ${selectedTable}` : ''}</p><p className="mt-0.5 text-[10px] text-stone-500">{money(subtotal)}</p></div><button disabled={busy || !selectedTableInfo || !enoughSeats} onClick={submitOrder} className="flex shrink-0 items-center gap-2 rounded-xl bg-[#c65d1b] px-4 py-3 text-xs font-semibold text-white disabled:opacity-60">{busy ? 'Sending…' : 'Place order'}<ArrowRight size={15} /></button></div></div></div>}
+    {itemCount > 0 && !order && <div className="fixed inset-x-0 bottom-0 border-t border-stone-200 bg-white/95 px-3 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-6px_24px_rgba(40,48,36,.06)] backdrop-blur sm:px-4"><div className="mx-auto flex max-w-5xl flex-wrap items-end justify-between gap-3"><div className="flex w-full items-center gap-2 sm:w-auto sm:max-w-sm sm:flex-col sm:items-stretch sm:gap-3"><label className="min-w-0 flex-1 text-[10px] font-semibold text-stone-500">Name<input type="text" maxLength="80" value={customerName} onChange={event => updateName(event.target.value)} placeholder="Who is this for?" className="mt-1 block w-full rounded-lg border border-stone-200 px-3 py-2 text-xs outline-none focus:border-[#d08445]" /></label><label className="min-w-0 flex-1 text-[10px] font-semibold text-stone-500">Instructions<textarea rows="1" value={notes} onChange={event => setNotes(event.target.value)} placeholder="Allergies?" className="mt-1 block w-full resize-none rounded-lg border border-stone-200 px-3 py-2 text-xs outline-none focus:border-[#d08445]" /></label></div><div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end sm:gap-4"><div className="min-w-0 text-left sm:text-right"><p className="text-xs font-bold">{itemCount} {itemCount === 1 ? 'item' : 'items'}{selectedTable ? ` · Table ${selectedTable}` : ''}</p><p className="mt-0.5 text-[10px] text-stone-500">{money(subtotal)}</p></div><button disabled={busy || !selectedTableInfo || !enoughSeats} onClick={submitOrder} className="flex shrink-0 items-center gap-2 rounded-xl bg-[#c65d1b] px-4 py-3 text-xs font-semibold text-white disabled:opacity-60">{busy ? 'Sending…' : 'Place order'}<ArrowRight size={15} /></button></div></div></div>}
   </div>
 }
