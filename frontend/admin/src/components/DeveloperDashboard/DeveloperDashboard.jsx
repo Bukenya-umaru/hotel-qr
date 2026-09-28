@@ -7,7 +7,7 @@ export function DeveloperDashboard({ users, orders, onNavigate, overview }) {
   const business = overview.business
   return <div className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-[12px] text-[#8d9389]">Support the WAGA BITS business and its team.</p><Badge><i className="pulse-dot size-1.5 rounded-full bg-[#bd641f]" />System online</Badge></div>
-    <div className="grid grid-cols-1 gap-3 min-[390px]:grid-cols-2 xl:grid-cols-3">
+    <div className="grid grid-cols-2 gap-2.5 min-[420px]:gap-3 xl:grid-cols-3">
       <MetricCard title="Business" value={business ? 'Active' : 'Not configured'} icon={Building2} detail={business?.name || 'Run the business-owner setup once'} />
       <MetricCard title="Team accounts" value={overview.userCount ?? users.length} icon={Users} detail="Business owner and chefs" />
       <MetricCard title="Active orders" value={overview.activeOrdersCount ?? 0} icon={ShoppingBag} detail="Orders currently being served" inverse />

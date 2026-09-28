@@ -24,7 +24,7 @@ export function Overview({ orders, menu, hotelName, onNavigate, analytics, curre
   const profitMargin = analytics.totalRevenue ? (analytics.netProfit / analytics.totalRevenue) * 100 : 0
   return <div className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[12px] text-[#8d9389]">Here’s what’s happening at {hotelName} today.</p></div><button className="flex items-center gap-2 rounded-lg border border-[#e8eae3] bg-white px-3 py-2 text-[11px] font-semibold text-[#60685c]"><Download size={14} />Export report</button></div>
-    <div className="grid grid-cols-1 min-[390px]:grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-4">
+    <div className="grid grid-cols-2 gap-2.5 min-[420px]:gap-3 xl:grid-cols-4 xl:gap-4">
       <MetricCard title="Today's revenue" value={money(analytics.totalRevenue, currency)} change={!analytics.isActual && '12.8%'} icon={Wallet} detail={analytics.isActual ? 'From orders placed today' : 'Today’s total sales'} />
       <MetricCard title="Net profit" value={money(analytics.netProfit, currency)} change={!analytics.isActual && '8.2%'} icon={TrendingUp} detail={`${profitMargin.toFixed(1)}% profit margin`} inverse />
       <MetricCard title="Orders today" value={analytics.totalOrdersCount} change={!analytics.isActual && '6.4%'} icon={ShoppingBag} detail={`Average order ${money(averageOrder, currency)}`} />

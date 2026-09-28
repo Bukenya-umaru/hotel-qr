@@ -49,7 +49,7 @@ export function Reports({ orders, analytics, currency, onRange }) {
         <button onClick={() => onRange(range.from, range.to)} className="col-span-2 rounded-lg bg-[#c65d1b] px-3 py-2 text-[10px] font-semibold text-white sm:col-span-1">Apply</button>
       </div>
     </div>
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-2 gap-2.5 min-[420px]:gap-3 lg:grid-cols-3">
       <MetricCard title="Gross revenue" value={money(analytics.weekRevenue, currency)} change={!analytics.isActual && '12.8%'} icon={CreditCard} detail="Selected period" />
       <MetricCard title="Net profit" value={money(analytics.weekProfit, currency)} change={!analytics.isActual && '9.3%'} icon={TrendingUp} detail={`${analytics.weekRevenue ? (analytics.weekProfit / analytics.weekRevenue * 100).toFixed(1) : '0.0'}% profit margin`} inverse />
       <MetricCard title="Orders completed" value={analytics.weekOrders} change={!analytics.isActual && '6.4%'} icon={Package} detail="Selected period" />
