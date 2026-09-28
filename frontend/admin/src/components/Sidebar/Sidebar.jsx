@@ -12,8 +12,8 @@ import { api } from '../../lib/api.js'
 import { money, today, cx, orderCode, orderTime, navItems } from '../../lib/ui.js'
 import { Brand } from '../Brand/Brand.jsx'
 
-export function Sidebar({ role, page, setPage, user, onLogin, onLogout, hotelName }) {
-  const items = navItems[role] || navItems.OWNER
+export function Sidebar({ role, page, setPage, user, onLogin, onLogout, hotelName, items: itemsProp }) {
+  const items = itemsProp || navItems[role] || navItems.OWNER
   const labels = { OWNER: 'Owner portal', KITCHEN: 'Chef portal', DEVELOPER: 'Developer support' }
   return <aside className="fixed inset-y-0 left-0 z-20 hidden w-[250px] flex-col overflow-y-auto border-r border-[#eaece6] bg-white px-4 py-5 lg:flex">
     <div className="px-2"><Brand /></div>
@@ -39,7 +39,7 @@ export function Sidebar({ role, page, setPage, user, onLogin, onLogout, hotelNam
       </div>
       <div className="space-y-0.5">
         {user ? <button onClick={onLogout} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[12px] text-[#777d73] hover:bg-[#f7f8f5]"><LogOut size={15} />Sign out</button> : <button onClick={onLogin} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[12px] text-[#777d73] hover:bg-[#f7f8f5]"><ShieldCheck size={15} />Sign in</button>}
-        <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[12px] text-[#777d73] hover:bg-[#f7f8f5]"><CircleHelp size={15} />Help & support</button>
+        {role === 'OWNER' && <button onClick={() => setPage('Help & support')} className={cx('flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[12px]', page === 'Help & support' ? 'bg-[#fff1e6] text-[#a34b16]' : 'text-[#777d73] hover:bg-[#f7f8f5]')}><CircleHelp size={15} />Help & support</button>}
       </div>
     </div>
   </aside>

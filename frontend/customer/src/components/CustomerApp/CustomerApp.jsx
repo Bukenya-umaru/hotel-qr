@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { io } from 'socket.io-client'
-import { ArrowRight, Check, ChefHat, Clock3, Leaf, Minus, Plus, Users, X } from 'lucide-react'
+import { ArrowRight, Check, ChefHat, CircleHelp, Clock3, Leaf, Mail, MessageCircle, Minus, Phone, Plus, Users, X } from 'lucide-react'
 import { API_BASE_URL, apiAssetUrl, request } from '../../lib/api.js'
 import { money } from '../../lib/money.js'
 import { Brand } from '../Brand/Brand.jsx'
 import { OrderProgress } from '../OrderProgress/OrderProgress.jsx'
 
 const visitKey = (hotelId, tableNumber) => `waga-bits-visit:${hotelId}:${tableNumber}`
+// Keep only digits for tel: and wa.me links (wa.me requires country format without +).
+const telHref = value => `tel:${String(value || '').replace(/[^\d+]/g, '')}`
+const waHref = value => {
+  const digits = String(value || '').replace(/\D/g, '')
+  return digits ? `https://wa.me/${digits}` : ''
+}
 const activeOrderKey = hotelId => `waga-bits-active-order:${hotelId}`
 const ORDER_STEPS = ['Pending', 'Preparing', 'Ready', 'Served']
 const STATUS_COPY = {
@@ -39,6 +45,8 @@ export default function CustomerApp() {
   const [busy, setBusy] = useState(false)
   const [loadingMenu, setLoadingMenu] = useState(true)
   const [error, setError] = useState('')
+  const [helpOpen, setHelpOpen] = useState(false)
+  const support = hotel?.support || {}
 
   const loadMenu = async currentSlug => {
     const path = currentSlug ? `/api/menu?hotel=${encodeURIComponent(currentSlug)}` : '/api/menu'
@@ -64,6 +72,7 @@ export default function CustomerApp() {
     const refreshMenu = () => loadMenu(slug).catch(err => setError(err.message))
     socket.on('menu_updated', refreshMenu)
     socket.on('tables_updated', refreshMenu)
+    socket.on('support_updated', updatedSupport => setHotel(previous => previous ? { ...previous, support: updatedSupport } : previous))
     return () => socket.disconnect()
   }, [slug])
 
@@ -369,6 +378,7 @@ export default function CustomerApp() {
       <div className="mx-auto flex min-w-0 max-w-5xl items-center justify-between gap-3">
         <div className="shrink-0"><Brand /></div>
         <div className="min-w-0 text-right"><p className="truncate text-xs font-semibold">{hotel?.name || 'Loading menu…'}</p><p className="mt-0.5 text-[10px] text-stone-500">{selectedTable ? `Table ${selectedTable}` : 'Choose a table when ordering'}</p></div>
+        {(support.phone || support.whatsapp || support.email || support.message) && <button onClick={() => setHelpOpen(true)} aria-label="Help & support" className="grid size-9 shrink-0 place-items-center rounded-full border border-[#f0dfd1] bg-[#fff9f4] text-[#b5571d]"><CircleHelp size={18} /></button>}
       </div>
     </header>
     <main className="mx-auto max-w-5xl px-3 pb-36 pt-4 sm:px-6 sm:pb-32 sm:pt-8">
@@ -424,6 +434,37 @@ export default function CustomerApp() {
           })}</div>}
       </>}
     </main>
-    {itemCount > 0 && !order && <div className="fixed inset-x-0 bottom-0 border-t border-stone-200 bg-white/95 px-3 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-6px_24px_rgba(40,48,36,.06)] backdrop-blur sm:px-4"><div className="mx-auto flex max-w-5xl flex-wrap items-end justify-between gap-3"><div className="flex w-full items-center gap-2 sm:w-auto sm:max-w-sm sm:flex-col sm:items-stretch sm:gap-3"><label className="min-w-0 flex-1 text-[10px] font-semibold text-stone-500">Name<input type="text" maxLength="80" value={customerName} onChange={event => updateName(event.target.value)} placeholder="Who is this for?" className="mt-1 block w-full rounded-lg border border-stone-200 px-3 py-2 text-xs outline-none focus:border-[#d08445]" /></label><label className="min-w-0 flex-1 text-[10px] font-semibold text-stone-500">Instructions<textarea rows="1" value={notes} onChange={event => setNotes(event.target.value)} placeholder="Allergies?" className="mt-1 block w-full resize-none rounded-lg border border-stone-200 px-3 py-2 text-xs outline-none focus:border-[#d08445]" /></label></div><div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end sm:gap-4"><div className="min-w-0 text-left sm:text-right"><p className="text-xs font-bold">{itemCount} {itemCount === 1 ? 'item' : 'items'}{selectedTable ? ` · Table ${selectedTable}` : ''}</p><p className="mt-0.5 text-[10px] text-stone-500">{money(subtotal)}</p></div><button disabled={busy || !selectedTableInfo || !enoughSeats} onClick={submitOrder} className="flex shrink-0 items-center gap-2 rounded-xl bg-[#c65d1b] px-4 py-3 text-xs font-semibold text-white disabled:opacity-60">{busy ? 'Sending…' : 'Place order'}<ArrowRight size={15} /></button></div></div></div>}
+    {helpOpen && <HelpSheet support={support} hotelName={hotel.name} onClose={() => setHelpOpen(false)} />}
+    {itemCount > 0 && !trackingOpen && <div className="fixed inset-x-0 bottom-0 border-t border-stone-200 bg-white/95 px-3 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-6px_24px_rgba(40,48,36,.06)] backdrop-blur sm:px-4"><div className="mx-auto flex max-w-5xl flex-wrap items-end justify-between gap-3"><div className="flex w-full items-center gap-2 sm:w-auto sm:max-w-sm sm:flex-col sm:items-stretch sm:gap-3"><label className="min-w-0 flex-1 text-[10px] font-semibold text-stone-500">Name<input type="text" maxLength="80" value={customerName} onChange={event => updateName(event.target.value)} placeholder="Who is this for?" className="mt-1 block w-full rounded-lg border border-stone-200 px-3 py-2 text-xs outline-none focus:border-[#d08445]" /></label><label className="min-w-0 flex-1 text-[10px] font-semibold text-stone-500">Instructions<textarea rows="1" value={notes} onChange={event => setNotes(event.target.value)} placeholder="Allergies?" className="mt-1 block w-full resize-none rounded-lg border border-stone-200 px-3 py-2 text-xs outline-none focus:border-[#d08445]" /></label></div><div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end sm:gap-4"><div className="min-w-0 text-left sm:text-right"><p className="text-xs font-bold">{itemCount} {itemCount === 1 ? 'item' : 'items'}{selectedTable ? ` · Table ${selectedTable}` : ''}</p><p className="mt-0.5 text-[10px] text-stone-500">{money(subtotal)}</p></div><button disabled={busy || !selectedTableInfo || !enoughSeats} onClick={submitOrder} className="flex shrink-0 items-center gap-2 rounded-xl bg-[#c65d1b] px-4 py-3 text-xs font-semibold text-white disabled:opacity-60">{busy ? 'Sending…' : 'Place order'}<ArrowRight size={15} /></button></div></div></div>}
+  </div>
+}
+
+// Bottom sheet with the business's help & support details. On phones it docks
+// to the bottom like a native app; on larger screens it centers as a dialog.
+function HelpSheet({ support, hotelName, onClose }) {
+  const contacts = [
+    support.phone && { key: 'phone', icon: Phone, label: 'Call the business', value: support.phone, href: telHref(support.phone) },
+    support.whatsapp && { key: 'whatsapp', icon: MessageCircle, label: 'WhatsApp us', value: support.whatsapp, href: waHref(support.whatsapp) },
+    support.email && { key: 'email', icon: Mail, label: 'Email us', value: support.email, href: `mailto:${support.email}` },
+  ].filter(Boolean)
+  return <div className="fixed inset-0 z-40 flex items-end justify-center bg-[#1f291d]/35 p-0 backdrop-blur-[2px] sm:items-center sm:p-4" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}>
+    <div className="max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-t-2xl border border-[#edeee8] bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:rounded-2xl sm:pb-4" role="dialog" aria-label="Help and support">
+      <div className="mx-auto mb-3 h-1 w-9 rounded-full bg-stone-200 sm:hidden" aria-hidden="true" />
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="font-display text-lg font-bold">Help & support</h2>
+          <p className="mt-0.5 truncate text-xs text-stone-500">{hotelName}</p>
+        </div>
+        <button onClick={onClose} aria-label="Close help" className="grid size-8 shrink-0 place-items-center rounded-lg bg-stone-100 text-stone-500"><X size={16} /></button>
+      </div>
+      {support.message && <p className="mt-3 rounded-xl bg-[#fff9f4] px-3 py-2.5 text-xs leading-5 text-[#7a431f]">{support.message}</p>}
+      {contacts.length > 0 && <div className="mt-3 grid gap-2">{contacts.map(({ key, icon: Icon, label, value, href }) => <a key={key} href={href} className="flex items-center gap-3 rounded-xl border border-[#f0dfd1] bg-[#fff9f4] px-3 py-2.5" target={key === 'whatsapp' ? '_blank' : undefined} rel={key === 'whatsapp' ? 'noreferrer' : undefined}>
+        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#c65d1b] text-white"><Icon size={16} /></span>
+        <span className="min-w-0 flex-1"><span className="block text-xs font-bold">{label}</span><span className="mt-0.5 block truncate text-[11px] text-stone-500">{value}</span></span>
+        <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[9px] font-semibold text-[#a34b16]">Tap to {key === 'phone' ? 'call' : key === 'whatsapp' ? 'chat' : 'email'}</span>
+      </a>)}</div>}
+      {support.hours && <p className="mt-3 flex items-center gap-1.5 text-[11px] text-stone-500"><Clock3 size={13} className="shrink-0 text-[#bd6424]" />{support.hours}</p>}
+      {!contacts.length && !support.message && !support.hours && <p className="mt-2 text-xs text-stone-500">Support details are not available right now. Please ask a member of staff.</p>}
+    </div>
   </div>
 }

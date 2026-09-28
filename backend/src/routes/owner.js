@@ -7,10 +7,59 @@ import { User } from '../models/User.js'
 import { MenuItem } from '../models/MenuItem.js'
 import { MenuCategory } from '../models/MenuCategory.js'
 import { Order } from '../models/Order.js'
+import { Hotel } from '../models/Hotel.js'
 import { removeUploadedImage, uploadMenuImage } from '../middleware/upload.js'
-import { asyncRoute, idIsValid, safeMenuItem } from '../utils/http.js'
+import { asyncRoute, idIsValid, safeMenuItem, safeSupport } from '../utils/http.js'
 
 const router = express.Router()
+
+// Capabilities an owner can grant to chefs. A chef with no stored
+// permissions still has full access (legacy accounts / not restricted yet).
+const ALL_PERMISSIONS = ['view_sales', 'manage_menu', 'manage_tables']
+const hasPerm = (user, key) => user.role !== 'KITCHEN' || !user.permissions || user.permissions.includes(key)
+const validPermissions = value => Array.isArray(value) && value.every(perm => ALL_PERMISSIONS.includes(perm))
+const staffUser = user => ({
+  _id: user._id,
+  name: user.name,
+  email: user.email,
+  role: user.role,
+  hotelId: user.hotelId.toString(),
+  isActive: user.isActive,
+  permissions: user.permissions,
+})
+
+// Help & support details shown on the customer menu page.
+const SUPPORT_FIELDS = ['phone', 'whatsapp', 'email', 'hours', 'message']
+const SUPPORT_LIMITS = { phone: 40, whatsapp: 40, email: 120, hours: 200, message: 400 }
+
+const supportPayload = req => {
+  const input = req.body.support && typeof req.body.support === 'object' ? req.body.support : req.body
+  const updates = {}
+  for (const field of SUPPORT_FIELDS) {
+    if (input[field] === undefined) continue
+    updates[field] = String(input[field] ?? '').trim().slice(0, SUPPORT_LIMITS[field])
+  }
+  return updates
+}
+
+router.get('/support', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  const hotel = await Hotel.findById(hotelScope(req)).select('support')
+  if (!hotel) return res.status(404).json({ message: 'This business could not be found.' })
+  res.json({ support: safeSupport(hotel.support) })
+}))
+
+router.patch('/support', authenticate, authorize('OWNER'), asyncRoute(async (req, res) => {
+  const updates = supportPayload(req)
+  if (!Object.keys(updates).length) return res.status(400).json({ message: 'Provide a phone number, WhatsApp number, email, opening hours, or a help message to save.' })
+  const hotel = await Hotel.findByIdAndUpdate(
+    hotelScope(req),
+    { $set: Object.fromEntries(Object.entries(updates).map(([key, value]) => ([`support.${key}`, value]))) },
+    { new: true, runValidators: true },
+  ).select('support')
+  if (!hotel) return res.status(404).json({ message: 'This business could not be found.' })
+  req.app.get('io').to(`menu:${req.user.hotelId._id}`).emit('support_updated', safeSupport(hotel.support))
+  res.json({ support: safeSupport(hotel.support) })
+}))
 
 router.get('/menu', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
   const scope = hotelScope(req)
@@ -26,6 +75,7 @@ router.get('/tables', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(as
 }))
 
 router.post('/tables', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_tables')) return res.status(403).json({ message: 'You do not have permission to manage tables.' })
   const tableNumber = String(req.body.tableNumber || '').trim()
   const capacity = Number(req.body.capacity)
   if (!tableNumber || tableNumber.length > 32 || !Number.isInteger(capacity) || capacity < 1 || capacity > 100) {
@@ -41,6 +91,7 @@ router.post('/tables', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(a
 }))
 
 router.patch('/tables/:id', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_tables')) return res.status(403).json({ message: 'You do not have permission to manage tables.' })
   if (!idIsValid(req.params.id) || !Number.isInteger(Number(req.body.capacity))) {
     return res.status(400).json({ message: 'Provide a valid table and seating capacity.' })
   }
@@ -63,6 +114,7 @@ router.patch('/tables/:id', authenticate, authorize('OWNER', 'KITCHEN'), asyncRo
 }))
 
 router.patch('/tables/:id/clear', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_tables')) return res.status(403).json({ message: 'You do not have permission to manage tables.' })
   if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Table not found.' })
   const table = await DiningTable.findOneAndUpdate(
     { _id: req.params.id, hotelId: hotelScope(req) },
@@ -75,6 +127,7 @@ router.patch('/tables/:id/clear', authenticate, authorize('OWNER', 'KITCHEN'), a
 }))
 
 router.delete('/tables/:id', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_tables')) return res.status(403).json({ message: 'You do not have permission to manage tables.' })
   if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Table not found.' })
   const table = await DiningTable.findOneAndDelete({
     _id: req.params.id,
@@ -98,6 +151,7 @@ router.get('/categories', authenticate, authorize('OWNER', 'KITCHEN'), asyncRout
 }))
 
 router.post('/categories', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_menu')) return res.status(403).json({ message: 'You do not have permission to manage the menu.' })
   const name = String(req.body.name || '').trim().slice(0, 60)
   if (!name) return res.status(400).json({ message: 'Provide a category name.' })
   const scope = hotelScope(req)
@@ -112,6 +166,7 @@ router.post('/categories', authenticate, authorize('OWNER', 'KITCHEN'), asyncRou
 }))
 
 router.patch('/categories/:id', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_menu')) return res.status(403).json({ message: 'You do not have permission to manage the menu.' })
   if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Category not found.' })
   const name = String(req.body.name || '').trim().slice(0, 60)
   if (!name) return res.status(400).json({ message: 'Provide a category name.' })
@@ -140,6 +195,7 @@ router.patch('/categories/:id', authenticate, authorize('OWNER', 'KITCHEN'), asy
 }))
 
 router.delete('/categories/:id', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_menu')) return res.status(403).json({ message: 'You do not have permission to manage the menu.' })
   if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Category not found.' })
   const scope = hotelScope(req)
   const category = await MenuCategory.findOneAndDelete({ _id: req.params.id, hotelId: scope })
@@ -150,22 +206,19 @@ router.delete('/categories/:id', authenticate, authorize('OWNER', 'KITCHEN'), as
 
 router.get('/staff', authenticate, authorize('OWNER'), asyncRoute(async (req, res) => {
   const users = await User.find({ hotelId: req.user.hotelId._id, role: 'KITCHEN' }).sort({ createdAt: -1 })
-  res.json({ users: users.map(user => ({
-    _id: user._id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    hotelId: user.hotelId.toString(),
-    isActive: user.isActive,
-  })) })
+  res.json({ users: users.map(staffUser) })
 }))
 
 router.post('/staff', authenticate, authorize('OWNER'), asyncRoute(async (req, res) => {
   const { name, email, password } = req.body
+  const permissions = req.body.permissions === undefined ? ALL_PERMISSIONS : req.body.permissions
   const normalizedEmail = String(email || '').trim().toLowerCase()
   if (!String(name || '').trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) ||
       String(password || '').length < 8) {
     return res.status(400).json({ message: 'Provide a name, valid email, and password of at least 8 characters.' })
+  }
+  if (!validPermissions(permissions)) {
+    return res.status(400).json({ message: 'One or more permissions are not supported.' })
   }
   const user = await User.create({
     name: String(name).trim(),
@@ -173,20 +226,21 @@ router.post('/staff', authenticate, authorize('OWNER'), asyncRoute(async (req, r
     password: await bcrypt.hash(password, 12),
     role: 'KITCHEN',
     hotelId: req.user.hotelId._id,
+    permissions,
   })
-  res.status(201).json({ user: {
-    _id: user._id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    hotelId: user.hotelId.toString(),
-    isActive: user.isActive,
-  } })
+  res.status(201).json({ user: staffUser(user) })
 }))
 
 router.patch('/staff/:id', authenticate, authorize('OWNER'), asyncRoute(async (req, res) => {
-  if (!idIsValid(req.params.id) || typeof req.body.isActive !== 'boolean') {
-    return res.status(400).json({ message: 'Provide a valid staff account and active status.' })
+  if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Chef account not found.' })
+  if (req.body.permissions !== undefined && !validPermissions(req.body.permissions)) {
+    return res.status(400).json({ message: 'One or more permissions are not supported.' })
+  }
+  if (req.body.isActive !== undefined && typeof req.body.isActive !== 'boolean') {
+    return res.status(400).json({ message: 'Provide a valid active status.' })
+  }
+  if (req.body.permissions === undefined && req.body.isActive === undefined) {
+    return res.status(400).json({ message: 'Provide permissions or an active status to update.' })
   }
   const user = await User.findOne({
     _id: req.params.id,
@@ -194,12 +248,14 @@ router.patch('/staff/:id', authenticate, authorize('OWNER'), asyncRoute(async (r
     role: 'KITCHEN',
   })
   if (!user) return res.status(404).json({ message: 'Chef account not found.' })
-  user.isActive = req.body.isActive
+  if (req.body.isActive !== undefined) user.isActive = req.body.isActive
+  if (req.body.permissions !== undefined) user.permissions = req.body.permissions
   await user.save()
-  res.json({ user: { _id: user._id, name: user.name, email: user.email, role: user.role, hotelId: user.hotelId.toString(), isActive: user.isActive } })
+  res.json({ user: staffUser(user) })
 }))
 
 router.post('/menu', authenticate, authorize('OWNER', 'KITCHEN'), uploadMenuImage, asyncRoute(async (req, res) => {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_menu')) return res.status(403).json({ message: 'You do not have permission to manage the menu.' })
   const { name, category, description = '', price, costPrice } = req.body
   const scope = hotelScope(req)
   if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
@@ -230,6 +286,7 @@ router.post('/menu', authenticate, authorize('OWNER', 'KITCHEN'), uploadMenuImag
 }))
 
 router.patch('/menu/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadMenuImage, asyncRoute(async (req, res) => {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_menu')) return res.status(403).json({ message: 'You do not have permission to manage the menu.' })
   if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Menu item not found.' })
   const allowed = req.user.role === 'OWNER'
     ? ['name', 'category', 'description', 'price', 'costPrice', 'isAvailable']
@@ -264,6 +321,7 @@ router.patch('/menu/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadMen
 }))
 
 router.delete('/menu/:id', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_menu')) return res.status(403).json({ message: 'You do not have permission to manage the menu.' })
   if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Menu item not found.' })
   const scope = hotelScope(req)
   if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
@@ -275,7 +333,10 @@ router.delete('/menu/:id', authenticate, authorize('OWNER', 'KITCHEN'), asyncRou
 }))
 
 router.get('/analytics/daily', authenticate, authorize('OWNER'), asyncRoute(async (req, res) => report(req, res)))
-router.get('/analytics/reports', authenticate, authorize('OWNER'), asyncRoute(async (req, res) => report(req, res)))
+router.get('/analytics/reports', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'view_sales')) return res.status(403).json({ message: 'The owner has not granted you permission to view sales.' })
+  return report(req, res)
+}))
 
 async function report(req, res) {
   const todayInUganda = new Intl.DateTimeFormat('en-CA', {

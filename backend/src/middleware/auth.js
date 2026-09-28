@@ -71,6 +71,7 @@ export function publicUser(user) {
     email: user.email,
     role: user.role,
     hotelId: user.hotelId?._id?.toString() || user.hotelId?.toString() || null,
+    permissions: user.permissions,
     hotel: user.hotelId?.name ? {
       name: user.hotelId.name,
       slug: user.hotelId.slug,

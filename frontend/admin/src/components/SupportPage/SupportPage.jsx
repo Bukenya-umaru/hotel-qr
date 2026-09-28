@@ -1,0 +1,107 @@
+import { useEffect, useState } from 'react'
+import { CircleCheck, CircleHelp, Mail, MessageCircle, Phone, Save, Clock3 } from 'lucide-react'
+import { api } from '../../lib/api.js'
+
+const FIELDS = [
+  { key: 'phone', label: 'Phone number', placeholder: 'e.g. +256 700 123 456', icon: Phone },
+  { key: 'whatsapp', label: 'WhatsApp number', placeholder: 'e.g. +256 700 123 456', icon: MessageCircle },
+  { key: 'email', label: 'Email address', placeholder: 'e.g. help@yourbusiness.com', icon: Mail },
+  { key: 'hours', label: 'Opening hours', placeholder: 'e.g. Mon–Sun · 7:00 am – 10:00 pm', icon: Clock3 },
+]
+
+const EMPTY = { phone: '', whatsapp: '', email: '', hours: '', message: '' }
+
+export function SupportPage({ role = 'OWNER' }) {
+  const isOwner = role === 'OWNER'
+  const [form, setForm] = useState(EMPTY)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    setLoading(true)
+    api(isOwner ? '/api/owner/support' : '/api/developer/support')
+      .then(data => { if (active) setForm({ ...EMPTY, ...data.support }) })
+      .catch(err => { if (active) setError(err.message) })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [isOwner])
+
+  useEffect(() => {
+    if (!saved) return undefined
+    const timeout = window.setTimeout(() => setSaved(false), 3200)
+    return () => window.clearTimeout(timeout)
+  }, [saved])
+
+  const setField = (key, value) => setForm(previous => ({ ...previous, [key]: value }))
+
+  const save = async event => {
+    event.preventDefault()
+    setSaving(true)
+    setError('')
+    try {
+      const data = await api(isOwner ? '/api/owner/support' : '/api/developer/support', {
+        method: 'PATCH',
+        body: JSON.stringify(form),
+      })
+      setForm({ ...EMPTY, ...data.support })
+      setSaved(true)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) return <div className="rounded-2xl border border-[#eceee8] bg-white p-8 text-center text-[11px] text-[#8d9389]">Loading help & support details…</div>
+
+  return <div className="space-y-5">
+    <div>
+      <h2 className="font-display text-lg font-bold">Help & support</h2>
+      <p className="mt-1 text-[12px] text-[#8d9389]">
+        {isOwner
+          ? 'These details appear on the customer menu page, so guests can call or message you directly from their phone.'
+          : 'Maintain the help & support details shown to customers on the menu page for this business.'}
+      </p>
+    </div>
+
+    {saved && <div className="flex items-center gap-2 rounded-lg bg-[#eef7ee] px-3 py-2.5 text-[11px] font-medium text-[#2f6b3a]"><CircleCheck size={15} />Help & support details updated — customers see them right away.</div>}
+    {error && <div role="alert" className="flex items-center justify-between gap-3 rounded-lg bg-[#fae9e5] px-3 py-2.5 text-[11px] text-[#a44f3d]"><span>{error}</span><button onClick={() => setError('')} aria-label="Dismiss error">×</button></div>}
+
+    <form onSubmit={save} className="space-y-4">
+      <section className="grid gap-4 rounded-2xl border border-[#eceee8] bg-white p-4 sm:grid-cols-2 sm:p-5">
+        {FIELDS.map(({ key, label, placeholder, icon: Icon }) => <label key={key} className="block text-[10px] font-semibold text-[#737a70]">
+          <span className="flex items-center gap-1.5"><Icon size={13} className="text-[#bd6424]" />{label}</span>
+          <input
+            value={form[key]}
+            onChange={event => setField(key, event.target.value)}
+            placeholder={placeholder}
+            maxLength={key === 'email' ? 120 : 40}
+            className="mt-1.5 block w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px] outline-none transition placeholder:text-[#b0b4ac] focus:border-[#ce824c] focus:ring-2 focus:ring-[#fff1e6]"
+          />
+        </label>)}
+      </section>
+
+      <section className="rounded-2xl border border-[#eceee8] bg-white p-4 sm:p-5">
+        <label className="block text-[10px] font-semibold text-[#737a70]">
+          <span className="flex items-center gap-1.5"><CircleHelp size={13} className="text-[#bd6424]" />Short help message</span>
+          <textarea
+            rows={3}
+            value={form.message}
+            onChange={event => setField('message', event.target.value)}
+            maxLength={400}
+            placeholder="e.g. For allergies or special requests, talk to any waiter or call the front desk."
+            className="mt-1.5 block w-full resize-none rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px] outline-none transition placeholder:text-[#b0b4ac] focus:border-[#ce824c] focus:ring-2 focus:ring-[#fff1e6]"
+          />
+          <span className="mt-1 block text-right text-[9px] font-normal text-[#9b9f96]">{form.message.length}/400</span>
+        </label>
+      </section>
+
+      <div className="flex items-center justify-end gap-3">
+        <button type="submit" disabled={saving} className="flex items-center gap-2 rounded-lg bg-[#c65d1b] px-4 py-2.5 text-[11px] font-semibold text-white disabled:opacity-60"><Save size={14} />{saving ? 'Saving…' : 'Save details'}</button>
+      </div>
+    </form>
+  </div>
+}

@@ -3,7 +3,7 @@ import { DiningTable } from '../models/DiningTable.js'
 import { Hotel } from '../models/Hotel.js'
 import { MenuCategory } from '../models/MenuCategory.js'
 import { MenuItem } from '../models/MenuItem.js'
-import { asyncRoute, safeMenuItem } from '../utils/http.js'
+import { asyncRoute, safeMenuItem, safeSupport } from '../utils/http.js'
 
 const router = express.Router()
 
@@ -11,9 +11,9 @@ router.get('/', asyncRoute(async (req, res) => {
   const slug = String(req.query.hotel || '').trim().toLowerCase()
   let hotel
   if (slug) {
-    hotel = await Hotel.findOne({ slug, isActive: true }).select('name slug currency')
+    hotel = await Hotel.findOne({ slug, isActive: true }).select('name slug currency support')
   } else {
-    hotel = await Hotel.findOne({ isActive: true }).sort({ createdAt: 1 }).select('name slug currency')
+    hotel = await Hotel.findOne({ isActive: true }).sort({ createdAt: 1 }).select('name slug currency support')
   }
   if (!hotel) return res.status(404).json({ message: 'The business is not available yet.' })
   const [items, tables, categories] = await Promise.all([
@@ -31,7 +31,8 @@ router.get('/', asyncRoute(async (req, res) => {
   const categoryNames = [...categories.map(category => category.name), ...legacyNames]
     .sort((left, right) => left.localeCompare(right))
   res.json({
-    hotel,
+    hotel: { ...hotel.toObject(), support: safeSupport(hotel.support) },
+    support: safeSupport(hotel.support),
     items: items.map(safeMenuItem),
     categories: categoryNames,
     tables: tables.map(table => ({

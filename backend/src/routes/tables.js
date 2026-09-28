@@ -7,6 +7,10 @@ import { asyncRoute, idIsValid } from '../utils/http.js'
 
 const router = express.Router()
 
+// Capabilities granted by the owner; a chef with no stored permissions
+// keeps full access (legacy accounts).
+const hasPerm = (user, key) => user.role !== 'KITCHEN' || !user.permissions || user.permissions.includes(key)
+
 const publicTable = table => ({
   _id: table._id,
   tableNumber: table.tableNumber,
@@ -142,6 +146,7 @@ router.delete('/check-in', asyncRoute(async (req, res) => {
 
 // The chef seats walk-in customers at a table.
 router.post('/:id/seat', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_tables')) return res.status(403).json({ message: 'You do not have permission to manage tables.' })
   if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Table not found.' })
   const guestCount = Number(req.body.guestCount)
   if (!Number.isInteger(guestCount) || guestCount < 1 || guestCount > 100) {
@@ -163,6 +168,7 @@ router.post('/:id/seat', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute
 
 // One party finished eating: the chef sets those chairs back to zero people.
 router.patch('/:id/parties/:visitId/release', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_tables')) return res.status(403).json({ message: 'You do not have permission to manage tables.' })
   if (!idIsValid(req.params.id) || !/^[a-z\d-]{1,90}$/i.test(req.params.visitId)) {
     return res.status(404).json({ message: 'Table party not found.' })
   }

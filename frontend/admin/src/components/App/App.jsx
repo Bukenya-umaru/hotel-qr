@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar } from 'recharts'
 import { API_BASE_URL, api } from '../../lib/api.js'
-import { money, today, cx, orderCode, orderTime, navItems } from '../../lib/ui.js'
+import { money, today, cx, orderCode, orderTime, navItems, hasPermission } from '../../lib/ui.js'
 import { AccessCard } from '../AccessCard/AccessCard.jsx'
 import { KitchenBoard } from '../KitchenBoard/KitchenBoard.jsx'
 import { MenuPage } from '../MenuPage/MenuPage.jsx'
@@ -27,6 +27,7 @@ import { MenuItemModal } from '../MenuItemModal/MenuItemModal.jsx'
 import { ResetPasswordModal } from '../ResetPasswordModal/ResetPasswordModal.jsx'
 import { AccountEditModal } from '../AccountEditModal/AccountEditModal.jsx'
 import { TablesPage } from '../TablesPage/TablesPage.jsx'
+import { SupportPage } from '../SupportPage/SupportPage.jsx'
 import { SearchModal } from '../SearchModal/SearchModal.jsx'
 
 export default function App() {
@@ -153,7 +154,15 @@ export default function App() {
     else setPage(role === 'KITCHEN' ? 'Chef orders' : 'Orders')
   }
 
-  const currentNav = navItems[role] || navItems.OWNER
+  const currentNav = (navItems[role] || navItems.OWNER).filter(item => {
+    if (role !== 'KITCHEN') return true
+    if (item.label === 'Menu') return hasPermission(user, 'manage_menu')
+    if (item.label === 'Tables') return hasPermission(user, 'manage_tables')
+    return true
+  })
+  const canManageMenu = hasPermission(user, 'manage_menu')
+  const canManageTables = hasPermission(user, 'manage_tables')
+  const canViewSales = hasPermission(user, 'view_sales')
   // Managed sections plus any category already in use on dishes — old
   // categories always stay visible and selectable for new menu items.
   const managedCategoryNames = menuCategories.map(category => category.name)
@@ -263,17 +272,28 @@ export default function App() {
     setModal('')
     setToast('Password reset successfully')
   }
-  const updateUser = async details => {
-    if (!user || user.role !== 'DEVELOPER') throw new Error('Sign in as a developer to manage accounts.')
-    await api(`/api/developer/users/${editingUser._id}`, { method: 'PATCH', body: JSON.stringify(details) })
-    setUsers(previous => previous.map(entry =>
-      (editingUser._id ? entry._id === editingUser._id : entry.id === editingUser.id)
-        ? { ...entry, ...details, email: details.email.toLowerCase() }
-        : entry,
-    ))
+  const updateAccount = async details => {
+    if (!user || !editingUser) return
+    if (user.role === 'OWNER' && editingUser.role === 'KITCHEN') {
+      try {
+        const data = await api(`/api/owner/staff/${editingUser._id}`, { method: 'PATCH', body: JSON.stringify(details) })
+        setUsers(previous => previous.map(entry => entry._id === editingUser._id ? { ...entry, ...data.user } : entry))
+        setToast('Chef account updated')
+      } catch (err) { setToast(err.message); return }
+    } else {
+      if (user.role !== 'DEVELOPER') throw new Error('Log in as a developer to manage accounts.')
+      try {
+        const data = await api(`/api/developer/users/${editingUser._id}`, { method: 'PATCH', body: JSON.stringify(details) })
+        setUsers(previous => previous.map(entry =>
+          (editingUser._id ? entry._id === editingUser._id : entry.id === editingUser.id)
+            ? { ...entry, ...data.user }
+            : entry,
+        ))
+        setToast('Account updated')
+      } catch (err) { setToast(err.message); return }
+    }
     setEditingUser(null)
     setModal('')
-    setToast('Account updated')
   }
   const toggleMenuItem = async item => {
     const available = !(item.isAvailable ?? item.available)
@@ -296,9 +316,10 @@ export default function App() {
 
   let content
   if (!user) content = <AccessCard onLogin={() => setModal('login')} />
-  else if (role === 'KITCHEN' && page === 'Chef orders') content = <KitchenBoard orders={orders} onAdvance={advanceOrder} />
-  else if (page === 'Menu') content = <MenuPage menu={menu} role={role} onAdd={() => { setEditingMenu(null); setModal('menu') }} onToggle={toggleMenuItem} onEdit={item => { setEditingMenu(item); setModal('menu') }} onDelete={deleteMenuItem} categories={allMenuCategories} managedCategories={managedCategoryNames} onCreateCategory={ensureCategory} onRenameCategory={renameCategory} onDeleteCategory={deleteCategory} />
-  else if (page === 'Tables' && ['OWNER', 'KITCHEN'].includes(role)) content = <TablesPage user={user} />
+  else if (role === 'KITCHEN' && page === 'Chef orders') content = <KitchenBoard orders={orders} onAdvance={advanceOrder} hotelName={hotelName} chefName={user?.name?.split(' ')[0] || ''} canViewSales={canViewSales} />
+  else if (page === 'Menu') content = <MenuPage menu={menu} role={role} manageable={canManageMenu} onAdd={() => { setEditingMenu(null); setModal('menu') }} onToggle={toggleMenuItem} onEdit={item => { setEditingMenu(item); setModal('menu') }} onDelete={deleteMenuItem} categories={allMenuCategories} managedCategories={managedCategoryNames} onCreateCategory={ensureCategory} onRenameCategory={renameCategory} onDeleteCategory={deleteCategory} />
+  else if (page === 'Tables' && ['OWNER', 'KITCHEN'].includes(role)) content = <TablesPage user={user} canManage={canManageTables} />
+  else if (page === 'Help & support' && ['OWNER', 'DEVELOPER'].includes(role)) content = <SupportPage role={role} />
   else if (page === 'Orders') content = <OrdersTable orders={orders} onAdvance={role === 'KITCHEN' || role === 'OWNER' ? advanceOrder : undefined} />
   else if (page === 'Reports') content = <Reports orders={orders} analytics={analytics} currency="UGX" onRange={loadReportRange} />
   else if (page === 'Accounts' || page === 'Chefs') content = <AccountsPage users={users} role={role} onCreate={() => setModal('account')} onToggle={toggleUser} onReset={account => { setResettingUser(account); setModal('reset') }} onEdit={account => { setEditingUser(account); setModal('edit-account') }} />
@@ -306,7 +327,7 @@ export default function App() {
   else content = <Overview orders={orders} menu={menu} hotelName={hotelName} onNavigate={setPage} analytics={analytics} currency="UGX" />
 
   return <div className="min-h-screen bg-[#f7f7f4]">
-    <Sidebar role={role} page={page} setPage={setPage} user={user} onLogin={() => setModal('login')} onLogout={logout} hotelName={hotelName} />
+    <Sidebar role={role} page={page} setPage={setPage} user={user} onLogin={() => setModal('login')} onLogout={logout} hotelName={hotelName} items={currentNav} />
     {mobileNav && <div className="fixed inset-0 z-30 bg-[#1f291d]/30 lg:hidden" onClick={() => setMobileNav(false)}><div className="flex h-full max-h-[100dvh] w-[min(270px,85vw)] flex-col overflow-y-auto bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" onClick={e => e.stopPropagation()}><div className="flex items-center justify-between px-2 py-2"><Brand /><button onClick={() => setMobileNav(false)} aria-label="Close navigation" className="grid size-9 place-items-center rounded-lg hover:bg-[#f7f8f5]"><X size={18} /></button></div><div className="mt-5 rounded-xl border border-[#eceee8] p-3"><p className="truncate text-[11px] font-semibold">{hotelName}</p><p className="mt-1 text-[10px] text-[#999d94]">{user?.name || 'WAGA BITS'}</p></div><p className="mb-2 mt-6 px-2 text-[10px] font-bold uppercase tracking-[1.3px] text-[#a3a79d]">{role === 'DEVELOPER' ? 'Developer support' : role === 'KITCHEN' ? 'Chef portal' : 'Owner portal'}</p><nav className="space-y-1">{currentNav.map(item => <button key={item.label} onClick={() => { setPage(item.label); setMobileNav(false) }} className={cx('flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-[12px]', page === item.label ? 'bg-[#fff1e6] text-[#a34b16]' : 'text-[#70776d]')}><item.icon size={17} />{item.label}</button>)}</nav><div className="mt-auto space-y-1 pt-5">{user ? <button onClick={() => { setMobileNav(false); logout() }} className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-[12px] text-[#70776d] hover:bg-[#f7f8f5]"><LogOut size={16} />Sign out</button> : <button onClick={() => { setMobileNav(false); setModal('login') }} className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-[12px] text-[#70776d] hover:bg-[#f7f8f5]"><ShieldCheck size={16} />Sign in</button>}</div></div></div>}
     <div className="min-h-screen min-w-0 lg:pl-[250px]"><div className="flex items-center border-b border-[#eaece6] bg-[#f7f7f4]/90 px-3 sm:px-4 lg:hidden"><button onClick={() => setMobileNav(true)} className="mr-2 grid size-10 shrink-0 place-items-center text-[#687061]" aria-label="Open navigation"><Menu size={19} /></button><Brand /></div>    <Header role={role} page={page} onLogin={() => setModal('login')} user={user} hotelName={hotelName} titleOverride={role === 'OWNER' && page === 'Overview' ? `Good morning, ${user?.name?.split(' ')[0] || ''}` : undefined} notifications={notifications} unreadCount={unreadCount} onMarkAllRead={markAllRead} onClearNotifications={clearNotifications} onOpenNotification={openNotification} onNavigate={setPage} menu={menu} orders={orders} />
     {searchOpen && <SearchModal onClose={() => setSearchOpen(false)} onNavigate={setPage} menu={menu} orders={orders} role={role} />}<main className="mx-auto min-w-0 max-w-[1420px] px-3 py-4 sm:px-6 sm:py-6 lg:px-9 lg:py-7">{apiError && user && <div className="mb-4 flex items-center justify-between rounded-lg bg-[#fbf1df] px-3 py-2.5 text-[10px] text-[#8c6b35]"><span className="min-w-0 break-words">{apiError}</span><button onClick={() => setApiError('')} className="ml-2 shrink-0"><X size={14} /></button></div>}{content}</main></div>
@@ -314,7 +335,7 @@ export default function App() {
     {modal === 'account' && role === 'OWNER' && <AccountModal onClose={() => setModal('')} onSubmit={createAccount} />}
     {modal === 'menu' && <MenuItemModal role={role} categories={allMenuCategories} onClose={() => { setModal(''); setEditingMenu(null) }} onSubmit={createMenuItem} initial={editingMenu} />}
     {modal === 'reset' && resettingUser && <ResetPasswordModal account={resettingUser} onClose={() => { setModal(''); setResettingUser(null) }} onSubmit={resetUserPassword} />}
-    {modal === 'edit-account' && editingUser && <AccountEditModal account={editingUser} onClose={() => { setModal(''); setEditingUser(null) }} onSubmit={updateUser} />}
+    {modal === 'edit-account' && editingUser && <AccountEditModal account={editingUser} viewerRole={role} onClose={() => { setModal(''); setEditingUser(null) }} onSubmit={updateAccount} />}
     {toast && <div className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] left-3 right-3 z-[60] flex items-center justify-center gap-2 rounded-xl bg-[#283426] px-4 py-3 text-center text-[11px] font-medium text-white shadow-lg sm:bottom-5 sm:left-auto sm:right-5"><Check className="shrink-0 text-[#f1c49e]" size={15} />{toast}</div>}
   </div>
 }

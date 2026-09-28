@@ -5,10 +5,33 @@ import { authenticate, authorize, publicUser } from '../middleware/auth.js'
 import { Hotel } from '../models/Hotel.js'
 import { Order } from '../models/Order.js'
 import { User } from '../models/User.js'
-import { asyncRoute, idIsValid } from '../utils/http.js'
+import { asyncRoute, idIsValid, safeSupport } from '../utils/http.js'
 
 const router = express.Router()
 router.use(authenticate, authorize('DEVELOPER'))
+
+// Help & support details the developer maintains for the customer menu page.
+router.get('/support', asyncRoute(async (_req, res) => {
+  const hotel = await Hotel.findOne({ isActive: true }).select('support')
+  if (!hotel) return res.status(404).json({ message: 'No active business is configured yet.' })
+  res.json({ support: safeSupport(hotel.support) })
+}))
+
+router.patch('/support', asyncRoute(async (req, res) => {
+  const business = await Hotel.findOne({ isActive: true }).select('_id')
+  if (!business) return res.status(404).json({ message: 'No active business is configured yet.' })
+  const input = req.body.support && typeof req.body.support === 'object' ? req.body.support : req.body
+  const limits = { phone: 40, whatsapp: 40, email: 120, hours: 200, message: 400 }
+  const updates = {}
+  for (const field of Object.keys(limits)) {
+    if (input[field] === undefined) continue
+    updates[`support.${field}`] = String(input[field] ?? '').trim().slice(0, limits[field])
+  }
+  if (!Object.keys(updates).length) return res.status(400).json({ message: 'Provide a phone number, WhatsApp number, email, opening hours, or a help message to save.' })
+  const hotel = await Hotel.findByIdAndUpdate(business._id, { $set: updates }, { new: true, runValidators: true }).select('support')
+  req.app.get('io').to(`menu:${business._id}`).emit('support_updated', safeSupport(hotel.support))
+  res.json({ support: safeSupport(hotel.support) })
+}))
 
 router.get('/users', asyncRoute(async (_req, res) => {
   const business = await Hotel.findOne({ isActive: true }).select('_id')

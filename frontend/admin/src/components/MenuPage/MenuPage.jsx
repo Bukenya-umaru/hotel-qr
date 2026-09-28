@@ -12,7 +12,7 @@ import { api, apiAssetUrl } from '../../lib/api.js'
 import { money, today, cx, orderCode, orderTime, navItems } from '../../lib/ui.js'
 import { Badge } from '../Badge/Badge.jsx'
 
-export function MenuPage({ menu, role, onAdd, onToggle, onEdit, onDelete, categories = [], managedCategories = [], onCreateCategory, onRenameCategory, onDeleteCategory }) {
+export function MenuPage({ menu, role, manageable, onAdd, onToggle, onEdit, onDelete, categories = [], managedCategories = [], onCreateCategory, onRenameCategory, onDeleteCategory }) {
   const [category, setCategory] = useState('All items')
   const [newCategory, setNewCategory] = useState('')
   const [renaming, setRenaming] = useState(null)
@@ -28,7 +28,7 @@ export function MenuPage({ menu, role, onAdd, onToggle, onEdit, onDelete, catego
   const managedSet = new Set(managedCategories.map(name => name.toLowerCase()))
   const categoryList = ['All items', ...allCategories]
   const filtered = menu.filter(item => category === 'All items' || item.category === category)
-  const canManageMenu = ['OWNER', 'KITCHEN'].includes(role)
+  const canManageMenu = manageable
 
   const addCategory = async event => {
     event.preventDefault()

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight, Search, ShoppingBag, Utensils, X } from 'lucide-react'
 import { money, orderCode, orderTime } from '../../lib/ui.js'
 
-const PAGE_LINKS = ['Chef orders', 'Menu', 'Tables', 'Orders', 'Reports', 'Chefs', 'Overview']
+const PAGE_LINKS = ['Chef orders', 'Menu', 'Tables', 'Orders', 'Reports', 'Chefs', 'Overview', 'Help & support']
 
 export function SearchModal({ onClose, onNavigate, menu = [], orders = [], role = 'OWNER' }) {
   const [query, setQuery] = useState('')
@@ -16,8 +16,8 @@ export function SearchModal({ onClose, onNavigate, menu = [], orders = [], role 
 
   const trimmed = query.trim().toLowerCase()
   const pages = useMemo(() => (trimmed
-    ? PAGE_LINKS.filter(name => name.toLowerCase().includes(trimmed) && !(name === 'Chef orders' && role !== 'KITCHEN') && !(name === 'Chefs' && role !== 'OWNER'))
-    : PAGE_LINKS.filter(name => !(name === 'Chef orders' && role !== 'KITCHEN') && !(name === 'Chefs' && role !== 'OWNER'))
+    ? PAGE_LINKS.filter(name => name.toLowerCase().includes(trimmed) && !(name === 'Chef orders' && role !== 'KITCHEN') && !(name === 'Chefs' && role !== 'OWNER') && !(name === 'Help & support' && !['OWNER', 'DEVELOPER'].includes(role)))
+    : PAGE_LINKS.filter(name => !(name === 'Chef orders' && role !== 'KITCHEN') && !(name === 'Chefs' && role !== 'OWNER') && !(name === 'Help & support' && !['OWNER', 'DEVELOPER'].includes(role)))
   ).slice(0, 4), [trimmed, role])
   const items = useMemo(() => (trimmed
     ? menu.filter(item => item.name?.toLowerCase().includes(trimmed) || item.category?.toLowerCase().includes(trimmed)).slice(0, 5)

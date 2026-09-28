@@ -1,5 +1,5 @@
 import {
-  ChefHat, LayoutDashboard, ShoppingBag, TrendingUp, Users, Utensils,
+  ChefHat, CircleHelp, LayoutDashboard, ShoppingBag, TrendingUp, Users, Utensils,
 } from 'lucide-react'
 
 export const money = (value, currency = 'UGX') => new Intl.NumberFormat('en-UG', {
@@ -22,6 +22,21 @@ export const orderTime = order => order.time || (order.createdAt
   ? new Date(order.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
   : 'Just now')
 
+// Capabilities the owner can grant a chef. A chef with no stored
+// permissions keeps full access, matching how existing accounts behave.
+export const PERMISSIONS = [
+  { key: 'view_sales', label: 'View sales' },
+  { key: 'manage_menu', label: 'Manage menu' },
+  { key: 'manage_tables', label: 'Manage tables' },
+]
+
+export const grantedPermissions = user => {
+  if (!user || user.role !== 'KITCHEN' || !user.permissions) return PERMISSIONS.map(permission => permission.key)
+  return user.permissions
+}
+
+export const hasPermission = (user, key) => grantedPermissions(user).includes(key)
+
 export const navItems = {
   OWNER: [
     { label: 'Overview', icon: LayoutDashboard },
@@ -30,6 +45,7 @@ export const navItems = {
     { label: 'Tables', icon: ChefHat },
     { label: 'Chefs', icon: Users },
     { label: 'Reports', icon: TrendingUp },
+    { label: 'Help & support', icon: CircleHelp },
   ],
   KITCHEN: [
     { label: 'Chef orders', icon: ChefHat },
@@ -40,5 +56,6 @@ export const navItems = {
     { label: 'Platform overview', icon: LayoutDashboard },
     { label: 'Orders', icon: ShoppingBag },
     { label: 'Accounts', icon: Users },
+    { label: 'Help & support', icon: CircleHelp },
   ],
 }
