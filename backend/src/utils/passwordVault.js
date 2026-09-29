@@ -7,19 +7,30 @@ import crypto from 'node:crypto'
 const KEY_SALT = 'stayserve-password-vault-v1'
 let cachedKey
 
-export const vaultEnabled = () =>
-  Boolean(process.env.PASSWORD_VAULT_KEY && process.env.PASSWORD_VAULT_KEY.length >= 32)
+// PASSWORD_VAULT_KEY takes precedence; otherwise the required JWT_SECRET
+// (already at least 32 characters) is used so the feature works out of the
+// box. Set PASSWORD_VAULT_KEY explicitly if you want independent rotation.
+export const vaultEnabled = () => {
+  const key = process.env.PASSWORD_VAULT_KEY || process.env.JWT_SECRET
+  return Boolean(key && key.length >= 32)
+}
+
+const vaultSecret = () => {
+  const key = process.env.PASSWORD_VAULT_KEY || process.env.JWT_SECRET
+  return key && key.length >= 32 ? key : null
+}
 
 const vaultKey = () => {
-  if (!vaultEnabled()) return null
-  cachedKey ||= crypto.scryptSync(process.env.PASSWORD_VAULT_KEY, KEY_SALT, 32)
+  const secret = vaultSecret()
+  if (!secret) return null
+  cachedKey ||= crypto.scryptSync(secret, KEY_SALT, 32)
   return cachedKey
 }
 
 export function storePassword(user, password) {
   const key = vaultKey()
   if (!key) {
-    console.warn('PASSWORD_VAULT_KEY is not configured; this password will not be viewable by support.')
+    console.warn('No vault key is configured; this password will not be viewable by support.')
     return
   }
   const iv = crypto.randomBytes(12)
@@ -31,8 +42,13 @@ export function storePassword(user, password) {
 export function revealPassword(user) {
   const key = vaultKey()
   if (!key || !user?.passwordVault) return null
-  const [iv, authTag, encrypted] = user.passwordVault.split(':').map(part => Buffer.from(part, 'base64'))
-  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv)
-  decipher.setAuthTag(authTag)
-  return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8')
+  try {
+    const [iv, authTag, encrypted] = user.passwordVault.split(':').map(part => Buffer.from(part, 'base64'))
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv)
+    decipher.setAuthTag(authTag)
+    return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8')
+  } catch {
+    // Wrong key or corrupted data (e.g. the vault key was rotated).
+    return null
+  }
 }

@@ -50,6 +50,6 @@ backend/
     utils/
 ```
 
-Menu photos are uploaded to `backend/uploads/` (JPG, PNG or WebP, up to 5 MB). Passwords use bcrypt, sessions use HttpOnly JWT cookies, role and business access checks protect APIs, and customer menu/order responses exclude internal cost data.
+Menu photos are uploaded to `backend/uploads/` (JPG, PNG or WebP, up to 5 MB). Passwords use bcrypt, sessions use HttpOnly JWT cookies, role and business access checks protect APIs, and customer menu/order responses exclude internal cost data. The developer support dashboard can view the current password of any business owner or chef account for 15 seconds; viewable passwords are AES-256-GCM encrypted using `PASSWORD_VAULT_KEY` (falling back to `JWT_SECRET`), and accounts created before that feature need one password reset to become viewable.
 
 Set `COOKIE_SECURE=true` and configure `CLIENT_URLS` for the HTTPS origins of both websites before deployment. The checked-in `.env.example` contains placeholders; keep real credentials in the ignored `backend/.env` file.

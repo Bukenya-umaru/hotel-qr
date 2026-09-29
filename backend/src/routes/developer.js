@@ -38,9 +38,12 @@ router.patch('/support', asyncRoute(async (req, res) => {
 router.get('/users', asyncRoute(async (_req, res) => {
   const business = await Hotel.findOne({ isActive: true }).select('_id')
   const users = business
-    ? await User.find({ hotelId: business._id, role: { $in: ['OWNER', 'KITCHEN'] } }).sort({ createdAt: -1 })
+    ? await User.find({ hotelId: business._id, role: { $in: ['OWNER', 'KITCHEN'] } }).sort({ createdAt: -1 }).select('+passwordVault')
     : []
-  res.json({ users: users.map(publicUser), passwordViewable: vaultEnabled() })
+  res.json({
+    users: users.map(user => ({ ...publicUser(user), hasViewablePassword: Boolean(user.passwordVault) })),
+    passwordViewable: vaultEnabled(),
+  })
 }))
 
 router.get('/orders', asyncRoute(async (_req, res) => {
@@ -92,7 +95,7 @@ router.get('/users/:id/password', asyncRoute(async (req, res) => {
   if (!user) return res.status(404).json({ message: 'Account not found.' })
   const password = revealPassword(user)
   if (password === null) {
-    return res.status(404).json({ message: 'No viewable password is stored for this account yet. Reset the password first, then you can view it.' })
+    return res.status(404).json({ message: 'No viewable password is stored for this account yet. Reset the password once — after that you can view the current password anytime.' })
   }
   res.json({ password })
 }))
