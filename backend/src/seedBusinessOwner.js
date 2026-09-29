@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import mongoose from 'mongoose'
 import { Hotel } from './models/Hotel.js'
 import { User } from './models/User.js'
+import { storePassword } from './utils/passwordVault.js'
 
 const {
   MONGODB_URI,
@@ -51,13 +52,15 @@ try {
     if (existingOwner) {
       throw new Error(`The business already has an owner account (${existingOwner.email}); no changes were made.`)
     }
-    await User.create({
+    const owner = await User.create({
       name: OWNER_NAME.trim(),
       email,
       password: await bcrypt.hash(OWNER_PASSWORD, 12),
       role: 'OWNER',
       hotelId: business._id,
     })
+    storePassword(owner, OWNER_PASSWORD)
+    await owner.save()
     console.log(`Business owner account created for ${email}.`)
   }
 } catch (error) {

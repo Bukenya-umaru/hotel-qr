@@ -5,7 +5,7 @@ import { PERMISSIONS } from '../../lib/ui.js'
 const SHORT_LABELS = { view_sales: 'Sales', manage_menu: 'Menu', manage_tables: 'Tables' }
 const ALL_KEYS = PERMISSIONS.map(permission => permission.key)
 
-export function AccountsPage({ users, role, onCreate, onToggle, onReset, onEdit }) {
+export function AccountsPage({ users, role, passwordViewable, onCreate, onToggle, onReset, onEdit, onView }) {
   const isOwner = role === 'OWNER'
   const canCreate = isOwner
   const accountLabel = user => user.role === 'OWNER' ? 'Business owner' : 'Chef'
@@ -25,7 +25,7 @@ export function AccountsPage({ users, role, onCreate, onToggle, onReset, onEdit 
           {isOwner ? <>
             {user.role === 'KITCHEN' && <button onClick={() => onEdit(user)} className="text-[10px] font-semibold text-[#ac571d]">Permissions</button>}
             <button onClick={() => onToggle(user)} className="text-[10px] font-semibold text-[#ac571d]">{user.isActive === false ? 'Reactivate' : 'Deactivate'}</button>
-          </> : <><button onClick={() => onEdit(user)} className="text-[10px] font-semibold text-[#ac571d]">Edit account</button><button onClick={() => onReset(user)} className="text-[10px] font-semibold text-[#ac571d]">Reset password</button><button onClick={() => onToggle(user)} className="text-[10px] font-semibold text-[#ac571d]">{user.isActive === false ? 'Reactivate' : 'Deactivate'}</button></>}
+          </> : <><button onClick={() => onEdit(user)} className="text-[10px] font-semibold text-[#ac571d]">Edit account</button>{passwordViewable && <button onClick={() => onView(user)} className="text-[10px] font-semibold text-[#ac571d]">View password</button>}<button onClick={() => onReset(user)} className="text-[10px] font-semibold text-[#ac571d]">Reset password</button><button onClick={() => onToggle(user)} className="text-[10px] font-semibold text-[#ac571d]">{user.isActive === false ? 'Reactivate' : 'Deactivate'}</button></>}
         </div>
       </article>)}</div>
       <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[620px] text-left"><thead><tr className="border-b border-[#eff0ec] text-[9px] font-semibold uppercase tracking-[.8px] text-[#a0a49b]"><th className="px-5 py-3">Account</th><th className="px-4 py-3">Role</th><th className="px-4 py-3">Permissions</th><th className="px-4 py-3">Status</th><th className="px-5 py-3 text-right">Actions</th></tr></thead><tbody>{users.map(user => <tr key={user._id || user.email} className="border-b border-[#f4f4f1] last:border-0">
@@ -36,7 +36,7 @@ export function AccountsPage({ users, role, onCreate, onToggle, onReset, onEdit 
         <td className="space-x-3 px-5 py-3.5 text-right">{isOwner ? <>
           {user.role === 'KITCHEN' && <button onClick={() => onEdit(user)} className="text-[10px] font-semibold text-[#ac571d]">Permissions</button>}
           <button onClick={() => onToggle(user)} className="text-[10px] font-semibold text-[#ac571d]">{user.isActive === false ? 'Reactivate' : 'Deactivate'}</button>
-        </> : <><button onClick={() => onEdit(user)} className="text-[10px] font-semibold text-[#ac571d]">Edit</button><button onClick={() => onReset(user)} className="text-[10px] font-semibold text-[#ac571d]">Reset password</button><button onClick={() => onToggle(user)} className="text-[10px] font-semibold text-[#ac571d]">{user.isActive === false ? 'Reactivate' : 'Deactivate'}</button></>}</td>
+        </> : <><button onClick={() => onEdit(user)} className="text-[10px] font-semibold text-[#ac571d]">Edit</button>{passwordViewable && <button onClick={() => onView(user)} className="text-[10px] font-semibold text-[#ac571d]">View password</button>}<button onClick={() => onReset(user)} className="text-[10px] font-semibold text-[#ac571d]">Reset password</button><button onClick={() => onToggle(user)} className="text-[10px] font-semibold text-[#ac571d]">{user.isActive === false ? 'Reactivate' : 'Deactivate'}</button></>}</td>
       </tr>)}</tbody></table></div>
       {!users.length && <p className="px-5 py-10 text-center text-[11px] text-[#989e93]">{isOwner ? 'No chef accounts yet. Create one to manage the menu and orders.' : 'No accounts are available to support yet.'}</p>}
     </section>

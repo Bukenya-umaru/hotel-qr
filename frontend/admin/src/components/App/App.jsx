@@ -25,7 +25,9 @@ import { LoginModal } from '../LoginModal/LoginModal.jsx'
 import { AccountModal } from '../AccountModal/AccountModal.jsx'
 import { MenuItemModal } from '../MenuItemModal/MenuItemModal.jsx'
 import { ResetPasswordModal } from '../ResetPasswordModal/ResetPasswordModal.jsx'
+import { ViewPasswordModal } from '../ViewPasswordModal/ViewPasswordModal.jsx'
 import { AccountEditModal } from '../AccountEditModal/AccountEditModal.jsx'
+import { ChangePasswordModal } from '../ChangePasswordModal/ChangePasswordModal.jsx'
 import { TablesPage } from '../TablesPage/TablesPage.jsx'
 import { SupportPage } from '../SupportPage/SupportPage.jsx'
 import { SearchModal } from '../SearchModal/SearchModal.jsx'
@@ -53,11 +55,13 @@ export default function App() {
     userCount: 0,
     activeOrdersCount: 0,
     databaseStatus: 'Disconnected',
+    passwordViewable: false,
   })
   const [modal, setModal] = useState('')
   const [editingMenu, setEditingMenu] = useState(null)
   const [editingUser, setEditingUser] = useState(null)
   const [resettingUser, setResettingUser] = useState(null)
+  const [viewingUser, setViewingUser] = useState(null)
   const [toast, setToast] = useState('')
   const [apiError, setApiError] = useState('')
   const [mobileNav, setMobileNav] = useState(false)
@@ -97,7 +101,10 @@ export default function App() {
       api('/api/owner/staff').then(data => setUsers(data.users)).catch(err => setApiError(err.message))
     }
     if (user?.role === 'DEVELOPER') {
-      api('/api/developer/users').then(data => setUsers(data.users)).catch(err => setApiError(err.message))
+      api('/api/developer/users').then(data => {
+        setUsers(data.users)
+        setPlatformOverview(previous => ({ ...previous, passwordViewable: Boolean(data.passwordViewable) }))
+      }).catch(err => setApiError(err.message))
       api('/api/developer/orders').then(data => setOrders(data.orders)).catch(err => setApiError(err.message))
       api('/api/developer/overview').then(data => setPlatformOverview(data)).catch(err => setApiError(err.message))
     }
@@ -203,6 +210,11 @@ export default function App() {
   const logout = async () => {
     try { await api('/api/auth/logout', { method: 'POST' }) } catch (err) { setToast(err.message) }
     setUser(null)
+  }
+  const changeOwnPassword = async ({ currentPassword, newPassword }) => {
+    await api('/api/auth/change-password', { method: 'PATCH', body: JSON.stringify({ currentPassword, newPassword }) })
+    setModal('')
+    setToast('Your password has been updated')
   }
   const createAccount = async form => {
     if (!user || user.role !== 'OWNER') throw new Error('Sign in as the business owner to create a chef account.')
@@ -322,12 +334,12 @@ export default function App() {
   else if (page === 'Help & support' && ['OWNER', 'DEVELOPER'].includes(role)) content = <SupportPage role={role} />
   else if (page === 'Orders') content = <OrdersTable orders={orders} onAdvance={role === 'KITCHEN' || role === 'OWNER' ? advanceOrder : undefined} />
   else if (page === 'Reports') content = <Reports orders={orders} analytics={analytics} currency="UGX" onRange={loadReportRange} />
-  else if (page === 'Accounts' || page === 'Chefs') content = <AccountsPage users={users} role={role} onCreate={() => setModal('account')} onToggle={toggleUser} onReset={account => { setResettingUser(account); setModal('reset') }} onEdit={account => { setEditingUser(account); setModal('edit-account') }} />
+  else if (page === 'Accounts' || page === 'Chefs') content = <AccountsPage users={users} role={role} passwordViewable={platformOverview.passwordViewable} onCreate={() => setModal('account')} onToggle={toggleUser} onReset={account => { setResettingUser(account); setModal('reset') }} onEdit={account => { setEditingUser(account); setModal('edit-account') }} onView={account => { setViewingUser(account); setModal('view-password') }} />
   else if (role === 'DEVELOPER') content = <DeveloperDashboard users={users} orders={orders} onNavigate={setPage} overview={platformOverview} />
   else content = <Overview orders={orders} menu={menu} hotelName={hotelName} onNavigate={setPage} analytics={analytics} currency="UGX" />
 
   return <div className="min-h-screen bg-[#f7f7f4]">
-    <Sidebar role={role} page={page} setPage={setPage} user={user} onLogin={() => setModal('login')} onLogout={logout} hotelName={hotelName} items={currentNav} />
+    <Sidebar role={role} page={page} setPage={setPage} user={user} onLogin={() => setModal('login')} onLogout={logout} onChangePassword={() => setModal('change-password')} hotelName={hotelName} items={currentNav} />
     {mobileNav && <div className="fixed inset-0 z-30 bg-[#1f291d]/30 lg:hidden" onClick={() => setMobileNav(false)}><div className="flex h-full max-h-[100dvh] w-[min(270px,85vw)] flex-col overflow-y-auto bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" onClick={e => e.stopPropagation()}><div className="flex items-center justify-between px-2 py-2"><Brand /><button onClick={() => setMobileNav(false)} aria-label="Close navigation" className="grid size-9 place-items-center rounded-lg hover:bg-[#f7f8f5]"><X size={18} /></button></div><div className="mt-5 rounded-xl border border-[#eceee8] p-3"><p className="truncate text-[11px] font-semibold">{hotelName}</p><p className="mt-1 text-[10px] text-[#999d94]">{user?.name || 'WAGA BITS'}</p></div><p className="mb-2 mt-6 px-2 text-[10px] font-bold uppercase tracking-[1.3px] text-[#a3a79d]">{role === 'DEVELOPER' ? 'Developer support' : role === 'KITCHEN' ? 'Chef portal' : 'Owner portal'}</p><nav className="space-y-1">{currentNav.map(item => <button key={item.label} onClick={() => { setPage(item.label); setMobileNav(false) }} className={cx('flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-[12px]', page === item.label ? 'bg-[#fff1e6] text-[#a34b16]' : 'text-[#70776d]')}><item.icon size={17} />{item.label}</button>)}</nav><div className="mt-auto space-y-1 pt-5">{user ? <button onClick={() => { setMobileNav(false); logout() }} className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-[12px] text-[#70776d] hover:bg-[#f7f8f5]"><LogOut size={16} />Sign out</button> : <button onClick={() => { setMobileNav(false); setModal('login') }} className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-[12px] text-[#70776d] hover:bg-[#f7f8f5]"><ShieldCheck size={16} />Sign in</button>}</div></div></div>}
     <div className="min-h-screen min-w-0 lg:pl-[250px]"><div className="flex items-center border-b border-[#eaece6] bg-[#f7f7f4]/90 px-3 sm:px-4 lg:hidden"><button onClick={() => setMobileNav(true)} className="mr-2 grid size-10 shrink-0 place-items-center text-[#687061]" aria-label="Open navigation"><Menu size={19} /></button><Brand /></div>    <Header role={role} page={page} onLogin={() => setModal('login')} user={user} hotelName={hotelName} titleOverride={role === 'OWNER' && page === 'Overview' ? `Good morning, ${user?.name?.split(' ')[0] || ''}` : undefined} notifications={notifications} unreadCount={unreadCount} onMarkAllRead={markAllRead} onClearNotifications={clearNotifications} onOpenNotification={openNotification} onNavigate={setPage} menu={menu} orders={orders} />
     {searchOpen && <SearchModal onClose={() => setSearchOpen(false)} onNavigate={setPage} menu={menu} orders={orders} role={role} />}<main className="mx-auto min-w-0 max-w-[1420px] px-3 py-4 sm:px-6 sm:py-6 lg:px-9 lg:py-7">{apiError && user && <div className="mb-4 flex items-center justify-between rounded-lg bg-[#fbf1df] px-3 py-2.5 text-[10px] text-[#8c6b35]"><span className="min-w-0 break-words">{apiError}</span><button onClick={() => setApiError('')} className="ml-2 shrink-0"><X size={14} /></button></div>}{content}</main></div>
@@ -335,7 +347,9 @@ export default function App() {
     {modal === 'account' && role === 'OWNER' && <AccountModal onClose={() => setModal('')} onSubmit={createAccount} />}
     {modal === 'menu' && <MenuItemModal role={role} categories={allMenuCategories} onClose={() => { setModal(''); setEditingMenu(null) }} onSubmit={createMenuItem} initial={editingMenu} />}
     {modal === 'reset' && resettingUser && <ResetPasswordModal account={resettingUser} onClose={() => { setModal(''); setResettingUser(null) }} onSubmit={resetUserPassword} />}
+    {modal === 'view-password' && viewingUser && <ViewPasswordModal account={viewingUser} onClose={() => { setModal(''); setViewingUser(null) }} />}
     {modal === 'edit-account' && editingUser && <AccountEditModal account={editingUser} viewerRole={role} onClose={() => { setModal(''); setEditingUser(null) }} onSubmit={updateAccount} />}
+    {modal === 'change-password' && <ChangePasswordModal onClose={() => setModal('')} onSubmit={changeOwnPassword} />}
     {toast && <div className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] left-3 right-3 z-[60] flex items-center justify-center gap-2 rounded-xl bg-[#283426] px-4 py-3 text-center text-[11px] font-medium text-white shadow-lg sm:bottom-5 sm:left-auto sm:right-5"><Check className="shrink-0 text-[#f1c49e]" size={15} />{toast}</div>}
   </div>
 }

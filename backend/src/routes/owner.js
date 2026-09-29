@@ -10,6 +10,7 @@ import { Order } from '../models/Order.js'
 import { Hotel } from '../models/Hotel.js'
 import { removeUploadedImage, uploadMenuImage } from '../middleware/upload.js'
 import { asyncRoute, idIsValid, safeMenuItem, safeSupport } from '../utils/http.js'
+import { storePassword } from '../utils/passwordVault.js'
 
 const router = express.Router()
 
@@ -228,6 +229,8 @@ router.post('/staff', authenticate, authorize('OWNER'), asyncRoute(async (req, r
     hotelId: req.user.hotelId._id,
     permissions,
   })
+  storePassword(user, String(password))
+  await user.save()
   res.status(201).json({ user: staffUser(user) })
 }))
 

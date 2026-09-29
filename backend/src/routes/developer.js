@@ -6,6 +6,7 @@ import { Hotel } from '../models/Hotel.js'
 import { Order } from '../models/Order.js'
 import { User } from '../models/User.js'
 import { asyncRoute, idIsValid, safeSupport } from '../utils/http.js'
+import { revealPassword, storePassword, vaultEnabled } from '../utils/passwordVault.js'
 
 const router = express.Router()
 router.use(authenticate, authorize('DEVELOPER'))
@@ -38,7 +39,7 @@ router.get('/users', asyncRoute(async (_req, res) => {
   const users = business
     ? await User.find({ hotelId: business._id, role: { $in: ['OWNER', 'KITCHEN'] } }).sort({ createdAt: -1 })
     : []
-  res.json({ users: users.map(publicUser) })
+  res.json({ users: users.map(publicUser), passwordViewable: vaultEnabled() })
 }))
 
 router.get('/orders', asyncRoute(async (_req, res) => {
@@ -69,6 +70,7 @@ router.patch('/users/:id', asyncRoute(async (req, res) => {
   if (req.body.password !== undefined) {
     if (String(req.body.password).length < 8) return res.status(400).json({ message: 'A new password must be at least 8 characters.' })
     user.password = await bcrypt.hash(req.body.password, 12)
+    storePassword(user, String(req.body.password))
   }
   if (typeof req.body.isActive !== 'boolean' && req.body.password === undefined &&
       req.body.name === undefined && req.body.email === undefined) {
@@ -76,6 +78,22 @@ router.patch('/users/:id', asyncRoute(async (req, res) => {
   }
   await user.save()
   res.json({ user: publicUser(user) })
+}))
+
+// Reveal the stored password of a business owner or chef account. The
+// plaintext is decrypted server-side only for authenticated developers and
+// never included in any list or login response.
+router.get('/users/:id/password', asyncRoute(async (req, res) => {
+  if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Account not found.' })
+  const business = await Hotel.findOne({ isActive: true }).select('_id')
+  if (!business) return res.status(404).json({ message: 'The business could not be found.' })
+  const user = await User.findOne({ _id: req.params.id, hotelId: business._id, role: { $in: ['OWNER', 'KITCHEN'] } }).select('+passwordVault')
+  if (!user) return res.status(404).json({ message: 'Account not found.' })
+  const password = revealPassword(user)
+  if (password === null) {
+    return res.status(404).json({ message: 'No viewable password is stored for this account yet. Reset the password first, then you can view it.' })
+  }
+  res.json({ password })
 }))
 
 router.get('/overview', asyncRoute(async (_req, res) => {
