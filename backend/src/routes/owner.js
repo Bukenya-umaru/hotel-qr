@@ -11,6 +11,7 @@ import { Hotel } from '../models/Hotel.js'
 import { removeUploadedImage, uploadMenuImage } from '../middleware/upload.js'
 import { asyncRoute, idIsValid, safeMenuItem, safeSupport } from '../utils/http.js'
 import { storePassword } from '../utils/passwordVault.js'
+import { isStrongPassword, PASSWORD_RULE_MESSAGE } from '../utils/passwordPolicy.js'
 
 const router = express.Router()
 
@@ -215,8 +216,8 @@ router.post('/staff', authenticate, authorize('OWNER'), asyncRoute(async (req, r
   const permissions = req.body.permissions === undefined ? ALL_PERMISSIONS : req.body.permissions
   const normalizedEmail = String(email || '').trim().toLowerCase()
   if (!String(name || '').trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) ||
-      String(password || '').length < 8) {
-    return res.status(400).json({ message: 'Provide a name, valid email, and password of at least 8 characters.' })
+      !isStrongPassword(password)) {
+    return res.status(400).json({ message: 'Provide a name, valid email, and a password of at least 8 characters with letters and numbers.' })
   }
   if (!validPermissions(permissions)) {
     return res.status(400).json({ message: 'One or more permissions are not supported.' })

@@ -7,6 +7,7 @@ import { Order } from '../models/Order.js'
 import { User } from '../models/User.js'
 import { asyncRoute, idIsValid, safeSupport } from '../utils/http.js'
 import { revealPassword, storePassword, vaultEnabled } from '../utils/passwordVault.js'
+import { isStrongPassword, PASSWORD_RULE_MESSAGE } from '../utils/passwordPolicy.js'
 
 const router = express.Router()
 router.use(authenticate, authorize('DEVELOPER'))
@@ -68,7 +69,7 @@ router.patch('/users/:id', asyncRoute(async (req, res) => {
   }
   if (typeof req.body.isActive === 'boolean') user.isActive = req.body.isActive
   if (req.body.password !== undefined) {
-    if (String(req.body.password).length < 8) return res.status(400).json({ message: 'A new password must be at least 8 characters.' })
+    if (!isStrongPassword(req.body.password)) return res.status(400).json({ message: PASSWORD_RULE_MESSAGE })
     user.password = await bcrypt.hash(req.body.password, 12)
     storePassword(user, String(req.body.password))
   }

@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
+import { isStrongPassword, PASSWORD_RULE } from '../../lib/ui.js'
 import { Modal } from '../Modal/Modal.jsx'
 import { TextField } from '../TextField/TextField.jsx'
+import { PasswordStrengthMeter } from '../PasswordStrengthMeter/PasswordStrengthMeter.jsx'
 
 // Lets any signed-in user (owner, chef, or developer) change their own
 // password. The current password must be confirmed first.
@@ -30,6 +32,7 @@ export function ChangePasswordModal({ onClose, onSubmit }) {
   return <Modal title="Change your password" onClose={onClose}>
     <form className="space-y-3.5" onSubmit={async event => {
       event.preventDefault()
+      if (!isStrongPassword(form.next)) { setError(`New password: ${PASSWORD_RULE}.`); return }
       if (form.next !== form.confirm) { setError('The new passwords do not match.'); return }
       setSaving(true)
       try { await onSubmit({ currentPassword: form.current, newPassword: form.next }) }
@@ -37,7 +40,10 @@ export function ChangePasswordModal({ onClose, onSubmit }) {
       finally { setSaving(false) }
     }}>
       <div className="relative">{passwordField('Current password', 'current', 'Enter your current password')}</div>
-      {passwordField('New password', 'next', 'At least 8 characters')}
+      <div>
+        {passwordField('New password', 'next', PASSWORD_RULE)}
+        <PasswordStrengthMeter password={form.next} />
+      </div>
       {passwordField('Confirm new password', 'confirm', 'Repeat the new password')}
       {error && <p className="text-[11px] text-[#b75c48]">{error}</p>}
       <button disabled={saving} className="w-full rounded-lg bg-[#c65d1b] py-2.5 text-[11px] font-semibold text-white disabled:opacity-60">

@@ -16,6 +16,31 @@ export const today = new Intl.DateTimeFormat('en-UG', {
 
 export const cx = (...classes) => classes.filter(Boolean).join(' ')
 
+// Minimum password strength: at least 8 characters with both letters and
+// numbers. Shared by every form that sets or resets a password.
+export const PASSWORD_RULE = 'At least 8 characters, including letters and numbers'
+export const isStrongPassword = password =>
+  typeof password === 'string' && password.length >= 8 && /[a-zA-Z]/.test(password) && /\d/.test(password)
+
+// 0–4 strength score for the live meter shown under password fields.
+// 0 = empty, 1 = weak, 2 = fair, 3 = strong, 4 = excellent.
+export const passwordStrength = password => {
+  if (!password) return 0
+  let score = 0
+  if (password.length >= 8) score += 1
+  if (/[a-zA-Z]/.test(password) && /\d/.test(password)) score += 1
+  if (password.length >= 12) score += 1
+  if (/[a-z]/.test(password) && /[A-Z]/.test(password) && /[^a-zA-Z0-9]/.test(password)) score += 1
+  return score
+}
+
+export const STRENGTH_STEPS = [
+  { label: 'Weak', color: '#d9534f', width: '25%' },
+  { label: 'Fair', color: '#d88340', width: '50%' },
+  { label: 'Strong', color: '#5a9e52', width: '75%' },
+  { label: 'Excellent', color: '#3f8f3a', width: '100%' },
+]
+
 export const orderCode = order => order.id?.replace('SS-', '') || String(order._id || '').slice(-6).toUpperCase()
 
 export const orderTime = order => order.time || (order.createdAt

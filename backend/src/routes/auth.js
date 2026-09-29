@@ -5,6 +5,7 @@ import { authenticate, cookieOptions, COOKIE_NAME, issueToken, publicUser } from
 import { User } from '../models/User.js'
 import { asyncRoute } from '../utils/http.js'
 import { storePassword } from '../utils/passwordVault.js'
+import { isStrongPassword, PASSWORD_RULE_MESSAGE } from '../utils/passwordPolicy.js'
 
 const router = express.Router()
 const loginLimiter = rateLimit({
@@ -39,7 +40,7 @@ router.patch('/change-password', authenticate, asyncRoute(async (req, res) => {
   const currentPassword = String(req.body.currentPassword || '')
   const newPassword = String(req.body.newPassword || '')
   if (!currentPassword || !newPassword) return res.status(400).json({ message: 'Provide your current password and a new password.' })
-  if (newPassword.length < 8) return res.status(400).json({ message: 'The new password must be at least 8 characters.' })
+  if (!isStrongPassword(newPassword)) return res.status(400).json({ message: PASSWORD_RULE_MESSAGE })
   if (newPassword === currentPassword) return res.status(400).json({ message: 'Choose a password different from your current one.' })
   const user = await User.findById(req.user._id).select('+password')
   if (!user || !(await bcrypt.compare(currentPassword, user.password))) {
