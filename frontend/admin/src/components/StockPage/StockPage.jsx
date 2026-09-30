@@ -5,11 +5,10 @@ import { API_BASE_URL, api } from '../../lib/api.js'
 import { money, cx } from '../../lib/ui.js'
 import { Modal } from '../Modal/Modal.jsx'
 
-export function StockPage({ user, canManage = true }) {
+export function StockPage({ user, canManage = true, foodTypes = [] }) {
   const [items, setItems] = useState([])
   const [dishes, setDishes] = useState([])
-  const [name, setName] = useState('')
-  const [plates, setPlates] = useState('')
+  const [showForm, setShowForm] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [adjusting, setAdjusting] = useState(null) // { item, mode: 'add' | 'reduce' }
@@ -17,6 +16,7 @@ export function StockPage({ user, canManage = true }) {
   const [linking, setLinking] = useState(null) // stock item
   const [renaming, setRenaming] = useState(null)
   const [renameValue, setRenameValue] = useState('')
+  const [form, setForm] = useState({ name: '', foodType: '', price: '', plates: '' })
 
   const loadStock = async () => {
     try {
@@ -38,13 +38,25 @@ export function StockPage({ user, canManage = true }) {
     return () => socket.disconnect()
   }, [user?.hotelId])
 
+  const openPopup = () => {
+    setForm({ name: '', foodType: '', price: '', plates: '' })
+    setShowForm(true)
+  }
+
   const createStock = async event => {
     event.preventDefault()
     setBusy(true)
     try {
-      await api('/api/stock', { method: 'POST', body: JSON.stringify({ name, plates: Number(plates || 0) }) })
-      setName('')
-      setPlates('')
+      await api('/api/stock', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: form.name,
+          foodType: form.foodType,
+          price: Number(form.price || 0),
+          plates: Number(form.plates || 0),
+        }),
+      })
+      setShowForm(false)
       await loadStock()
     } catch (err) {
       setError(err.message)
@@ -130,23 +142,25 @@ export function StockPage({ user, canManage = true }) {
   const lowStock = plates => plates <= 5
 
   return <div className="space-y-5">
-    <div>
-      <h2 className="font-display text-lg font-bold">Kitchen stock</h2>
-      <p className="mt-1 text-[12px] text-[#8d9389]">Track the plates you have ready — beef, chicken, fish, and any other meat or food. Orders for linked dishes reduce the count automatically; add or reduce plates yourself anytime.</p>
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h2 className="font-display text-lg font-bold">Kitchen stock</h2>
+        <p className="mt-1 text-[12px] text-[#8d9389]">Track the plates you have ready — beef, chicken, fish, and any other meat or food. Orders for linked dishes reduce the count automatically.</p>
+      </div>
+      {canManage && <button onClick={openPopup} className="flex items-center gap-2 rounded-lg bg-[#c65d1b] px-3.5 py-2.5 text-[11px] font-semibold text-white hover:bg-[#a34b16]"><Plus size={15} />Add stock</button>}
     </div>
     {error && <div role="alert" className="flex items-center justify-between gap-3 rounded-lg bg-[#fae9e5] px-3 py-2.5 text-[11px] text-[#a44f3d]"><span>{error}</span><button onClick={() => setError('')} aria-label="Dismiss error">×</button></div>}
-    {canManage && <form onSubmit={createStock} className="grid gap-3 rounded-2xl border border-[#eceee8] bg-white p-4 sm:grid-cols-[minmax(0,1fr)_minmax(130px,.5fr)_auto] sm:items-end">
-      <label className="block text-[10px] font-semibold text-[#737a70]">Stock name<input required maxLength="60" value={name} onChange={event => setName(event.target.value)} placeholder="e.g. Beef plates" className="mt-1.5 block w-full rounded-lg border border-[#e6e9e1] px-3 py-2.5 text-[12px]" /></label>
-      <label className="block text-[10px] font-semibold text-[#737a70]">Starting plates<input type="number" min="0" step="1" value={plates} onChange={event => setPlates(event.target.value)} placeholder="0" className="mt-1.5 block w-full rounded-lg border border-[#e6e9e1] px-3 py-2.5 text-[12px]" /></label>
-      <button disabled={busy} className="flex min-h-8 items-center justify-center gap-1.5 rounded-lg bg-[#c65d1b] px-3 py-1.5 text-[10px] font-semibold text-white disabled:opacity-60 sm:min-h-10 sm:gap-2 sm:px-4 sm:py-2.5 sm:text-[11px]"><Plus size={14} />Add stock</button>
-    </form>}
-    {!items.length ? <div className="rounded-2xl border border-dashed border-[#dfe4d9] bg-white px-5 py-12 text-center"><Boxes className="mx-auto text-[#c65d1b]" size={26} /><p className="mt-3 text-[12px] font-semibold">No stock tracked yet</p><p className="mt-1 text-[10px] text-[#8d9389]">Add the foods you plate ahead — beef, chicken, fish, goat, pork — and keep their counts fresh.</p></div> :
+    {!items.length ? <div className="rounded-2xl border border-dashed border-[#dfe4d9] bg-white px-5 py-12 text-center"><Boxes className="mx-auto text-[#c65d1b]" size={26} /><p className="mt-3 text-[12px] font-semibold">No stock tracked yet</p><p className="mt-1 text-[10px] text-[#8d9389]">{canManage ? 'Click Add stock to record your first batch — pick the food type, price, and plates.' : 'Stock entries will appear here once the kitchen adds them.'}</p></div> :
       <div className="grid grid-cols-1 gap-2.5 sm:gap-3 lg:grid-cols-2 xl:grid-cols-3">{items.map(item => <article key={item._id} className="rounded-2xl border border-[#eceee8] bg-white p-3 sm:p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             {renaming === item ? <div className="flex items-center gap-1"><input autoFocus value={renameValue} onChange={event => setRenameValue(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') renameStock(); if (event.key === 'Escape') setRenaming(null) }} maxLength="60" className="w-32 rounded border border-[#dca875] px-1.5 py-0.5 text-[11px]" /><button disabled={busy} onClick={renameStock} className="rounded p-1 text-[#a34b16] hover:bg-[#fff1e6]"><Check size={12} /></button><button onClick={() => setRenaming(null)} className="rounded p-1 text-[#9b9f96] hover:bg-[#f0f1ed]"><X size={12} /></button></div>
               : <h3 className="font-display flex items-center gap-1.5 truncate text-[13px] font-bold sm:text-[15px]">{item.name}{canManage && <button onClick={() => { setRenaming(item); setRenameValue(item.name) }} title={`Rename ${item.name}`} className="rounded p-0.5 text-[#b9beb2] hover:bg-[#f0f1ed] hover:text-[#71786d]"><Settings2 size={12} /></button>}</h3>}
-            <p className="mt-0.5 text-[9px] text-[#9b9f96]">{item.totalAdded} added · {item.totalUsed} served from orders</p>
+            <div className="mt-1 flex flex-wrap items-center gap-1">
+              {item.foodType && <span className="rounded bg-[#fff1e6] px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[.6px] text-[#a34b16]">{item.foodType}</span>}
+              <span className="rounded bg-[#f4f4f0] px-1.5 py-0.5 text-[8px] font-semibold text-[#757c71]">{money(item.price || 0)}</span>
+            </div>
+            <p className="mt-1 text-[9px] text-[#9b9f96]">{item.totalAdded} added · {item.totalUsed} served from orders</p>
           </div>
           <span className={cx('shrink-0 rounded-full px-2.5 py-1 text-[9px] font-semibold', item.plates === 0 ? 'bg-[#fae9e5] text-[#a44f3d]' : lowStock(item.plates) ? 'bg-[#fbf1df] text-[#8c6b35]' : 'bg-[#eef6ec] text-[#3f8f3a]')}>
             {item.plates === 0 ? 'Out of plates' : lowStock(item.plates) ? 'Running low' : 'In stock'}
@@ -154,13 +168,11 @@ export function StockPage({ user, canManage = true }) {
         </div>
         <div className="mt-3 flex items-end justify-between gap-2 border-t border-dashed border-[#ebede7] pt-3">
           <div><p className="text-[9px] uppercase tracking-[.8px] text-[#a0a49b]">Plates ready</p><p className="font-display text-[22px] font-extrabold leading-7 text-[#293128]">{item.plates}</p></div>
-          <div className="flex gap-1.5">
-            {canManage && <>
-              <button disabled={busy} onClick={() => { setAdjusting({ item, mode: 'add' }); setAdjustAmount('') }} className="rounded-lg bg-[#fff1e6] px-2.5 py-1.5 text-[10px] font-semibold text-[#a34b16] disabled:opacity-60">+ Add</button>
-              <button disabled={busy || item.plates === 0} onClick={() => { setAdjusting({ item, mode: 'reduce' }); setAdjustAmount('') }} className="rounded-lg border border-[#eceee8] px-2.5 py-1.5 text-[10px] font-semibold text-[#737a70] disabled:opacity-60">− Reduce</button>
-              <button disabled={busy} onClick={() => removeStock(item)} aria-label={`Remove ${item.name}`} className="grid size-7 place-items-center rounded-lg border border-[#eceee8] text-[#a44f3d] disabled:opacity-60"><Trash2 size={13} /></button>
-            </>}
-          </div>
+          {canManage && <div className="flex gap-1.5">
+            <button disabled={busy} onClick={() => { setAdjusting({ item, mode: 'add' }); setAdjustAmount('') }} className="rounded-lg bg-[#fff1e6] px-2.5 py-1.5 text-[10px] font-semibold text-[#a34b16] disabled:opacity-60">+ Add plates</button>
+            <button disabled={busy || item.plates === 0} onClick={() => { setAdjusting({ item, mode: 'reduce' }); setAdjustAmount('') }} className="rounded-lg border border-[#eceee8] px-2.5 py-1.5 text-[10px] font-semibold text-[#737a70] disabled:opacity-60">− Reduce</button>
+            <button disabled={busy} onClick={() => removeStock(item)} aria-label={`Remove ${item.name}`} className="grid size-7 place-items-center rounded-lg border border-[#eceee8] text-[#a44f3d] disabled:opacity-60"><Trash2 size={13} /></button>
+          </div>}
         </div>
         <div className="mt-3 border-t border-dashed border-[#ebede7] pt-3">
           <p className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-[1px] text-[#a6aa9f]"><Link2 size={11} />Dishes that deduct</p>
@@ -179,6 +191,30 @@ export function StockPage({ user, canManage = true }) {
         <p className="text-[11px] leading-5 text-[#8d9389]">{adjusting.mode === 'add' ? 'Plates you have just prepared and added to the pass.' : 'Plates removed without an order — staff meals, waste, or spoilage.'} Current count: <b>{adjusting.item.plates}</b>.</p>
         <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#737a70]">Plates</span><input autoFocus required type="number" min="1" step="1" value={adjustAmount} onChange={event => setAdjustAmount(event.target.value)} className="w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px]" /></label>
         <button disabled={busy} className="w-full rounded-lg bg-[#c65d1b] py-2.5 text-[11px] font-semibold text-white disabled:opacity-60">{adjusting.mode === 'add' ? 'Add plates' : 'Reduce plates'}</button>
+      </form>
+    </Modal>}
+    {showForm && <Modal title="Add stock" onClose={() => setShowForm(false)}>
+      <form className="space-y-3.5" onSubmit={createStock}>
+        <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#737a70]">Food type <span className="text-[#b75c48]">*</span></span>
+          <select required value={form.foodType} onChange={event => setForm({ ...form, foodType: event.target.value })} className="w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px]">
+            <option value="">Click to select food type…</option>
+            {foodTypes.map(type => <option key={type} value={type}>{type}</option>)}
+          </select>
+          <span className="mt-1 block text-[9px] text-[#a0a49b]">Food types come from the Categories → Food type subsection.</span>
+        </label>
+        <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
+          <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#737a70]">Price (UGX) <span className="text-[#b75c48]">*</span></span>
+            <input required type="number" min="0" step="1" value={form.price} onChange={event => setForm({ ...form, price: event.target.value })} placeholder="e.g. 50000" className="w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px]" />
+          </label>
+          <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#737a70]">Number of plates <span className="text-[#b75c48]">*</span></span>
+            <input required type="number" min="0" step="1" value={form.plates} onChange={event => setForm({ ...form, plates: event.target.value })} placeholder="e.g. 20" className="w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px]" />
+          </label>
+        </div>
+        <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#737a70]">Stock name</span>
+          <input value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} maxLength="60" placeholder="Optional, e.g. Friday batch" className="w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px]" />
+        </label>
+        {error && <p className="text-[11px] text-[#b75c48]">{error}</p>}
+        <button disabled={busy} className="w-full rounded-lg bg-[#c65d1b] py-2.5 text-[11px] font-semibold text-white disabled:opacity-60">Add stock</button>
       </form>
     </Modal>}
   </div>
