@@ -68,7 +68,7 @@ export const navItems = {
   OWNER: [
     { label: 'Overview', icon: LayoutDashboard },
     { label: 'Orders', icon: ShoppingBag },
-    { label: 'Categories', icon: Rows3 },
+    { label: 'Categories', icon: Rows3, children: [{ label: 'Food type' }, { label: 'Expenses' }] },
     { label: 'Menu', icon: Utensils },
     { label: 'Stock', icon: Boxes },
     { label: 'Tables', icon: ChefHat },
@@ -78,7 +78,7 @@ export const navItems = {
   ],
   KITCHEN: [
     { label: 'Chef orders', icon: ChefHat },
-    { label: 'Categories', icon: Rows3 },
+    { label: 'Categories', icon: Rows3, children: [{ label: 'Food type' }, { label: 'Expenses' }] },
     { label: 'Menu', icon: Utensils },
     { label: 'Stock', icon: Boxes },
     { label: 'Tables', icon: ChefHat },

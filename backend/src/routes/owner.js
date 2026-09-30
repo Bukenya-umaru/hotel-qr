@@ -7,6 +7,7 @@ import { User } from '../models/User.js'
 import { MenuItem } from '../models/MenuItem.js'
 import { MenuCategory } from '../models/MenuCategory.js'
 import { Expense } from '../models/Expense.js'
+import { ExpenseCategory } from '../models/ExpenseCategory.js'
 import { Order } from '../models/Order.js'
 import { Hotel } from '../models/Hotel.js'
 import { removeUploadedImage, uploadMenuImage } from '../middleware/upload.js'
@@ -208,6 +209,54 @@ router.delete('/categories/:id', authenticate, authorize('OWNER', 'KITCHEN'), as
   if (!category) return res.status(404).json({ message: 'Category not found.' })
   await Expense.deleteMany({ hotelId: scope, category: category._id })
   req.app.get('io').to(`menu:${scope}`).emit('menu_updated', { categoriesChanged: true })
+  res.status(204).end()
+}))
+
+// Name-only expense categories the chef defines (e.g. "Cooking gas").
+router.get('/expense-categories', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_expenses')) return res.status(403).json({ message: 'The owner has not granted you permission to manage expenses.' })
+  const scope = hotelScope(req)
+  if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
+  const categories = await ExpenseCategory.find({ hotelId: scope }).sort({ name: 1 })
+  res.json({ categories: categories.map(category => ({ _id: category._id, name: category.name })) })
+}))
+
+router.post('/expense-categories', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_expenses')) return res.status(403).json({ message: 'The owner has not granted you permission to manage expenses.' })
+  const name = String(req.body.name || '').trim().slice(0, 60)
+  if (!name) return res.status(400).json({ message: 'Give the expense category a name, e.g. Cooking gas.' })
+  const scope = hotelScope(req)
+  if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
+  const category = await ExpenseCategory.findOneAndUpdate(
+    { hotelId: scope, name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+    { $setOnInsert: { hotelId: scope, name } },
+    { new: true, upsert: true },
+  )
+  res.status(201).json({ category: { _id: category._id, name: category.name } })
+}))
+
+router.patch('/expense-categories/:id', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_expenses')) return res.status(403).json({ message: 'The owner has not granted you permission to manage expenses.' })
+  if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Expense category not found.' })
+  const name = String(req.body.name || '').trim().slice(0, 60)
+  if (!name) return res.status(400).json({ message: 'Give the expense category a name.' })
+  const scope = hotelScope(req)
+  const category = await ExpenseCategory.findOne({ _id: req.params.id, hotelId: scope })
+  if (!category) return res.status(404).json({ message: 'Expense category not found.' })
+  category.name = name
+  await category.save().catch(error => {
+    if (error.code === 11000) return res.status(409).json({ message: 'An expense category with that name already exists.' })
+    throw error
+  })
+  if (res.headersSent) return
+  res.json({ category: { _id: category._id, name: category.name } })
+}))
+
+router.delete('/expense-categories/:id', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_expenses')) return res.status(403).json({ message: 'The owner has not granted you permission to manage expenses.' })
+  if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Expense category not found.' })
+  const category = await ExpenseCategory.findOneAndDelete({ _id: req.params.id, hotelId: hotelScope(req) })
+  if (!category) return res.status(404).json({ message: 'Expense category not found.' })
   res.status(204).end()
 }))
 
