@@ -6,19 +6,18 @@ import { DiningTable } from '../models/DiningTable.js'
 import { User } from '../models/User.js'
 import { MenuItem } from '../models/MenuItem.js'
 import { MenuCategory } from '../models/MenuCategory.js'
+import { Expense } from '../models/Expense.js'
 import { Order } from '../models/Order.js'
 import { Hotel } from '../models/Hotel.js'
 import { removeUploadedImage, uploadMenuImage } from '../middleware/upload.js'
 import { asyncRoute, idIsValid, safeMenuItem, safeSupport } from '../utils/http.js'
 import { storePassword } from '../utils/passwordVault.js'
 import { isStrongPassword, PASSWORD_RULE_MESSAGE } from '../utils/passwordPolicy.js'
+import { ALL_PERMISSIONS } from '../utils/permissions.js'
 
 const router = express.Router()
 
-// Capabilities an owner can grant to chefs. A chef with no stored
-// permissions still has full access (legacy accounts / not restricted yet).
-const ALL_PERMISSIONS = ['view_sales', 'manage_menu', 'manage_tables']
-const hasPerm = (user, key) => user.role !== 'KITCHEN' || !user.permissions || user.permissions.includes(key)
+export const hasPerm = (user, key) => user.role !== 'KITCHEN' || !user.permissions || user.permissions.includes(key)
 const validPermissions = value => Array.isArray(value) && value.every(perm => ALL_PERMISSIONS.includes(perm))
 const staffUser = user => ({
   _id: user._id,
@@ -149,22 +148,23 @@ router.get('/categories', authenticate, authorize('OWNER', 'KITCHEN'), asyncRout
   const scope = hotelScope(req)
   if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
   const categories = await MenuCategory.find({ hotelId: scope }).sort({ name: 1 })
-  res.json({ categories: categories.map(category => ({ _id: category._id, name: category.name })) })
+  res.json({ categories: categories.map(category => ({ _id: category._id, name: category.name, foodType: category.foodType || '' })) })
 }))
 
 router.post('/categories', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
   if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_menu')) return res.status(403).json({ message: 'You do not have permission to manage the menu.' })
   const name = String(req.body.name || '').trim().slice(0, 60)
+  const foodType = String(req.body.foodType || '').trim().slice(0, 60)
   if (!name) return res.status(400).json({ message: 'Provide a category name.' })
   const scope = hotelScope(req)
   if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
   const category = await MenuCategory.findOneAndUpdate(
     { hotelId: scope, name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
-    { $setOnInsert: { hotelId: scope, name } },
+    { $setOnInsert: { hotelId: scope, name, foodType } },
     { new: true, upsert: true },
   )
   req.app.get('io').to(`menu:${scope}`).emit('menu_updated', { categoriesChanged: true })
-  res.status(201).json({ category: { _id: category._id, name: category.name } })
+  res.status(201).json({ category: { _id: category._id, name: category.name, foodType: category.foodType } })
 }))
 
 router.patch('/categories/:id', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
@@ -176,8 +176,12 @@ router.patch('/categories/:id', authenticate, authorize('OWNER', 'KITCHEN'), asy
   const category = await MenuCategory.findOne({ _id: req.params.id, hotelId: scope })
   if (!category) return res.status(404).json({ message: 'Category not found.' })
   const previousName = category.name
-  if (previousName !== name) {
+  const foodType = req.body.foodType === undefined
+    ? category.foodType
+    : String(req.body.foodType || '').trim().slice(0, 60)
+  if (previousName !== name || foodType !== category.foodType) {
     category.name = name
+    category.foodType = foodType
     await category.save().catch(async error => {
       if (error.code === 11000) {
         const merged = await MenuCategory.findOne({ hotelId: scope, name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') })
@@ -193,7 +197,7 @@ router.patch('/categories/:id', authenticate, authorize('OWNER', 'KITCHEN'), asy
     await MenuItem.updateMany({ hotelId: scope, category: previousName }, { $set: { category: name } })
   }
   req.app.get('io').to(`menu:${scope}`).emit('menu_updated', { categoriesChanged: true })
-  res.json({ category: { _id: category._id, name: category.name } })
+  res.json({ category: { _id: category._id, name: category.name, foodType: category.foodType || '' } })
 }))
 
 router.delete('/categories/:id', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
@@ -202,7 +206,91 @@ router.delete('/categories/:id', authenticate, authorize('OWNER', 'KITCHEN'), as
   const scope = hotelScope(req)
   const category = await MenuCategory.findOneAndDelete({ _id: req.params.id, hotelId: scope })
   if (!category) return res.status(404).json({ message: 'Category not found.' })
+  await Expense.deleteMany({ hotelId: scope, category: category._id })
   req.app.get('io').to(`menu:${scope}`).emit('menu_updated', { categoriesChanged: true })
+  res.status(204).end()
+}))
+
+// Spending totals per section, newest expense included for a quick glance.
+router.get('/categories/expenses-summary', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_expenses')) return res.status(403).json({ message: 'The owner has not granted you permission to manage expenses.' })
+  const scope = hotelScope(req)
+  if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
+  const [totals, latest] = await Promise.all([
+    Expense.aggregate([
+      { $match: { hotelId: new mongoose.Types.ObjectId(scope) } },
+      { $group: { _id: '$category', total: { $sum: '$amount' }, count: { $sum: 1 } } },
+    ]),
+    Expense.find({ hotelId: scope }).sort({ createdAt: -1 }).limit(50).populate('recordedBy', 'name').select('category amount note createdAt recordedBy'),
+  ])
+  const totalsByCategory = new Map(totals.map(total => [String(total._id), total]))
+  res.json({
+    summary: totals.map(total => ({ category: String(total._id), total: total.total, count: total.count })),
+    recent: latest.map(expense => ({
+      _id: expense._id,
+      category: String(expense.category),
+      categoryName: expense.categoryName,
+      amount: expense.amount,
+      note: expense.note,
+      recordedBy: expense.recordedBy?.name || '',
+      createdAt: expense.createdAt,
+    })),
+  })
+}))
+
+router.get('/categories/:id/expenses', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_expenses')) return res.status(403).json({ message: 'The owner has not granted you permission to manage expenses.' })
+  if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Category not found.' })
+  const scope = hotelScope(req)
+  const category = await MenuCategory.findOne({ _id: req.params.id, hotelId: scope })
+  if (!category) return res.status(404).json({ message: 'Category not found.' })
+  const [expenses, totals] = await Promise.all([
+    Expense.find({ hotelId: scope, category: category._id }).sort({ createdAt: -1 }).limit(100).populate('recordedBy', 'name'),
+    Expense.aggregate([
+      { $match: { hotelId: new mongoose.Types.ObjectId(scope), category: new mongoose.Types.ObjectId(category._id) } },
+      { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } },
+    ]),
+  ])
+  res.json({
+    category: { _id: category._id, name: category.name, foodType: category.foodType || '' },
+    total: totals[0]?.total || 0,
+    count: totals[0]?.count || 0,
+    expenses: expenses.map(expense => ({
+      _id: expense._id,
+      amount: expense.amount,
+      note: expense.note,
+      recordedBy: expense.recordedBy?.name || '',
+      createdAt: expense.createdAt,
+    })),
+  })
+}))
+
+router.post('/categories/:id/expenses', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_expenses')) return res.status(403).json({ message: 'The owner has not granted you permission to manage expenses.' })
+  if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Category not found.' })
+  const amount = Number(req.body.amount)
+  const note = String(req.body.note || '').trim().slice(0, 200)
+  if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ message: 'Enter an expense amount greater than zero.' })
+  const scope = hotelScope(req)
+  if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
+  const category = await MenuCategory.findOne({ _id: req.params.id, hotelId: scope })
+  if (!category) return res.status(404).json({ message: 'Category not found.' })
+  const expense = await Expense.create({
+    hotelId: scope,
+    category: category._id,
+    categoryName: category.name,
+    amount: Math.round(amount * 100) / 100,
+    note,
+    recordedBy: req.user._id,
+  })
+  res.status(201).json({ expense: { ...expense.toObject(), recordedBy: req.user.name } })
+}))
+
+router.delete('/categories/:id/expenses/:expenseId', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_expenses')) return res.status(403).json({ message: 'The owner has not granted you permission to manage expenses.' })
+  if (!idIsValid(req.params.id) || !idIsValid(req.params.expenseId)) return res.status(404).json({ message: 'Expense not found.' })
+  const expense = await Expense.findOneAndDelete({ _id: req.params.expenseId, hotelId: hotelScope(req), category: req.params.id })
+  if (!expense) return res.status(404).json({ message: 'Expense not found.' })
   res.status(204).end()
 }))
 

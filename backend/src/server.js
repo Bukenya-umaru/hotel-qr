@@ -17,6 +17,7 @@ import developerRoutes from './routes/developer.js'
 import menuRoutes from './routes/menu.js'
 import orderRoutes from './routes/orders.js'
 import ownerRoutes from './routes/owner.js'
+import stockRoutes from './routes/stock.js'
 import tableRoutes from './routes/tables.js'
 
 const app = express()
@@ -46,6 +47,7 @@ app.use('/api/menu', menuRoutes)
 app.use('/api/orders', orderRoutes)
 app.use('/api/tables', tableRoutes)
 app.use('/api/owner', ownerRoutes)
+app.use('/api/stock', stockRoutes)
 app.use('/api/developer', developerRoutes)
 
 app.use('/api', (_req, res) => res.status(404).json({ message: 'API endpoint not found.' }))

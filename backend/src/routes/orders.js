@@ -5,6 +5,7 @@ import { Hotel } from '../models/Hotel.js'
 import { DiningTable } from '../models/DiningTable.js'
 import { MenuItem } from '../models/MenuItem.js'
 import { Order } from '../models/Order.js'
+import { StockItem } from '../models/StockItem.js'
 import { asyncRoute, guestOrder, idIsValid, safeNumber } from '../utils/http.js'
 
 const router = express.Router()
@@ -80,6 +81,15 @@ router.post('/', asyncRoute(async (req, res) => {
     costPrice: item.costPrice,
     quantity: quantities.get(item._id.toString()),
   }))
+  // Dishes linked to a stock deduct their plates as soon as the order is
+  // placed. Best-effort: a missing or already-empty stock never blocks a
+  // customer order; the count simply cannot go below zero.
+  const stockUsage = new Map()
+  for (const item of menuItems) {
+    if (!item.stockItemId) continue
+    const stockId = item.stockItemId.toString()
+    stockUsage.set(stockId, (stockUsage.get(stockId) || 0) + quantities.get(item._id.toString()))
+  }
   const totalAmount = safeNumber(lines.reduce((sum, item) => sum + item.price * item.quantity, 0))
   const totalCost = safeNumber(lines.reduce((sum, item) => sum + item.costPrice * item.quantity, 0))
   let order
@@ -105,7 +115,16 @@ router.post('/', asyncRoute(async (req, res) => {
     throw error
   }
   const io = req.app.get('io')
+  for (const [stockId, plates] of stockUsage) {
+    // $gte guard keeps the count from ever dipping below zero when two
+    // orders race; the shorter order still goes through unblocked.
+    await StockItem.updateOne(
+      { _id: stockId, hotelId: hotel._id, plates: { $gte: plates } },
+      { $inc: { plates: -plates, totalUsed: plates } },
+    ).catch(() => {})
+  }
   io.to(`hotel:${hotel._id}`).emit('new_order', order)
+  if (stockUsage.size) io.to(`hotel:${hotel._id}`).emit('stock_updated')
   io.to(`order:${order._id}`).emit('order_status', guestOrder(order))
   io.to(`menu:${hotel._id}`).emit('tables_updated')
   res.status(201).json({

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight, Search, ShoppingBag, Utensils, X } from 'lucide-react'
 import { money, orderCode, orderTime } from '../../lib/ui.js'
 
-const PAGE_LINKS = ['Chef orders', 'Menu', 'Tables', 'Orders', 'Reports', 'Chefs', 'Overview', 'Help & support']
+const PAGE_LINKS = ['Chef orders', 'Categories', 'Menu', 'Stock', 'Tables', 'Orders', 'Reports', 'Chefs', 'Overview', 'Help & support']
 
 export function SearchModal({ onClose, onNavigate, menu = [], orders = [], role = 'OWNER' }) {
   const [query, setQuery] = useState('')

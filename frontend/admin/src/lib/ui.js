@@ -1,5 +1,5 @@
 import {
-  ChefHat, CircleHelp, LayoutDashboard, ShoppingBag, TrendingUp, Users, Utensils,
+  Boxes, ChefHat, CircleHelp, LayoutDashboard, Rows3, ShoppingBag, TrendingUp, Users, Utensils,
 } from 'lucide-react'
 
 export const money = (value, currency = 'UGX') => new Intl.NumberFormat('en-UG', {
@@ -53,6 +53,8 @@ export const PERMISSIONS = [
   { key: 'view_sales', label: 'View sales' },
   { key: 'manage_menu', label: 'Manage menu' },
   { key: 'manage_tables', label: 'Manage tables' },
+  { key: 'manage_stock', label: 'Manage stock' },
+  { key: 'manage_expenses', label: 'Manage expenses' },
 ]
 
 export const grantedPermissions = user => {
@@ -66,7 +68,9 @@ export const navItems = {
   OWNER: [
     { label: 'Overview', icon: LayoutDashboard },
     { label: 'Orders', icon: ShoppingBag },
+    { label: 'Categories', icon: Rows3 },
     { label: 'Menu', icon: Utensils },
+    { label: 'Stock', icon: Boxes },
     { label: 'Tables', icon: ChefHat },
     { label: 'Chefs', icon: Users },
     { label: 'Reports', icon: TrendingUp },
@@ -74,7 +78,9 @@ export const navItems = {
   ],
   KITCHEN: [
     { label: 'Chef orders', icon: ChefHat },
+    { label: 'Categories', icon: Rows3 },
     { label: 'Menu', icon: Utensils },
+    { label: 'Stock', icon: Boxes },
     { label: 'Tables', icon: ChefHat },
   ],
   DEVELOPER: [

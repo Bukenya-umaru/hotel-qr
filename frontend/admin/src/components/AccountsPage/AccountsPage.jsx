@@ -2,7 +2,7 @@ import { Plus } from 'lucide-react'
 import { Badge } from '../Badge/Badge.jsx'
 import { PERMISSIONS } from '../../lib/ui.js'
 
-const SHORT_LABELS = { view_sales: 'Sales', manage_menu: 'Menu', manage_tables: 'Tables' }
+const SHORT_LABELS = { view_sales: 'Sales', manage_menu: 'Menu', manage_tables: 'Tables', manage_stock: 'Stock', manage_expenses: 'Expenses' }
 const ALL_KEYS = PERMISSIONS.map(permission => permission.key)
 
 export function AccountsPage({ users, role, passwordViewable, onCreate, onToggle, onReset, onEdit, onView }) {

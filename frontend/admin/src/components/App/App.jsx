@@ -29,6 +29,8 @@ import { ViewPasswordModal } from '../ViewPasswordModal/ViewPasswordModal.jsx'
 import { AccountEditModal } from '../AccountEditModal/AccountEditModal.jsx'
 import { ChangePasswordModal } from '../ChangePasswordModal/ChangePasswordModal.jsx'
 import { TablesPage } from '../TablesPage/TablesPage.jsx'
+import { StockPage } from '../StockPage/StockPage.jsx'
+import { CategoriesPage } from '../CategoriesPage/CategoriesPage.jsx'
 import { SupportPage } from '../SupportPage/SupportPage.jsx'
 import { SearchModal } from '../SearchModal/SearchModal.jsx'
 
@@ -163,12 +165,15 @@ export default function App() {
 
   const currentNav = (navItems[role] || navItems.OWNER).filter(item => {
     if (role !== 'KITCHEN') return true
-    if (item.label === 'Menu') return hasPermission(user, 'manage_menu')
+    if (item.label === 'Menu' || item.label === 'Categories') return hasPermission(user, 'manage_menu')
     if (item.label === 'Tables') return hasPermission(user, 'manage_tables')
+    if (item.label === 'Stock') return hasPermission(user, 'manage_stock')
+    if (item.label === 'Expenses') return hasPermission(user, 'manage_expenses')
     return true
   })
   const canManageMenu = hasPermission(user, 'manage_menu')
   const canManageTables = hasPermission(user, 'manage_tables')
+  const canManageStock = role === 'OWNER' || hasPermission(user, 'manage_stock')
   const canViewSales = hasPermission(user, 'view_sales')
   // Managed sections plus any category already in use on dishes — old
   // categories always stay visible and selectable for new menu items.
@@ -238,18 +243,21 @@ export default function App() {
       }))
     } catch (err) { setToast(err.message) }
   }
-  const ensureCategory = async name => {
-    const data = await api('/api/owner/categories', { method: 'POST', body: JSON.stringify({ name }) })
+  const ensureCategory = async (name, foodType = '') => {
+    const data = await api('/api/owner/categories', { method: 'POST', body: JSON.stringify({ name, foodType }) })
     setMenuCategories(previous => previous.some(category => category.name.toLowerCase() === data.category.name.toLowerCase())
       ? previous
       : [...previous, data.category].sort((left, right) => left.name.localeCompare(right.name)))
     return data.category
   }
-  const renameCategory = async (oldName, name) => {
+  const renameCategory = async (oldName, name, foodType) => {
     const entry = menuCategories.find(category => category.name === oldName)
     if (!entry) throw new Error('That section is not a managed category.')
-    const data = await api(`/api/owner/categories/${entry._id}`, { method: 'PATCH', body: JSON.stringify({ name }) })
-    setMenuCategories(previous => previous.map(category => category._id === entry._id ? { ...category, name: data.category.name } : category))
+    const data = await api(`/api/owner/categories/${entry._id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(foodType === undefined ? { name } : { name, foodType }),
+    })
+    setMenuCategories(previous => previous.map(category => category._id === (data.category._id || entry._id) ? { ...category, name: data.category.name, foodType: data.category.foodType ?? category.foodType } : category))
     setMenu(previous => previous.map(item => item.category === oldName ? { ...item, category: data.category.name } : item))
   }
   const deleteCategory = async name => {
@@ -329,8 +337,10 @@ export default function App() {
   let content
   if (!user) content = <AccessCard onLogin={() => setModal('login')} />
   else if (role === 'KITCHEN' && page === 'Chef orders') content = <KitchenBoard orders={orders} onAdvance={advanceOrder} hotelName={hotelName} chefName={user?.name?.split(' ')[0] || ''} canViewSales={canViewSales} />
-  else if (page === 'Menu') content = <MenuPage menu={menu} role={role} manageable={canManageMenu} onAdd={() => { setEditingMenu(null); setModal('menu') }} onToggle={toggleMenuItem} onEdit={item => { setEditingMenu(item); setModal('menu') }} onDelete={deleteMenuItem} categories={allMenuCategories} managedCategories={managedCategoryNames} onCreateCategory={ensureCategory} onRenameCategory={renameCategory} onDeleteCategory={deleteCategory} />
+  else if (page === 'Menu') content = <MenuPage menu={menu} role={role} manageable={canManageMenu} onAdd={() => { setEditingMenu(null); setModal('menu') }} onToggle={toggleMenuItem} onEdit={item => { setEditingMenu(item); setModal('menu') }} onDelete={deleteMenuItem} categories={allMenuCategories} />
   else if (page === 'Tables' && ['OWNER', 'KITCHEN'].includes(role)) content = <TablesPage user={user} canManage={canManageTables} />
+  else if (page === 'Categories') content = <CategoriesPage />
+  else if (page === 'Stock' && ['OWNER', 'KITCHEN'].includes(role)) content = <StockPage user={user} canManage={canManageStock} />
   else if (page === 'Help & support' && ['OWNER', 'DEVELOPER'].includes(role)) content = <SupportPage role={role} />
   else if (page === 'Orders') content = <OrdersTable orders={orders} onAdvance={role === 'KITCHEN' || role === 'OWNER' ? advanceOrder : undefined} />
   else if (page === 'Reports') content = <Reports orders={orders} analytics={analytics} currency="UGX" onRange={loadReportRange} />
