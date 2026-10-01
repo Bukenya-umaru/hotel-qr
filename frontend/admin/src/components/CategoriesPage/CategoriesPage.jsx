@@ -91,12 +91,9 @@ export function CategoriesPage({ initialView = 'menu' }) {
 // ---- Subsection: Food type — add food-type categories and see them here ----
 
 function FoodTypeView({ categories, busy, setBusy, onError, reload }) {
-  const [showForm, setShowForm] = useState(false)
   const [newCategory, setNewCategory] = useState('')
-  const [newFoodType, setNewFoodType] = useState('')
   const [renaming, setRenaming] = useState(null)
   const [renameValue, setRenameValue] = useState('')
-  const [renameFoodType, setRenameFoodType] = useState('')
 
   const addCategory = async event => {
     event.preventDefault()
@@ -108,10 +105,8 @@ function FoodTypeView({ categories, busy, setBusy, onError, reload }) {
     }
     setBusy(true)
     try {
-      await api('/api/owner/categories', { method: 'POST', body: JSON.stringify({ name, foodType: newFoodType.trim() }) })
+      await api('/api/owner/categories', { method: 'POST', body: JSON.stringify({ name }) })
       setNewCategory('')
-      setNewFoodType('')
-      setShowForm(false)
       onError('')
       await reload()
     } catch (err) {
@@ -126,7 +121,7 @@ function FoodTypeView({ categories, busy, setBusy, onError, reload }) {
     if (!renaming || !name) return
     setBusy(true)
     try {
-      await api(`/api/owner/categories/${renaming._id}`, { method: 'PATCH', body: JSON.stringify({ name, foodType: renameFoodType.trim() }) })
+      await api(`/api/owner/categories/${renaming}`, { method: 'PATCH', body: JSON.stringify({ name }) })
       setRenaming(null)
       onError('')
       await reload()
@@ -153,38 +148,38 @@ function FoodTypeView({ categories, busy, setBusy, onError, reload }) {
 
   return <div className="rounded-xl border border-[#eceee8] bg-white p-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <p className="text-[11px] font-bold text-[#3d443a]">Food type categories</p>
-      <button onClick={() => setShowForm(previous => !previous)} className="flex items-center gap-1.5 rounded-lg bg-[#c65d1b] px-3 py-2 text-[10px] font-semibold text-white"><Plus size={13} />Add</button>
+      <p className="flex items-center gap-2 text-[11px] font-bold text-[#3d443a]">Food type categories
+        <span className="rounded-full bg-[#f4f4f0] px-2 py-0.5 text-[9px] font-semibold text-[#757c71]">{categories.length}</span>
+      </p>
     </div>
-    {showForm && <form onSubmit={addCategory} className="mt-3 flex flex-wrap gap-2 rounded-lg border border-dashed border-[#dca875] bg-[#fff6ef] p-3">
-      <input autoFocus value={newCategory} onChange={event => setNewCategory(event.target.value)} maxLength="60" placeholder="Category name, e.g. Grills" className="min-w-0 flex-1 rounded-lg border border-[#e6e9e1] bg-white px-3 py-2 text-[11px]" />
-      <input value={newFoodType} onChange={event => setNewFoodType(event.target.value)} maxLength="60" placeholder="Food type, e.g. Beef" className="min-w-0 flex-1 rounded-lg border border-[#e6e9e1] bg-white px-3 py-2 text-[11px]" />
-      <button disabled={busy} className="flex items-center gap-1.5 rounded-lg bg-[#c65d1b] px-3 py-2 text-[10px] font-semibold text-white disabled:opacity-60"><Plus size={13} />Save</button>
-      <button type="button" onClick={() => setShowForm(false)} className="rounded-lg border border-[#eceee8] px-3 py-2 text-[10px] font-semibold text-[#747b70]">Cancel</button>
-    </form>}
-    <ul className="mt-3 space-y-1">{categories.map(category => <li key={category._id} className="rounded-lg border border-[#eceee8] bg-[#fafbf8]">
-      <div className="flex items-center gap-1.5 px-2.5 py-1.5">
-        <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-[#3d443a]">{category.name}</span>
-        {category.foodType && <span className="shrink-0 rounded bg-[#fff1e6] px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[.6px] text-[#a34b16]">{category.foodType}</span>}
-        {renaming === category.name ? <>
-          <input autoFocus value={renameValue} onChange={event => setRenameValue(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') renameCategory(); if (event.key === 'Escape') setRenaming(null) }} maxLength="60" className="w-28 rounded border border-[#dca875] px-1.5 py-0.5 text-[10px]" />
-          <input value={renameFoodType} onChange={event => setRenameFoodType(event.target.value)} maxLength="60" placeholder="Food type" className="w-24 rounded border border-[#dca875] px-1.5 py-0.5 text-[10px]" />
-          <button disabled={busy} onClick={renameCategory} className="rounded p-1 text-[#a34b16] hover:bg-[#fff1e6]"><Check size={11} /></button>
-          <button onClick={() => setRenaming(null)} className="rounded p-1 text-[#9b9f96] hover:bg-[#f0f1ed]"><X size={11} /></button>
-        </> : <>
-          <button onClick={() => { setRenaming(category.name); setRenameValue(category.name); setRenameFoodType(category.foodType || '') }} title={`Edit ${category.name}`} className="rounded p-1 text-[#9b9f96] hover:bg-[#f0f1ed] hover:text-[#71786d]"><Settings2 size={11} /></button>
-          <button disabled={busy} onClick={() => removeCategory(category)} title={`Remove ${category.name}`} className="rounded p-1 text-[#c08b7e] hover:bg-[#fae9e5] hover:text-[#b75c48]"><X size={11} /></button>
-        </>}
-      </div>
-    </li>)}</ul>
-    {!categories.length && !showForm && <p className="mt-3 rounded-lg border border-dashed border-[#e6e9e1] px-3 py-6 text-center text-[10px] text-[#9b9f96]">No food-type categories yet — click <b>Add</b> to create your first one.</p>}
+    <form onSubmit={addCategory} className="mt-3 flex w-full max-w-sm items-center gap-2">
+      <input autoFocus value={newCategory} onChange={event => setNewCategory(event.target.value)} maxLength="60" placeholder="Category name, e.g. Grills" aria-label="New food type category name" className="min-w-0 flex-1 rounded-lg border border-[#e6e9e1] bg-white px-3 py-2 text-[11px] outline-none focus:border-[#dca875] focus:ring-2 focus:ring-[#fff1e6]" />
+      <button disabled={busy || !newCategory.trim()} className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#c65d1b] px-3 py-2 text-[10px] font-semibold text-white hover:bg-[#a34b16] disabled:cursor-not-allowed disabled:opacity-50"><Plus size={13} />Add</button>
+    </form>
+    {categories.length > 0 && <ul className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">{categories.map(category => <li key={category._id} className="group flex min-w-0 flex-col items-center justify-center gap-2 rounded-xl border border-[#eceee8] bg-[#fafbf8] px-2 py-3 text-center transition hover:border-[#dca875] hover:bg-[#fff6ef]">
+      {renaming === category._id ? <>
+        <input autoFocus value={renameValue} onChange={event => setRenameValue(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') renameCategory(); if (event.key === 'Escape') setRenaming(null) }} maxLength="60" aria-label={`Rename ${category.name}`} className="w-full min-w-0 rounded-md border border-[#dca875] bg-white px-1.5 py-1 text-center text-[10px] outline-none" />
+        <span className="flex items-center gap-1">
+          <button disabled={busy} onClick={renameCategory} title="Save name" className="rounded-md p-1 text-[#a34b16] hover:bg-[#fff1e6]"><Check size={12} /></button>
+          <button onClick={() => setRenaming(null)} title="Cancel" className="rounded-md p-1 text-[#9b9f96] hover:bg-[#f0f1ed]"><X size={12} /></button>
+        </span>
+      </> : <>
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-[#fff1e6] text-[#c65d1b]"><Utensils size={15} /></span>
+        <span className="w-full break-words text-[10px] font-semibold leading-[13px] text-[#3d443a]">{category.name}</span>
+        {category.foodType && <span className="w-full truncate rounded bg-[#ffe9d8] px-1 py-0.5 text-[7px] font-semibold uppercase tracking-[.6px] text-[#a34b16]">{category.foodType}</span>}
+        <span className="flex items-center gap-0.5">
+          <button onClick={() => { setRenaming(category._id); setRenameValue(category.name) }} title={`Edit ${category.name}`} className="rounded-md p-1 text-[#9b9f96] hover:bg-white hover:text-[#71786d]"><Settings2 size={12} /></button>
+          <button disabled={busy} onClick={() => removeCategory(category)} title={`Remove ${category.name}`} className="rounded-md p-1 text-[#c08b7e] hover:bg-[#fae9e5] hover:text-[#b75c48]"><X size={12} /></button>
+        </span>
+      </>}
+    </li>)}</ul>}
+    {!categories.length && <p className="mt-3 rounded-xl border border-dashed border-[#e6e9e1] px-3 py-6 text-center text-[10px] text-[#9b9f96]">No food-type categories yet — add your first one above.</p>}
   </div>
 }
 
 // ---- Subsection: Expenses — add name-only expense categories ----
 
 function ExpensesView({ busy, setBusy, onError }) {
-  const [showForm, setShowForm] = useState(false)
   const [newName, setNewName] = useState('')
   const [categories, setCategories] = useState([])
   const [renaming, setRenaming] = useState(null)
@@ -212,7 +207,6 @@ function ExpensesView({ busy, setBusy, onError }) {
     try {
       await api('/api/owner/expense-categories', { method: 'POST', body: JSON.stringify({ name }) })
       setNewName('')
-      setShowForm(false)
       onError('')
       await load()
     } catch (err) {
@@ -227,7 +221,7 @@ function ExpensesView({ busy, setBusy, onError }) {
     if (!renaming || !name) return
     setBusy(true)
     try {
-      await api(`/api/owner/expense-categories/${renaming._id}`, { method: 'PATCH', body: JSON.stringify({ name }) })
+      await api(`/api/owner/expense-categories/${renaming}`, { method: 'PATCH', body: JSON.stringify({ name }) })
       setRenaming(null)
       onError('')
       await load()
@@ -254,27 +248,30 @@ function ExpensesView({ busy, setBusy, onError }) {
 
   return <div className="rounded-xl border border-[#eceee8] bg-white p-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <p className="text-[11px] font-bold text-[#3d443a]">Expense categories</p>
-      <button onClick={() => setShowForm(previous => !previous)} className="flex items-center gap-1.5 rounded-lg bg-[#c65d1b] px-3 py-2 text-[10px] font-semibold text-white"><Plus size={13} />Add</button>
+      <p className="flex items-center gap-2 text-[11px] font-bold text-[#3d443a]">Expense categories
+        <span className="rounded-full bg-[#f4f4f0] px-2 py-0.5 text-[9px] font-semibold text-[#757c71]">{categories.length}</span>
+      </p>
     </div>
-    {showForm && <form onSubmit={addCategory} className="mt-3 flex flex-wrap gap-2 rounded-lg border border-dashed border-[#dca875] bg-[#fff6ef] p-3">
-      <input autoFocus value={newName} onChange={event => setNewName(event.target.value)} maxLength="60" placeholder="Expense category name, e.g. Cooking gas" className="min-w-0 flex-1 rounded-lg border border-[#e6e9e1] bg-white px-3 py-2 text-[11px]" />
-      <button disabled={busy} className="flex items-center gap-1.5 rounded-lg bg-[#c65d1b] px-3 py-2 text-[10px] font-semibold text-white disabled:opacity-60"><Plus size={13} />Save</button>
-      <button type="button" onClick={() => setShowForm(false)} className="rounded-lg border border-[#eceee8] bg-white px-3 py-2 text-[10px] font-semibold text-[#747b70]">Cancel</button>
-    </form>}
-    <ul className="mt-3 space-y-1">{categories.map(category => <li key={category._id} className="rounded-lg border border-[#eceee8] bg-[#fafbf8]">
-      <div className="flex items-center gap-1.5 px-2.5 py-1.5">
-        <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-[#3d443a]">{category.name}</span>
-        {renaming === category.name ? <>
-          <input autoFocus value={renameValue} onChange={event => setRenameValue(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') renameCategory(); if (event.key === 'Escape') setRenaming(null) }} maxLength="60" className="w-32 rounded border border-[#dca875] px-1.5 py-0.5 text-[10px]" />
-          <button disabled={busy} onClick={renameCategory} className="rounded p-1 text-[#a34b16] hover:bg-[#fff1e6]"><Check size={11} /></button>
-          <button onClick={() => setRenaming(null)} className="rounded p-1 text-[#9b9f96] hover:bg-[#f0f1ed]"><X size={11} /></button>
-        </> : <>
-          <button onClick={() => { setRenaming(category.name); setRenameValue(category.name) }} title={`Edit ${category.name}`} className="rounded p-1 text-[#9b9f96] hover:bg-[#f0f1ed] hover:text-[#71786d]"><Settings2 size={11} /></button>
-          <button disabled={busy} onClick={() => removeCategory(category)} title={`Remove ${category.name}`} className="rounded p-1 text-[#c08b7e] hover:bg-[#fae9e5] hover:text-[#b75c48]"><X size={11} /></button>
-        </>}
-      </div>
-    </li>)}</ul>
-    {!categories.length && !showForm && <p className="mt-3 rounded-lg border border-dashed border-[#e6e9e1] px-3 py-6 text-center text-[10px] text-[#9b9f96]">No expense categories yet — click <b>Add</b> to create your first one.</p>}
+    <form onSubmit={addCategory} className="mt-3 flex w-full max-w-sm items-center gap-2">
+      <input autoFocus value={newName} onChange={event => setNewName(event.target.value)} maxLength="60" placeholder="Category name, e.g. Cooking gas" aria-label="New expense category name" className="min-w-0 flex-1 rounded-lg border border-[#e6e9e1] bg-white px-3 py-2 text-[11px] outline-none focus:border-[#dca875] focus:ring-2 focus:ring-[#fff1e6]" />
+      <button disabled={busy || !newName.trim()} className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#c65d1b] px-3 py-2 text-[10px] font-semibold text-white hover:bg-[#a34b16] disabled:cursor-not-allowed disabled:opacity-50"><Plus size={13} />Add</button>
+    </form>
+    {categories.length > 0 && <ul className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">{categories.map(category => <li key={category._id} className="group flex min-w-0 flex-col items-center justify-center gap-2 rounded-xl border border-[#eceee8] bg-[#fafbf8] px-2 py-3 text-center transition hover:border-[#dca875] hover:bg-[#fff6ef]">
+      {renaming === category._id ? <>
+        <input autoFocus value={renameValue} onChange={event => setRenameValue(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') renameCategory(); if (event.key === 'Escape') setRenaming(null) }} maxLength="60" aria-label={`Rename ${category.name}`} className="w-full min-w-0 rounded-md border border-[#dca875] bg-white px-1.5 py-1 text-center text-[10px] outline-none" />
+        <span className="flex items-center gap-1">
+          <button disabled={busy} onClick={renameCategory} title="Save name" className="rounded-md p-1 text-[#a34b16] hover:bg-[#fff1e6]"><Check size={12} /></button>
+          <button onClick={() => setRenaming(null)} title="Cancel" className="rounded-md p-1 text-[#9b9f96] hover:bg-[#f0f1ed]"><X size={12} /></button>
+        </span>
+      </> : <>
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-[#fff1e6] text-[#c65d1b]"><Wallet size={15} /></span>
+        <span className="w-full break-words text-[10px] font-semibold leading-[13px] text-[#3d443a]">{category.name}</span>
+        <span className="flex items-center gap-0.5">
+          <button onClick={() => { setRenaming(category._id); setRenameValue(category.name) }} title={`Edit ${category.name}`} className="rounded-md p-1 text-[#9b9f96] hover:bg-white hover:text-[#71786d]"><Settings2 size={12} /></button>
+          <button disabled={busy} onClick={() => removeCategory(category)} title={`Remove ${category.name}`} className="rounded-md p-1 text-[#c08b7e] hover:bg-[#fae9e5] hover:text-[#b75c48]"><X size={12} /></button>
+        </span>
+      </>}
+    </li>)}</ul>}
+    {!categories.length && <p className="mt-3 rounded-xl border border-dashed border-[#e6e9e1] px-3 py-6 text-center text-[10px] text-[#9b9f96]">No expense categories yet — add your first one above.</p>}
   </div>
 }

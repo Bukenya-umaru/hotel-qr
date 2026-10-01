@@ -9,10 +9,16 @@ const schema = new mongoose.Schema({
   // The kind of food this stock holds, chosen from the business's
   // food-type categories (Beef, Chicken, Fish, …).
   foodType: { type: String, default: '', trim: true, maxlength: 60 },
+  // What the count on `plates` represents: plated portions, counted
+  // pieces (gas cylinders, boxes), or weight in kilograms.
+  unit: { type: String, enum: ['plates', 'items', 'kg'], default: 'plates' },
+  // Photo of the actual batch, so the kitchen can recognise it at a glance.
+  imageUrl: { type: String, default: '' },
+  // Count of whatever `unit` measures. Kept in `plates` for older records.
+  plates: { type: Number, required: true, min: 0, default: 0 },
   // Money value of this stock entry in the business currency.
   price: { type: Number, required: true, min: 0, default: 0 },
-  plates: { type: Number, required: true, min: 0, default: 0 },
-  // Keeps a running total of plates ever added, for quick insight.
+  // Keeps a running total of the count ever added, for quick insight.
   totalAdded: { type: Number, required: true, min: 0, default: 0 },
   // Running total of plates deducted by orders (manual reduces excluded).
   totalUsed: { type: Number, required: true, min: 0, default: 0 },
