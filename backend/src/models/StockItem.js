@@ -16,7 +16,8 @@ const schema = new mongoose.Schema({
   imageUrl: { type: String, default: '' },
   // Count of whatever `unit` measures. Kept in `plates` for older records.
   plates: { type: Number, required: true, min: 0, default: 0 },
-  // Money value of this stock entry in the business currency.
+  // Money value of ONE `unit` (a single plate, a single item, 1 kg), in the
+  // business currency. The entry's total value is this × `plates`.
   price: { type: Number, required: true, min: 0, default: 0 },
   // Keeps a running total of the count ever added, for quick insight.
   totalAdded: { type: Number, required: true, min: 0, default: 0 },

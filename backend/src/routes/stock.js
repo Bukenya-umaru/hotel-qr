@@ -51,6 +51,8 @@ router.get('/', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (r
     unit: item.unit || 'plates',
     imageUrl: item.imageUrl || '',
     price: item.price ?? 0,
+    // Money this entry is worth right now: per-unit price × count on hand.
+    value: Math.round((item.price ?? 0) * (item.plates ?? 0) * 100) / 100,
     plates: item.plates,
     totalAdded: item.totalAdded,
     totalUsed: item.totalUsed,
@@ -111,11 +113,8 @@ router.patch('/:id/adjust', authenticate, authorize('OWNER', 'KITCHEN'), asyncRo
   if (nextPlates < 0) return res.status(409).json({ message: `Only ${stock.plates} ${noun} left — you cannot reduce more than are in stock.` })
   stock.plates = nextPlates
   if (delta > 0) stock.totalAdded += delta
-  // Keep the money value proportional to the count (same per-unit value); if
-  // the stock was at zero the price is left for the chef to set explicitly.
-  if (stock.plates > 0 && stock.plates !== nextPlates) {
-    stock.price = safeAmount(stock.price * (nextPlates / stock.plates)) ?? stock.price
-  }
+  // `price` is the rate for one plate/item/kg, so it never changes with the
+  // count — the money value of the entry moves on its own (price × count).
   await stock.save()
   req.app.get('io').to(`hotel:${scope}`).emit('stock_updated')
   res.json({ item: stock })
