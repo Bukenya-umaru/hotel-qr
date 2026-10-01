@@ -16,18 +16,13 @@ export function Sidebar({ role, page, setPage, user, onLogin, onLogout, onChange
   const items = itemsProp || navItems[role] || navItems.OWNER
   const labels = { OWNER: 'Owner portal', KITCHEN: 'Chef portal', DEVELOPER: 'Developer support' }
   // The Categories accordion opens by itself when one of its subsections is
-  // the active page, and remembers its open state while navigating.
+  // the active page. Single-open: expanding another section collapses this one.
   const [openGroups, setOpenGroups] = useState(() => new Set())
   useEffect(() => {
     const active = items.find(item => item.children?.some(child => child.label === page))
-    if (active) setOpenGroups(previous => new Set(previous).add(active.label))
+    if (active) setOpenGroups(previous => previous.has(active.label) && previous.size === 1 ? previous : new Set([active.label]))
   }, [page, items])
-  const toggleGroup = label => setOpenGroups(previous => {
-    const next = new Set(previous)
-    if (next.has(label)) next.delete(label)
-    else next.add(label)
-    return next
-  })
+  const toggleGroup = label => setOpenGroups(previous => previous.has(label) ? new Set() : new Set([label]))
   return <aside className="fixed inset-y-0 left-0 z-20 hidden w-[250px] flex-col overflow-y-auto border-r border-[#eaece6] bg-white px-4 py-5 lg:flex">
     <div className="px-2"><Brand /></div>
     <button className="mt-8 flex items-center gap-3 rounded-xl border border-[#eceee8] p-2.5 text-left transition hover:bg-[#fafbf8]">
