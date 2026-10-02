@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { io } from 'socket.io-client'
-import { Boxes, Check, ImagePlus, Plus, Settings2, Trash2, Wallet, X } from 'lucide-react'
+import { Boxes, ImagePlus, Pencil, Plus, Trash2, Wallet } from 'lucide-react'
 import { API_BASE_URL, api, apiAssetUrl } from '../../lib/api.js'
 import { money, cx } from '../../lib/ui.js'
 import { Modal } from '../Modal/Modal.jsx'
@@ -25,11 +25,11 @@ export function StockPage({ user, canManage = true, foodTypes = [] }) {
   const [busy, setBusy] = useState(false)
   const [adjusting, setAdjusting] = useState(null) // { item, mode: 'add' | 'reduce' }
   const [adjustAmount, setAdjustAmount] = useState('')
-  const [renaming, setRenaming] = useState(null)
-  const [renameValue, setRenameValue] = useState('')
+  const [editing, setEditing] = useState(null) // stock entry being edited; null = creating a new one
   const [form, setForm] = useState({ name: '', foodType: '', price: '', unit: 'plates', quantity: '' })
   const [image, setImage] = useState(null)
   const [preview, setPreview] = useState('')
+  const fileRef = useRef(null)
 
   const loadStock = async () => {
     try {
@@ -57,15 +57,32 @@ export function StockPage({ user, canManage = true, foodTypes = [] }) {
     return () => URL.revokeObjectURL(url)
   }, [image])
 
-  const openPopup = () => {
-    setForm({ name: '', foodType: '', price: '', unit: 'plates', quantity: '' })
+  const clearImageInput = () => {
     setImage(null)
+    if (fileRef.current) fileRef.current.value = ''
+  }
+
+  const openPopup = () => {
+    setEditing(null)
+    setForm({ name: '', foodType: '', price: '', unit: 'plates', quantity: '' })
+    clearImageInput()
     setPreview('')
     setError('')
     setShowForm(true)
   }
 
-  const createStock = async event => {
+  // Opens the same form the add button uses, pre-filled so every field of
+  // the entry can be changed in one place.
+  const openEdit = item => {
+    setEditing(item)
+    setForm({ name: item.name, foodType: item.foodType || '', price: String(item.price ?? ''), unit: item.unit || 'plates', quantity: String(item.plates ?? '') })
+    clearImageInput()
+    setPreview(item.imageUrl ? apiAssetUrl(item.imageUrl) : '')
+    setError('')
+    setShowForm(true)
+  }
+
+  const submitStock = async event => {
     event.preventDefault()
     setBusy(true)
     try {
@@ -76,9 +93,10 @@ export function StockPage({ user, canManage = true, foodTypes = [] }) {
       data.append('unit', form.unit)
       data.append('quantity', String(Number(form.quantity || 0)))
       if (image) data.append('image', image)
-      await api('/api/stock', { method: 'POST', body: data })
+      await api(editing ? `/api/stock/${editing._id}` : '/api/stock', { method: editing ? 'PATCH' : 'POST', body: data })
       setShowForm(false)
-      setImage(null)
+      setEditing(null)
+      clearImageInput()
       setPreview('')
       setError('')
       await loadStock()
@@ -111,21 +129,6 @@ export function StockPage({ user, canManage = true, foodTypes = [] }) {
     }
   }
 
-  const renameStock = async () => {
-    const value = renameValue.trim()
-    if (!renaming || !value) return
-    setBusy(true)
-    try {
-      await api(`/api/stock/${renaming._id}`, { method: 'PATCH', body: JSON.stringify({ name: value }) })
-      setRenaming(null)
-      await loadStock()
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
   const removeStock = async stock => {
     if (!window.confirm(`Remove "${stock.name}" from stock tracking?`)) return
     setBusy(true)
@@ -140,6 +143,9 @@ export function StockPage({ user, canManage = true, foodTypes = [] }) {
   }
 
   const lowStock = plates => plates <= 5
+  // Keep the entry's current food type selectable even if its category was
+  // deleted since it was chosen.
+  const typeOptions = form.foodType && !foodTypes.includes(form.foodType) ? [form.foodType, ...foodTypes] : foodTypes
 
   // Money tied up in the stock on hand (per-unit price × count), plus how
   // much of it is running out.
@@ -169,20 +175,16 @@ export function StockPage({ user, canManage = true, foodTypes = [] }) {
           {item.imageUrl ? <img src={apiAssetUrl(item.imageUrl)} alt={item.name} className="size-full object-cover" /> : <span className="grid size-full place-items-center"><Boxes size={16} className="sm:size-7" /></span>}
           <span title={item.plates === 0 ? 'Out of stock' : lowStock(item.plates) ? 'Running low' : 'In stock'} className={cx('absolute right-1 top-1 size-2 rounded-full ring-2 ring-white sm:right-1.5 sm:top-1.5 sm:size-3', item.plates === 0 ? 'bg-[#d9534f]' : lowStock(item.plates) ? 'bg-[#e0a63c]' : 'bg-[#5aa54f]')} />
         </span>
-        {renaming === item ? <div className="flex w-full items-center gap-1">
-          <input autoFocus value={renameValue} onChange={event => setRenameValue(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') renameStock(); if (event.key === 'Escape') setRenaming(null) }} maxLength="60" aria-label={`Rename ${item.name}`} className="min-w-0 flex-1 rounded border border-[#dca875] px-1 py-0.5 text-center text-[10px] outline-none sm:px-2.5 sm:py-1.5 sm:text-[12px]" />
-          <button disabled={busy} onClick={renameStock} title="Save name" className="shrink-0 rounded p-0.5 text-[#a34b16] hover:bg-[#fff1e6] sm:p-1"><Check size={11} className="sm:size-4" /></button>
-          <button onClick={() => setRenaming(null)} title="Cancel" className="shrink-0 rounded p-0.5 text-[#9b9f96] hover:bg-[#f0f1ed] sm:p-1"><X size={11} className="sm:size-4" /></button>
-        </div> : <div className="w-full min-w-0 text-center">
+        <div className="w-full min-w-0 text-center">
           <h3 className="font-display flex items-center justify-center gap-1 text-[10px] font-bold leading-[13px] sm:gap-1.5 sm:text-[13px] sm:leading-[17px]">
             <span className="line-clamp-2 break-words">{item.name}</span>
-            {canManage && <button onClick={() => { setRenaming(item); setRenameValue(item.name) }} title={`Rename ${item.name}`} className="shrink-0 rounded p-0.5 text-[#b9beb2] hover:bg-[#f0f1ed] hover:text-[#71786d] sm:p-1"><Settings2 size={11} className="sm:size-3.5" /></button>}
+            {canManage && <button onClick={() => openEdit(item)} title={`Edit ${item.name}`} className="shrink-0 rounded p-0.5 text-[#b9beb2] hover:bg-[#f0f1ed] hover:text-[#71786d] sm:p-1"><Pencil size={11} className="sm:size-3.5" /></button>}
           </h3>
           <div className="mt-0.5 flex flex-wrap items-center justify-center gap-1 sm:mt-1.5 sm:gap-1.5">
             {item.foodType && <span className="max-w-full truncate rounded bg-[#fff1e6] px-1.5 py-0.5 text-[7px] font-semibold uppercase tracking-[.6px] text-[#a34b16] sm:px-2 sm:py-1 sm:text-[9px] sm:tracking-[.8px]">{item.foodType}</span>}
           </div>
           <p className="mt-1 hidden text-[10px] text-[#9b9f96] sm:mt-1.5 sm:block">{item.totalAdded} added · {item.totalUsed} served</p>
-        </div>}
+        </div>
         <div className="w-full border-t border-dashed border-[#ebede7] pt-1 text-center sm:pt-2">
           <div className="flex items-baseline justify-center gap-1 sm:gap-1.5">
             <span className="font-display text-[15px] font-extrabold leading-4 text-[#293128] sm:text-[24px] sm:leading-7">{item.plates}</span>
@@ -204,12 +206,12 @@ export function StockPage({ user, canManage = true, foodTypes = [] }) {
         <button disabled={busy} className="w-full rounded-lg bg-[#c65d1b] py-2.5 text-[11px] font-semibold text-white disabled:opacity-60">{adjusting.mode === 'add' ? `Add ${unit.plural}` : `Reduce ${unit.plural}`}</button>
       </form> })()}
     </Modal>}
-    {showForm && <Modal title="Add stock" onClose={() => setShowForm(false)}>
-      <form className="space-y-3.5" onSubmit={createStock}>
+    {showForm && <Modal title={editing ? `Edit ${editing.name}` : 'Add stock'} onClose={() => { setShowForm(false); setEditing(null) }}>
+      <form className="space-y-3.5" onSubmit={submitStock}>
         <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#737a70]">Food type <span className="text-[#b75c48]">*</span></span>
           <select required value={form.foodType} onChange={event => setForm({ ...form, foodType: event.target.value })} className="w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px]">
             <option value="">Click to select food type…</option>
-            {foodTypes.map(type => <option key={type} value={type}>{type}</option>)}
+            {typeOptions.map(type => <option key={type} value={type}>{type}</option>)}
           </select>
           <span className="mt-1 block text-[9px] text-[#a0a49b]">Only categories created under Categories → Food type are listed.</span>
           {!foodTypes.length && <span className="mt-1.5 block rounded-lg bg-[#fbf1df] px-2.5 py-2 text-[9px] leading-4 text-[#8c6b35]">No food type categories yet. Close this and add one under Categories → Food type first.</span>}
@@ -238,12 +240,12 @@ export function StockPage({ user, canManage = true, foodTypes = [] }) {
             <span className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-lg border border-[#e6e9e1] bg-[#fafbf8] text-[#c0c4b8]">
               {preview ? <img src={preview} alt="Stock preview" className="size-full object-cover" /> : <ImagePlus size={18} />}
             </span>
-            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={event => setImage(event.target.files?.[0] || null)} className="block w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2 text-[10px] file:mr-3 file:rounded-md file:border-0 file:bg-[#fff1e6] file:px-3 file:py-1.5 file:text-[10px] file:font-semibold file:text-[#c65d1b]" />
+            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={event => setImage(event.target.files?.[0] || null)} className="block w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2 text-[10px] file:mr-3 file:rounded-md file:border-0 file:bg-[#fff1e6] file:px-3 file:py-1.5 file:text-[10px] file:font-semibold file:text-[#c65d1b]" />
           </span>
-          <span className="mt-1 block text-[9px] text-[#a0a49b]">JPG, PNG or WebP — maximum 5 MB. Optional.</span>
+          <span className="mt-1 block text-[9px] text-[#a0a49b]">{editing ? 'JPG, PNG or WebP — maximum 5 MB. Leave empty to keep the current photo.' : 'JPG, PNG or WebP — maximum 5 MB. Optional.'}</span>
         </label>
         {error && <p className="text-[11px] text-[#b75c48]">{error}</p>}
-        <button disabled={busy || !foodTypes.length} className="w-full rounded-lg bg-[#c65d1b] py-2.5 text-[11px] font-semibold text-white disabled:opacity-60">{busy ? 'Adding…' : 'Add stock'}</button>
+        <button disabled={busy || (!editing && !foodTypes.length)} className="w-full rounded-lg bg-[#c65d1b] py-2.5 text-[11px] font-semibold text-white disabled:opacity-60">{busy ? 'Saving…' : editing ? 'Save changes' : 'Add stock'}</button>
       </form>
     </Modal>}
   </div>
