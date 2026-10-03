@@ -31,6 +31,7 @@ import { ChangePasswordModal } from '../ChangePasswordModal/ChangePasswordModal.
 import { TablesPage } from '../TablesPage/TablesPage.jsx'
 import { StockPage } from '../StockPage/StockPage.jsx'
 import { CategoriesPage } from '../CategoriesPage/CategoriesPage.jsx'
+import { PurchasePage } from '../PurchasePage/PurchasePage.jsx'
 import { SupportPage } from '../SupportPage/SupportPage.jsx'
 import { SearchModal } from '../SearchModal/SearchModal.jsx'
 
@@ -172,6 +173,7 @@ export default function App() {
     if (item.label === 'Tables') return hasPermission(user, 'manage_tables')
     if (item.label === 'Stock') return hasPermission(user, 'manage_stock')
     if (item.label === 'Expenses') return hasPermission(user, 'manage_expenses')
+    if (item.label === 'Purchase') return hasPermission(user, 'manage_sales')
     return true
   })
   // Single-open accordion: expanding a section hides the subsections of any
@@ -351,6 +353,7 @@ export default function App() {
   else if (page === 'Tables' && ['OWNER', 'KITCHEN'].includes(role)) content = <TablesPage user={user} canManage={canManageTables} />
   else if (page === 'Food type') content = <CategoriesPage initialView="foodtype" />
   else if (page === 'Expenses') content = <CategoriesPage initialView="expenses" />
+  else if (page === 'Sales' && ['OWNER', 'KITCHEN'].includes(role)) content = <PurchasePage initialView="sales" />
   else if (page === 'Stock' && ['OWNER', 'KITCHEN'].includes(role)) content = <StockPage user={user} canManage={canManageStock} foodTypes={managedCategoryNames} />
   else if (page === 'Help & support' && ['OWNER', 'DEVELOPER'].includes(role)) content = <SupportPage role={role} />
   else if (page === 'Orders') content = <OrdersTable orders={orders} onAdvance={role === 'KITCHEN' || role === 'OWNER' ? advanceOrder : undefined} />

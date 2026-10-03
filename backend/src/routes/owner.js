@@ -8,6 +8,7 @@ import { MenuItem } from '../models/MenuItem.js'
 import { MenuCategory } from '../models/MenuCategory.js'
 import { Expense } from '../models/Expense.js'
 import { ExpenseCategory } from '../models/ExpenseCategory.js'
+import { Sale } from '../models/Sale.js'
 import { Order } from '../models/Order.js'
 import { Hotel } from '../models/Hotel.js'
 import { removeUploadedImage, uploadMenuImage } from '../middleware/upload.js'
@@ -340,6 +341,71 @@ router.delete('/categories/:id/expenses/:expenseId', authenticate, authorize('OW
   if (!idIsValid(req.params.id) || !idIsValid(req.params.expenseId)) return res.status(404).json({ message: 'Expense not found.' })
   const expense = await Expense.findOneAndDelete({ _id: req.params.expenseId, hotelId: hotelScope(req), category: req.params.id })
   if (!expense) return res.status(404).json({ message: 'Expense not found.' })
+  res.status(204).end()
+}))
+
+// Manually recorded sales, e.g. walk-in cash sales or items sold outside
+// the app. Amount is the total money the sale brought in.
+router.get('/sales', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_sales')) return res.status(403).json({ message: 'The owner has not granted you permission to record sales.' })
+  const scope = hotelScope(req)
+  if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
+  const startOfToday = new Date()
+  startOfToday.setHours(0, 0, 0, 0)
+  const [sales, allTime, todayTotals] = await Promise.all([
+    Sale.find({ hotelId: scope }).sort({ createdAt: -1 }).limit(100).populate('recordedBy', 'name'),
+    Sale.aggregate([
+      { $match: { hotelId: new mongoose.Types.ObjectId(scope) } },
+      { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } },
+    ]),
+    Sale.aggregate([
+      { $match: { hotelId: new mongoose.Types.ObjectId(scope), createdAt: { $gte: startOfToday } } },
+      { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } },
+    ]),
+  ])
+  res.json({
+    total: allTime[0]?.total || 0,
+    count: allTime[0]?.count || 0,
+    todayTotal: todayTotals[0]?.total || 0,
+    todayCount: todayTotals[0]?.count || 0,
+    sales: sales.map(sale => ({
+      _id: sale._id,
+      name: sale.name,
+      quantity: sale.quantity,
+      amount: sale.amount,
+      note: sale.note,
+      recordedBy: sale.recordedBy?.name || '',
+      createdAt: sale.createdAt,
+    })),
+  })
+}))
+
+router.post('/sales', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_sales')) return res.status(403).json({ message: 'The owner has not granted you permission to record sales.' })
+  const name = String(req.body.name || '').trim().slice(0, 60)
+  const amount = Number(req.body.amount)
+  const quantity = req.body.quantity === undefined || req.body.quantity === '' ? 1 : Number(req.body.quantity)
+  if (!name) return res.status(400).json({ message: 'Give the sale a name, e.g. Beef plates.' })
+  if (!Number.isFinite(quantity) || quantity < 0) return res.status(400).json({ message: 'Enter a quantity of zero or more.' })
+  if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ message: 'Enter a sale amount greater than zero.' })
+  const scope = hotelScope(req)
+  if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
+  const sale = await Sale.create({
+    hotelId: scope,
+    name,
+    quantity: Math.round(quantity * 100) / 100,
+    amount: Math.round(amount * 100) / 100,
+    note: String(req.body.note || '').trim().slice(0, 200),
+    recordedBy: req.user._id,
+  })
+  res.status(201).json({ sale: { ...sale.toObject(), recordedBy: req.user.name } })
+}))
+
+router.delete('/sales/:saleId', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_sales')) return res.status(403).json({ message: 'The owner has not granted you permission to record sales.' })
+  if (!idIsValid(req.params.saleId)) return res.status(404).json({ message: 'Sale not found.' })
+  const sale = await Sale.findOneAndDelete({ _id: req.params.saleId, hotelId: hotelScope(req) })
+  if (!sale) return res.status(404).json({ message: 'Sale not found.' })
   res.status(204).end()
 }))
 

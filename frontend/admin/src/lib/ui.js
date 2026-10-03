@@ -1,5 +1,5 @@
 import {
-  Boxes, ChefHat, CircleHelp, LayoutDashboard, Rows3, ShoppingBag, TrendingUp, Users, Utensils,
+  Boxes, ChefHat, CircleHelp, LayoutDashboard, Rows3, ShoppingBag, ShoppingCart, TrendingUp, Users, Utensils,
 } from 'lucide-react'
 
 export const money = (value, currency = 'UGX') => new Intl.NumberFormat('en-UG', {
@@ -55,6 +55,7 @@ export const PERMISSIONS = [
   { key: 'manage_tables', label: 'Manage tables' },
   { key: 'manage_stock', label: 'Manage stock' },
   { key: 'manage_expenses', label: 'Manage expenses' },
+  { key: 'manage_sales', label: 'Record sales' },
 ]
 
 export const grantedPermissions = user => {
@@ -71,6 +72,7 @@ export const navItems = {
     { label: 'Categories', icon: Rows3, children: [{ label: 'Food type' }, { label: 'Expenses' }] },
     { label: 'Menu', icon: Utensils },
     { label: 'Stock', icon: Boxes },
+    { label: 'Purchase', icon: ShoppingCart, children: [{ label: 'Sales' }] },
     { label: 'Tables', icon: ChefHat },
     { label: 'Chefs', icon: Users },
     { label: 'Reports', icon: TrendingUp },
@@ -81,6 +83,7 @@ export const navItems = {
     { label: 'Categories', icon: Rows3, children: [{ label: 'Food type' }, { label: 'Expenses' }] },
     { label: 'Menu', icon: Utensils },
     { label: 'Stock', icon: Boxes },
+    { label: 'Purchase', icon: ShoppingCart, children: [{ label: 'Sales' }] },
     { label: 'Tables', icon: ChefHat },
   ],
   DEVELOPER: [
