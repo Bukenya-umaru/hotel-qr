@@ -372,6 +372,7 @@ router.get('/sales', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(asy
       _id: sale._id,
       name: sale.name,
       quantity: sale.quantity,
+      unit: sale.unit || '',
       amount: sale.amount,
       note: sale.note,
       recordedBy: sale.recordedBy?.name || '',
@@ -395,6 +396,7 @@ router.post('/sales', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(as
     name,
     quantity: Math.round(quantity * 100) / 100,
     amount: Math.round(amount * 100) / 100,
+    unit: String(req.body.unit || '').trim().toLowerCase().slice(0, 20),
     note: String(req.body.note || '').trim().slice(0, 200),
     recordedBy: req.user._id,
   })

@@ -58,6 +58,22 @@ export const PERMISSIONS = [
   { key: 'manage_sales', label: 'Record sales' },
 ]
 
+// Ways a stock entry or a recorded sale can be counted. 'Other' lets the
+// kitchen name any measure itself, e.g. crates or trays.
+export const UNIT_OPTIONS = [
+  { key: 'plates', label: 'Plates' },
+  { key: 'items', label: 'Items' },
+  { key: 'cups', label: 'Cups' },
+  { key: 'kg', label: 'KG' },
+  { key: 'other', label: 'Other' },
+]
+// The word shown for a unit — 'other' uses the custom name it was given.
+export const unitDisplay = (unit, customUnit = '') => unit === 'kg' ? 'kg'
+  : unit === 'items' ? 'items'
+  : unit === 'cups' ? 'cups'
+  : unit === 'other' ? (customUnit || 'units')
+  : 'plates'
+
 export const grantedPermissions = user => {
   if (!user || user.role !== 'KITCHEN' || !user.permissions) return PERMISSIONS.map(permission => permission.key)
   return user.permissions

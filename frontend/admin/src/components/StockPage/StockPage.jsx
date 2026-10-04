@@ -6,14 +6,24 @@ import { money, cx } from '../../lib/ui.js'
 import { Modal } from '../Modal/Modal.jsx'
 
 // Stock is not always counted in plates — gas cylinders, charcoal and boxes
-// are counted as items, and dry goods are weighed. The unit decides what the
-// number on a card means and what the add/reduce buttons adjust.
+// are counted as items, milk is served by the cup, and anything else can be
+// named with the Other option (crates, trays, bottles…). The unit decides
+// what the number on a card means and what the add/reduce buttons adjust.
 const UNITS = [
   { value: 'plates', label: 'Plates', singular: 'plate', plural: 'plates', hint: 'Portions ready to serve, e.g. 20 plates of beef.', step: '1' },
   { value: 'items', label: 'Items', singular: 'item', plural: 'items', hint: 'Counted pieces, e.g. 4 gas cylinders or 200 boxes.', step: '1' },
+  { value: 'cups', label: 'Cups', singular: 'cup', plural: 'cups', hint: 'Served by the cup, e.g. 30 cups of milk or porridge.', step: '1' },
   { value: 'kg', label: 'Weight (KG)', singular: 'kg', plural: 'kg', hint: 'Weighed stock, e.g. 12.5 kg of charcoal.', step: '0.1' },
+  { value: 'other', label: 'Other', singular: 'unit', plural: 'units', hint: 'Anything else — name the unit yourself, e.g. crate, tray or bottle.', step: '1' },
 ]
-const unitInfo = value => UNITS.find(entry => entry.value === value) || UNITS[0]
+// The 'other' unit takes its name from the entry's customUnit, e.g. "crate".
+const unitInfo = (value, customUnit = '') => {
+  const found = UNITS.find(entry => entry.value === value)
+  if (!found) return UNITS[0]
+  return found.value === 'other' && customUnit
+    ? { ...found, singular: customUnit, plural: customUnit, label: customUnit }
+    : found
+}
 // The price entered is for ONE unit, so the money the entry is worth is that
 // rate multiplied by what is left in stock.
 const stockValue = item => Math.round((Number(item.price) || 0) * (Number(item.plates) || 0) * 100) / 100
@@ -26,7 +36,7 @@ export function StockPage({ user, canManage = true, foodTypes = [] }) {
   const [adjusting, setAdjusting] = useState(null) // { item, mode: 'add' | 'reduce' }
   const [adjustAmount, setAdjustAmount] = useState('')
   const [editing, setEditing] = useState(null) // stock entry being edited; null = creating a new one
-  const [form, setForm] = useState({ name: '', foodType: '', price: '', unit: 'plates', quantity: '' })
+  const [form, setForm] = useState({ name: '', foodType: '', price: '', unit: 'plates', customUnit: '', quantity: '' })
   const [image, setImage] = useState(null)
   const [preview, setPreview] = useState('')
   const fileRef = useRef(null)
@@ -64,7 +74,7 @@ export function StockPage({ user, canManage = true, foodTypes = [] }) {
 
   const openPopup = () => {
     setEditing(null)
-    setForm({ name: '', foodType: '', price: '', unit: 'plates', quantity: '' })
+    setForm({ name: '', foodType: '', price: '', unit: 'plates', customUnit: '', quantity: '' })
     clearImageInput()
     setPreview('')
     setError('')
@@ -75,7 +85,7 @@ export function StockPage({ user, canManage = true, foodTypes = [] }) {
   // the entry can be changed in one place.
   const openEdit = item => {
     setEditing(item)
-    setForm({ name: item.name, foodType: item.foodType || '', price: String(item.price ?? ''), unit: item.unit || 'plates', quantity: String(item.plates ?? '') })
+    setForm({ name: item.name, foodType: item.foodType || '', price: String(item.price ?? ''), unit: item.unit || 'plates', customUnit: item.customUnit || '', quantity: String(item.plates ?? '') })
     clearImageInput()
     setPreview(item.imageUrl ? apiAssetUrl(item.imageUrl) : '')
     setError('')
@@ -91,6 +101,7 @@ export function StockPage({ user, canManage = true, foodTypes = [] }) {
       data.append('foodType', form.foodType)
       data.append('price', String(Number(form.price || 0)))
       data.append('unit', form.unit)
+      data.append('customUnit', form.unit === 'other' ? form.customUnit : '')
       data.append('quantity', String(Number(form.quantity || 0)))
       if (image) data.append('image', image)
       await api(editing ? `/api/stock/${editing._id}` : '/api/stock', { method: editing ? 'PATCH' : 'POST', body: data })
@@ -109,7 +120,7 @@ export function StockPage({ user, canManage = true, foodTypes = [] }) {
 
   const adjustStock = async () => {
     const amount = Number(adjustAmount)
-    const unit = unitInfo(adjusting?.item?.unit)
+    const unit = unitInfo(adjusting?.item?.unit, adjusting?.item?.customUnit)
     const whole = unit.value === 'kg' ? Math.abs(amount * 100 - Math.round(amount * 100)) < 0.001 : Number.isInteger(amount)
     if (!adjusting || !whole || amount === 0) {
       setError(`Enter a number of ${unit.plural} to ${adjusting?.mode === 'add' ? 'add' : 'reduce'}.`)
@@ -146,6 +157,7 @@ export function StockPage({ user, canManage = true, foodTypes = [] }) {
   // Keep the entry's current food type selectable even if its category was
   // deleted since it was chosen.
   const typeOptions = form.foodType && !foodTypes.includes(form.foodType) ? [form.foodType, ...foodTypes] : foodTypes
+  const formUnit = unitInfo(form.unit, form.customUnit)
 
   // Money tied up in the stock on hand (per-unit price × count), plus how
   // much of it is running out.
@@ -154,11 +166,13 @@ export function StockPage({ user, canManage = true, foodTypes = [] }) {
   const lowCount = items.filter(item => item.plates > 0 && lowStock(item.plates)).length
   const totalCount = items.reduce((sum, item) => sum + (Number(item.plates) || 0), 0)
 
+  const unitButton = active => cx('rounded-lg border px-2.5 py-1.5 text-[10px] font-semibold transition', active ? 'border-[#c65d1b] bg-[#fff1e6] text-[#c65d1b]' : 'border-[#e6e9e1] bg-white text-[#757c71] hover:border-[#dca875]')
+
   return <div className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
         <h2 className="font-display text-lg font-bold">Kitchen stock</h2>
-        <p className="mt-1 text-[12px] text-[#8d9389]">Track what you have in the kitchen — plated portions, counted items, or weighed stock. Adjust the count by hand as you prep and serve.</p>
+        <p className="mt-1 text-[12px] text-[#8d9389]">Track what you have in the kitchen — plated portions, counted items, cups of milk, weighed stock, or any unit you name. Adjust the count by hand as you prep and serve.</p>
       </div>
       {canManage && <button onClick={openPopup} className="flex items-center gap-2 rounded-lg bg-[#c65d1b] px-3.5 py-2.5 text-[11px] font-semibold text-white hover:bg-[#a34b16]"><Plus size={15} />Add stock</button>}
     </div>
@@ -169,8 +183,8 @@ export function StockPage({ user, canManage = true, foodTypes = [] }) {
       {outCount > 0 && <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#fae9e5] px-2 py-1 text-[10px] font-semibold text-[#a44f3d] sm:px-3 sm:py-2 sm:text-[12px]">{outCount} out of stock</span>}
       {lowCount > 0 && <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#fbf1df] px-2 py-1 text-[10px] font-semibold text-[#8c6b35] sm:px-3 sm:py-2 sm:text-[12px]">{lowCount} running low</span>}
     </div>}
-    {!items.length ? <div className="rounded-2xl border border-dashed border-[#dfe4d9] bg-white px-5 py-12 text-center"><Boxes className="mx-auto text-[#c65d1b]" size={26} /><p className="mt-3 text-[12px] font-semibold">No stock tracked yet</p><p className="mt-1 text-[10px] text-[#8d9389]">{canManage ? 'Click Add stock to record your first batch — pick the food type, how it is counted, price, and quantity.' : 'Stock entries will appear here once the kitchen adds them.'}</p></div> :
-      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4 lg:gap-4 2xl:grid-cols-5">{items.map(item => { const unit = unitInfo(item.unit); return <article key={item._id} className="flex min-w-0 flex-col items-center gap-1 rounded-xl border border-[#eceee8] bg-white p-1.5 transition hover:border-[#dca875] sm:gap-2.5 sm:p-4">
+    {!items.length ? <div className="rounded-2xl border border-dashed border-[#dfe4d9] bg-white px-5 py-12 text-center"><Boxes className="mx-auto text-[#c65d1b]" size={26} /><p className="mt-3 text-[12px] font-semibold">No stock tracked yet</p><p className="mt-1 text-[10px] text-[#8d9389]">{canManage ? 'Click Add stock to record your first batch — pick the food type, how it is counted (plates, items, cups, kg or your own unit), price, and quantity.' : 'Stock entries will appear here once the kitchen adds them.'}</p></div> :
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4 lg:gap-4 2xl:grid-cols-5">{items.map(item => { const unit = unitInfo(item.unit, item.customUnit); return <article key={item._id} className="flex min-w-0 flex-col items-center gap-1 rounded-xl border border-[#eceee8] bg-white p-1.5 transition hover:border-[#dca875] sm:gap-2.5 sm:p-4">
         <span className="relative block aspect-[4/3] w-full overflow-hidden rounded-lg bg-[#f0f1ed] text-[#c0c4b8] sm:aspect-[16/10] sm:rounded-xl">
           {item.imageUrl ? <img src={apiAssetUrl(item.imageUrl)} alt={item.name} className="size-full object-cover" /> : <span className="grid size-full place-items-center"><Boxes size={16} className="sm:size-7" /></span>}
           <span title={item.plates === 0 ? 'Out of stock' : lowStock(item.plates) ? 'Running low' : 'In stock'} className={cx('absolute right-1 top-1 size-2 rounded-full ring-2 ring-white sm:right-1.5 sm:top-1.5 sm:size-3', item.plates === 0 ? 'bg-[#d9534f]' : lowStock(item.plates) ? 'bg-[#e0a63c]' : 'bg-[#5aa54f]')} />
@@ -196,11 +210,11 @@ export function StockPage({ user, canManage = true, foodTypes = [] }) {
         {canManage && <div className="flex w-full items-center justify-center gap-1 sm:gap-1.5">
           <button disabled={busy} onClick={() => { setAdjusting({ item, mode: 'add' }); setAdjustAmount('') }} aria-label={`Add ${unit.plural} to ${item.name}`} title={`Add ${unit.plural}`} className="grid size-6 place-items-center rounded-md bg-[#fff1e6] text-[#a34b16] disabled:opacity-60 sm:size-9 sm:rounded-lg"><Plus size={12} className="sm:size-[18px]" /></button>
           <button disabled={busy || item.plates === 0} onClick={() => { setAdjusting({ item, mode: 'reduce' }); setAdjustAmount('') }} aria-label={`Reduce ${unit.plural} from ${item.name}`} title={`Reduce ${unit.plural}`} className="grid size-6 place-items-center rounded-md border border-[#eceee8] text-[12px] leading-none text-[#737a70] disabled:opacity-60 sm:size-9 sm:rounded-lg sm:text-[17px]">−</button>
-          <button disabled={busy} onClick={() => removeStock(item)} aria-label={`Remove ${item.name}`} title={`Remove ${item.name}`} className="grid size-6 place-items-center rounded-md border border-[#eceee8] text-[#a44f3d] disabled:opacity-60 sm:size-9 sm:rounded-lg"><Trash2 size={11} className="sm:size-4" /></button>
+          <button disabled={busy} onClick={() => removeStock(item)} aria-label={`Remove ${item.name}`} title={`Remove ${item.name}`} className="grid size-6 place-items-center rounded-md border border-[#eceee8] text-[#a44f3d] disabled:opacity-50 sm:size-9 sm:rounded-lg"><Trash2 size={11} className="sm:size-4" /></button>
         </div>}
       </article> })}</div>}
     {adjusting && <Modal title={adjusting.mode === 'add' ? `Add ${adjusting.item.name}` : `Reduce ${adjusting.item.name}`} onClose={() => setAdjusting(null)}>
-      {(() => { const unit = unitInfo(adjusting.item.unit); return <form className="space-y-3.5" onSubmit={event => { event.preventDefault(); adjustStock() }}>
+      {(() => { const unit = unitInfo(adjusting.item.unit, adjusting.item.customUnit); return <form className="space-y-3.5" onSubmit={event => { event.preventDefault(); adjustStock() }}>
         <p className="text-[11px] leading-5 text-[#8d9389]">{adjusting.mode === 'add' ? `${unit.label} you have just prepared and added.` : `${unit.label} removed without an order — staff meals, waste, or spoilage.`} Current count: <b>{adjusting.item.plates} {unit.plural}</b>, worth <b>{money(stockValue(adjusting.item))}</b> at {money(adjusting.item.price || 0)} per {unit.singular}.</p>
         <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#737a70]">{unit.label}</span><input autoFocus required type="number" min="0.1" step={unit.step} value={adjustAmount} onChange={event => setAdjustAmount(event.target.value)} className="w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px]" /></label>
         <button disabled={busy} className="w-full rounded-lg bg-[#c65d1b] py-2.5 text-[11px] font-semibold text-white disabled:opacity-60">{adjusting.mode === 'add' ? `Add ${unit.plural}` : `Reduce ${unit.plural}`}</button>
@@ -216,24 +230,25 @@ export function StockPage({ user, canManage = true, foodTypes = [] }) {
           <span className="mt-1 block text-[9px] text-[#a0a49b]">Only categories created under Categories → Food type are listed.</span>
           {!foodTypes.length && <span className="mt-1.5 block rounded-lg bg-[#fbf1df] px-2.5 py-2 text-[9px] leading-4 text-[#8c6b35]">No food type categories yet. Close this and add one under Categories → Food type first.</span>}
         </label>
-        <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#737a70]">How is it counted? <span className="text-[#b75c48]">*</span></span>
-          <select required value={form.unit} onChange={event => setForm({ ...form, unit: event.target.value })} className="w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px]">
-            {UNITS.map(entry => <option key={entry.value} value={entry.value}>{entry.label}</option>)}
-          </select>
-          <span className="mt-1 block text-[9px] text-[#a0a49b]">{unitInfo(form.unit).hint}</span>
-        </label>
+        <div><span className="mb-1.5 block text-[10px] font-semibold text-[#737a70]">How is it counted? <span className="text-[#b75c48]">*</span></span>
+          <div className="flex flex-wrap gap-1.5">
+            {UNITS.map(entry => <button type="button" key={entry.value} onClick={() => setForm({ ...form, unit: entry.value })} className={unitButton(form.unit === entry.value)}>{entry.label}</button>)}
+          </div>
+          {form.unit === 'other' && <input required value={form.customUnit} onChange={event => setForm({ ...form, customUnit: event.target.value })} maxLength="20" placeholder="Name the unit, e.g. crate, tray, bottle" className="mt-2 w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px]" />}
+          <span className="mt-1 block text-[9px] text-[#a0a49b]">{formUnit.hint}</span>
+        </div>
         <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
-          <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#737a70]">Price per {unitInfo(form.unit).singular} (UGX) <span className="text-[#b75c48]">*</span></span>
-            <input required type="number" min="0" step="1" value={form.price} onChange={event => setForm({ ...form, price: event.target.value })} placeholder={form.unit === 'kg' ? 'e.g. 8000 per kg' : form.unit === 'items' ? 'e.g. 45000 per cylinder' : 'e.g. 5000 per plate'} className="w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px]" />
-            <span className="mt-1 block text-[9px] leading-4 text-[#a0a49b]">The price of one {unitInfo(form.unit).singular}. Total value is worked out from the number you enter below.</span>
+          <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#737a70]">Price per {formUnit.singular} (UGX) <span className="text-[#b75c48]">*</span></span>
+            <input required type="number" min="0" step="1" value={form.price} onChange={event => setForm({ ...form, price: event.target.value })} placeholder={form.unit === 'kg' ? 'e.g. 8000 per kg' : form.unit === 'items' ? 'e.g. 45000 per cylinder' : form.unit === 'cups' ? 'e.g. 500 per cup' : form.unit === 'other' ? `per ${form.customUnit || 'unit'}` : 'e.g. 5000 per plate'} className="w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px]" />
+            <span className="mt-1 block text-[9px] leading-4 text-[#a0a49b]">The price of one {formUnit.singular}. Total value is worked out from the number you enter below.</span>
             <span className="mt-1.5 flex items-center gap-1.5 rounded-lg bg-[#eef6ec] px-2.5 py-2 text-[10px] font-semibold text-[#3f8f3a]"><Wallet size={12} />Total value {money((Number(form.price) || 0) * (Number(form.quantity) || 0))}</span>
           </label>
-          <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#737a70]">Number of {unitInfo(form.unit).plural} <span className="text-[#b75c48]">*</span></span>
-            <input required type="number" min="0" step={unitInfo(form.unit).step} value={form.quantity} onChange={event => setForm({ ...form, quantity: event.target.value })} placeholder={form.unit === 'kg' ? 'e.g. 12.5' : form.unit === 'items' ? 'e.g. 4' : 'e.g. 20'} className="w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px]" />
+          <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#737a70]">Number of {formUnit.plural} <span className="text-[#b75c48]">*</span></span>
+            <input required type="number" min="0" step={formUnit.step} value={form.quantity} onChange={event => setForm({ ...form, quantity: event.target.value })} placeholder={form.unit === 'kg' ? 'e.g. 12.5' : form.unit === 'items' ? 'e.g. 4' : form.unit === 'cups' ? 'e.g. 30' : 'e.g. 20'} className="w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px]" />
           </label>
         </div>
         <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#737a70]">Stock name <span className="text-[#b75c48]">*</span></span>
-          <input required value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} maxLength="60" placeholder="e.g. Friday beef batch" className="w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px]" />
+          <input required value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} maxLength="60" placeholder="e.g. Fresh milk" className="w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px]" />
         </label>
         <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#737a70]">Photo</span>
           <span className="flex items-center gap-2.5">

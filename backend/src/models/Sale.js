@@ -7,6 +7,9 @@ const schema = new mongoose.Schema({
   name: { type: String, required: true, trim: true, maxlength: 60 },
   // How many of the item were sold; defaults to one for quick entries.
   quantity: { type: Number, required: true, min: 0, default: 1 },
+  // What one `quantity` means, e.g. "plates", "cups" or a custom word like
+  // "crates". Empty for sales recorded before units were tracked.
+  unit: { type: String, default: '', trim: true, maxlength: 20 },
   amount: { type: Number, required: true, min: 0 },
   note: { type: String, default: '', trim: true, maxlength: 200 },
   recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },

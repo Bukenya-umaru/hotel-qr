@@ -19,11 +19,13 @@ const requireStockPermission = (req, res) => {
 
 const normalizeName = value => String(value || '').trim().slice(0, 60)
 const normalizeFoodType = value => String(value || '').trim().slice(0, 60)
-const STOCK_UNITS = ['plates', 'items', 'kg']
+const STOCK_UNITS = ['plates', 'items', 'cups', 'kg', 'other']
 const normalizeUnit = value => {
   const unit = String(value || '').trim().toLowerCase()
   return STOCK_UNITS.includes(unit) ? unit : 'plates'
 }
+// Free-named measure used when `unit` is 'other', e.g. "crate", "tray".
+const normalizeCustomUnit = value => String(value || '').trim().toLowerCase().slice(0, 20)
 // Weight can be fractional (2.5 kg); counted things are always whole.
 const normalizeQuantity = (value, unit) => {
   const number = Number(value ?? 0)
@@ -49,6 +51,7 @@ router.get('/', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (r
     name: item.name,
     foodType: item.foodType || '',
     unit: item.unit || 'plates',
+    customUnit: item.customUnit || '',
     imageUrl: item.imageUrl || '',
     price: item.price ?? 0,
     // Money this entry is worth right now: per-unit price × count on hand.
@@ -68,9 +71,11 @@ router.post('/', authenticate, authorize('OWNER', 'KITCHEN'), uploadMenuImage, a
   const foodType = normalizeFoodType(req.body.foodType)
   const price = safeAmount(req.body.price ?? 0)
   const unit = normalizeUnit(req.body.unit)
+  const customUnit = unit === 'other' ? normalizeCustomUnit(req.body.customUnit) : ''
   const quantity = normalizeQuantity(req.body.quantity ?? req.body.plates, unit)
   if (!name) return res.status(400).json({ message: 'Give the stock a name, e.g. Beef plates.' })
   if (!foodType) return res.status(400).json({ message: 'Choose the food type this stock belongs to.' })
+  if (unit === 'other' && !customUnit) return res.status(400).json({ message: 'Name the unit, e.g. crate, tray or bottle.' })
   if (quantity === null) return res.status(400).json({ message: 'Enter a count of zero or more.' })
   if (price === null) return res.status(400).json({ message: 'Price must be zero or more.' })
   const scope = hotelScope(req)
@@ -88,6 +93,7 @@ router.post('/', authenticate, authorize('OWNER', 'KITCHEN'), uploadMenuImage, a
     name,
     foodType,
     unit,
+    customUnit,
     imageUrl: req.file ? `/uploads/${req.file.filename}` : '',
     price,
     plates: quantity,
@@ -103,7 +109,11 @@ router.patch('/:id/adjust', authenticate, authorize('OWNER', 'KITCHEN'), asyncRo
   const scope = hotelScope(req)
   const stock = await StockItem.findOne({ _id: req.params.id, hotelId: scope })
   if (!stock) return res.status(404).json({ message: 'Stock not found.' })
-  const noun = stock.unit === 'kg' ? 'kg' : stock.unit === 'items' ? 'items' : 'plates'
+  const noun = stock.unit === 'kg' ? 'kg'
+    : stock.unit === 'items' ? 'items'
+    : stock.unit === 'cups' ? 'cups'
+    : stock.unit === 'other' && stock.customUnit ? stock.customUnit
+    : 'plates'
   const delta = Number(req.body.delta)
   const whole = stock.unit === 'kg' ? Math.abs(delta * 100 - Math.round(delta * 100)) < 0.001 : Number.isInteger(delta)
   if (!whole || delta === 0 || Math.abs(delta) > 100000) {
@@ -124,7 +134,7 @@ router.patch('/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadMenuImag
   if (!requireStockPermission(req, res)) return
   if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Stock not found.' })
   const scope = hotelScope(req)
-  const current = await StockItem.findOne({ _id: req.params.id, hotelId: scope }).select('unit imageUrl')
+  const current = await StockItem.findOne({ _id: req.params.id, hotelId: scope }).select('unit customUnit imageUrl')
   if (!current) return res.status(404).json({ message: 'Stock not found.' })
   const updates = {}
   if (req.body.name !== undefined) {
@@ -133,6 +143,12 @@ router.patch('/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadMenuImag
     updates.name = name
   }
   if (req.body.unit !== undefined) updates.unit = normalizeUnit(req.body.unit)
+  if (req.body.customUnit !== undefined) updates.customUnit = normalizeCustomUnit(req.body.customUnit)
+  // A named measure only makes sense for the 'other' unit.
+  if (updates.unit && updates.unit !== 'other') updates.customUnit = ''
+  const nextUnit = updates.unit || current.unit || 'plates'
+  const nextCustomUnit = updates.customUnit !== undefined ? updates.customUnit : (current.customUnit || '')
+  if (nextUnit === 'other' && !nextCustomUnit) return res.status(400).json({ message: 'Name the unit, e.g. crate, tray or bottle.' })
   if (req.body.quantity !== undefined || req.body.plates !== undefined) {
     const quantity = normalizeQuantity(req.body.quantity ?? req.body.plates, updates.unit || current.unit || 'plates')
     if (quantity === null) return res.status(400).json({ message: 'Enter a count of zero or more.' })

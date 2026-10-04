@@ -10,8 +10,11 @@ const schema = new mongoose.Schema({
   // food-type categories (Beef, Chicken, Fish, …).
   foodType: { type: String, default: '', trim: true, maxlength: 60 },
   // What the count on `plates` represents: plated portions, counted
-  // pieces (gas cylinders, boxes), or weight in kilograms.
-  unit: { type: String, enum: ['plates', 'items', 'kg'], default: 'plates' },
+  // pieces (gas cylinders, boxes), weight in kilograms, cups (milk,
+  // porridge), or any other measure named in `customUnit`.
+  unit: { type: String, enum: ['plates', 'items', 'cups', 'kg', 'other'], default: 'plates' },
+  // When `unit` is 'other', the name of that measure, e.g. "crate", "tray".
+  customUnit: { type: String, default: '', trim: true, maxlength: 20 },
   // Photo of the actual batch, so the kitchen can recognise it at a glance.
   imageUrl: { type: String, default: '' },
   // Count of whatever `unit` measures. Kept in `plates` for older records.
