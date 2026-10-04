@@ -88,7 +88,7 @@ export const navItems = {
     { label: 'Categories', icon: Rows3, children: [{ label: 'Food type' }, { label: 'Expenses' }] },
     { label: 'Menu', icon: Utensils },
     { label: 'Stock', icon: Boxes },
-    { label: 'Purchase', icon: ShoppingCart, children: [{ label: 'Sales' }] },
+    { label: 'Purchase', icon: ShoppingCart, children: [{ label: 'Sales' }, { label: 'Expenses', target: 'Purchase expenses' }] },
     { label: 'Tables', icon: ChefHat },
     { label: 'Chefs', icon: Users },
     { label: 'Reports', icon: TrendingUp },
@@ -99,7 +99,7 @@ export const navItems = {
     { label: 'Categories', icon: Rows3, children: [{ label: 'Food type' }, { label: 'Expenses' }] },
     { label: 'Menu', icon: Utensils },
     { label: 'Stock', icon: Boxes },
-    { label: 'Purchase', icon: ShoppingCart, children: [{ label: 'Sales' }] },
+    { label: 'Purchase', icon: ShoppingCart, children: [{ label: 'Sales' }, { label: 'Expenses', target: 'Purchase expenses' }] },
     { label: 'Tables', icon: ChefHat },
   ],
   DEVELOPER: [

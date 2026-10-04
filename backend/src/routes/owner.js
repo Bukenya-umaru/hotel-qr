@@ -8,6 +8,7 @@ import { MenuItem } from '../models/MenuItem.js'
 import { MenuCategory } from '../models/MenuCategory.js'
 import { Expense } from '../models/Expense.js'
 import { ExpenseCategory } from '../models/ExpenseCategory.js'
+import { HotelExpense } from '../models/HotelExpense.js'
 import { Sale } from '../models/Sale.js'
 import { Order } from '../models/Order.js'
 import { Hotel } from '../models/Hotel.js'
@@ -258,6 +259,96 @@ router.delete('/expense-categories/:id', authenticate, authorize('OWNER', 'KITCH
   if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Expense category not found.' })
   const category = await ExpenseCategory.findOneAndDelete({ _id: req.params.id, hotelId: hotelScope(req) })
   if (!category) return res.status(404).json({ message: 'Expense category not found.' })
+  res.status(204).end()
+}))
+
+// The hotel-wide expense ledger: everything the business spends, filed
+// under the expense categories managed in Categories > Expenses. Recording
+// with a brand-new category name creates the bucket on the fly.
+const requireExpenseAccess = (req, res) => {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_expenses')) {
+    res.status(403).json({ message: 'The owner has not granted you permission to manage expenses.' })
+    return false
+  }
+  return true
+}
+
+router.get('/expenses', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (!requireExpenseAccess(req, res)) return
+  const scope = hotelScope(req)
+  if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
+  const startOfToday = new Date()
+  startOfToday.setHours(0, 0, 0, 0)
+  const [expenses, allTime, todayTotals, byCategory] = await Promise.all([
+    HotelExpense.find({ hotelId: scope }).sort({ createdAt: -1 }).limit(100).populate('recordedBy', 'name'),
+    HotelExpense.aggregate([
+      { $match: { hotelId: new mongoose.Types.ObjectId(scope) } },
+      { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } },
+    ]),
+    HotelExpense.aggregate([
+      { $match: { hotelId: new mongoose.Types.ObjectId(scope), createdAt: { $gte: startOfToday } } },
+      { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } },
+    ]),
+    HotelExpense.aggregate([
+      { $match: { hotelId: new mongoose.Types.ObjectId(scope) } },
+      { $group: { _id: '$categoryName', total: { $sum: '$amount' }, count: { $sum: 1 } } },
+      { $sort: { total: -1 } },
+    ]),
+  ])
+  res.json({
+    total: allTime[0]?.total || 0,
+    count: allTime[0]?.count || 0,
+    todayTotal: todayTotals[0]?.total || 0,
+    todayCount: todayTotals[0]?.count || 0,
+    byCategory: byCategory.map(entry => ({ category: entry._id, total: entry.total, count: entry.count })),
+    expenses: expenses.map(expense => ({
+      _id: expense._id,
+      category: String(expense.category),
+      categoryName: expense.categoryName,
+      amount: expense.amount,
+      note: expense.note,
+      recordedBy: expense.recordedBy?.name || '',
+      createdAt: expense.createdAt,
+    })),
+  })
+}))
+
+router.post('/expenses', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (!requireExpenseAccess(req, res)) return
+  const amount = Number(req.body.amount)
+  const note = String(req.body.note || '').trim().slice(0, 200)
+  if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ message: 'Enter an expense amount greater than zero.' })
+  const scope = hotelScope(req)
+  if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
+  let category
+  if (idIsValid(req.body.categoryId)) {
+    category = await ExpenseCategory.findOne({ _id: req.body.categoryId, hotelId: scope })
+    if (!category) return res.status(404).json({ message: 'Expense category not found.' })
+  } else {
+    const name = String(req.body.categoryName || '').trim().slice(0, 60)
+    if (!name) return res.status(400).json({ message: 'Choose a category, or type a new category name.' })
+    category = await ExpenseCategory.findOneAndUpdate(
+      { hotelId: scope, name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+      { $setOnInsert: { hotelId: scope, name } },
+      { new: true, upsert: true },
+    )
+  }
+  const expense = await HotelExpense.create({
+    hotelId: scope,
+    category: category._id,
+    categoryName: category.name,
+    amount: Math.round(amount * 100) / 100,
+    note,
+    recordedBy: req.user._id,
+  })
+  res.status(201).json({ expense: { ...expense.toObject(), recordedBy: req.user.name } })
+}))
+
+router.delete('/expenses/:expenseId', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (!requireExpenseAccess(req, res)) return
+  if (!idIsValid(req.params.expenseId)) return res.status(404).json({ message: 'Expense not found.' })
+  const expense = await HotelExpense.findOneAndDelete({ _id: req.params.expenseId, hotelId: hotelScope(req) })
+  if (!expense) return res.status(404).json({ message: 'Expense not found.' })
   res.status(204).end()
 }))
 

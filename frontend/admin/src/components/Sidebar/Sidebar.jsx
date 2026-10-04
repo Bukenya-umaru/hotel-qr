@@ -17,9 +17,12 @@ export function Sidebar({ role, page, setPage, user, onLogin, onLogout, onChange
   const labels = { OWNER: 'Owner portal', KITCHEN: 'Chef portal', DEVELOPER: 'Developer support' }
   // The Categories accordion opens by itself when one of its subsections is
   // the active page. Single-open: expanding another section collapses this one.
+  // A child may carry its own target page (e.g. Purchase > Expenses opens the
+  // purchase workspace, not the Categories one with the same label).
+  const childTarget = child => child.target || child.label
   const [openGroups, setOpenGroups] = useState(() => new Set())
   useEffect(() => {
-    const active = items.find(item => item.children?.some(child => child.label === page))
+    const active = items.find(item => item.children?.some(child => childTarget(child) === page))
     if (active) setOpenGroups(previous => previous.has(active.label) && previous.size === 1 ? previous : new Set([active.label]))
   }, [page, items])
   const toggleGroup = label => setOpenGroups(previous => previous.has(label) ? new Set() : new Set([label]))
@@ -34,12 +37,12 @@ export function Sidebar({ role, page, setPage, user, onLogin, onLogout, onChange
     <nav className="space-y-1">
       {items.map(item => item.children
         ? <div key={item.label}>
-          <button onClick={() => toggleGroup(item.label)} className={cx('group flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left text-[13px] font-medium transition', item.children.some(child => child.label === page) ? 'bg-[#fff1e6] text-[#a34b16]' : 'text-[#70776d] hover:bg-[#f7f8f5] hover:text-[#394337]')}>
+          <button onClick={() => toggleGroup(item.label)} className={cx('group flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left text-[13px] font-medium transition', item.children.some(child => childTarget(child) === page) ? 'bg-[#fff1e6] text-[#a34b16]' : 'text-[#70776d] hover:bg-[#f7f8f5] hover:text-[#394337]')}>
             <item.icon size={17} strokeWidth={1.8} /><span className="flex-1">{item.label}</span>
             <ChevronDown size={14} className={cx('shrink-0 text-[#a5a99f] transition-transform', openGroups.has(item.label) ? '' : '-rotate-90')} />
           </button>
           {openGroups.has(item.label) && <div className="ml-[26px] mt-0.5 space-y-0.5 border-l border-[#eaece6] pl-3">
-            {item.children.map(child => <button key={child.label} onClick={() => setPage(child.label)} className={cx('flex w-full items-center rounded-lg px-3 py-2 text-left text-[12px] transition', page === child.label ? 'bg-[#fff1e6] font-semibold text-[#a34b16]' : 'text-[#70776d] hover:bg-[#f7f8f5] hover:text-[#394337]')}>{child.label}</button>)}
+            {item.children.map(child => <button key={child.label} onClick={() => setPage(childTarget(child))} className={cx('flex w-full items-center rounded-lg px-3 py-2 text-left text-[12px] transition', page === childTarget(child) ? 'bg-[#fff1e6] font-semibold text-[#a34b16]' : 'text-[#70776d] hover:bg-[#f7f8f5] hover:text-[#394337]')}>{child.label}</button>)}
           </div>}
         </div>
         : <button key={item.label} onClick={() => setPage(item.label)} className={cx('group flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left text-[13px] font-medium transition', page === item.label ? 'bg-[#fff1e6] text-[#a34b16]' : 'text-[#70776d] hover:bg-[#f7f8f5] hover:text-[#394337]')}>
