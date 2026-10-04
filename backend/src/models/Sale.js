@@ -1,20 +1,52 @@
 import mongoose from 'mongoose'
 
+// One line inside a multi-item sale — e.g. "Beef plates ×3 — UGX 15,000".
+// `amount` is the line's total (quantity × whatever one costs), not a unit price.
+const itemSchema = new mongoose.Schema({
+  name: { type: String, required: true, trim: true, maxlength: 60 },
+  quantity: { type: Number, required: true, min: 0, default: 1 },
+  unit: { type: String, default: '', trim: true, maxlength: 20 },
+  amount: { type: Number, required: true, min: 0 },
+  // The stock this line was picked from, when it was. Kept for
+  // traceability; the stock count itself is reduced when the sale records.
+  stockItemId: { type: mongoose.Schema.Types.ObjectId, ref: 'StockItem', default: null },
+}, { _id: false })
+
 // A single manually recorded sale — e.g. walk-in cash sales or items sold
-// outside the app. Amount is the total money the sale brought in (UGX).
+// outside the app. A sale can hold several items recorded in one go, with an
+// optional customer name and contact. `amount` is the total money the whole
+// sale brought in (UGX); older sales keep their single item in the top-level
+// name/quantity/unit fields.
 const schema = new mongoose.Schema({
   hotelId: { type: mongoose.Schema.Types.ObjectId, ref: 'Hotel', required: true, index: true },
+  // Human-friendly receipt number, sequential per hotel (1, 2, 3…). The API
+  // formats it as an ID like SAL-000042 so every sale can be quoted by hand.
+  saleNumber: { type: Number, default: null, min: 1 },
+  // Short summary of the sale, e.g. the first item's name. Kept in sync for
+  // older screens; the full breakdown lives in `items`.
   name: { type: String, required: true, trim: true, maxlength: 60 },
+  items: { type: [itemSchema], default: undefined },
   // How many of the item were sold; defaults to one for quick entries.
   quantity: { type: Number, required: true, min: 0, default: 1 },
   // What one `quantity` means, e.g. "plates", "cups" or a custom word like
   // "crates". Empty for sales recorded before units were tracked.
   unit: { type: String, default: '', trim: true, maxlength: 20 },
   amount: { type: Number, required: true, min: 0 },
+  // Optional walk-in customer details, e.g. who the takeaway order was for.
+  customerName: { type: String, default: '', trim: true, maxlength: 80 },
+  customerContact: { type: String, default: '', trim: true, maxlength: 60 },
   note: { type: String, default: '', trim: true, maxlength: 200 },
   recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true })
 
 schema.index({ hotelId: 1, createdAt: -1 })
+// One receipt number per hotel; sparse so sales recorded before IDs existed
+// (saleNumber null) don't collide with each other.
+schema.index({ hotelId: 1, saleNumber: 1 }, { unique: true, sparse: true })
+
+// Formats a sale's receipt number as its public ID, e.g. 42 -> SAL-000042.
+export const formatSaleId = saleNumber => Number.isInteger(saleNumber) && saleNumber > 0
+  ? `SAL-${String(saleNumber).padStart(6, '0')}`
+  : ''
 
 export const Sale = mongoose.model('Sale', schema)

@@ -9,7 +9,8 @@ import { MenuCategory } from '../models/MenuCategory.js'
 import { Expense } from '../models/Expense.js'
 import { ExpenseCategory } from '../models/ExpenseCategory.js'
 import { HotelExpense } from '../models/HotelExpense.js'
-import { Sale } from '../models/Sale.js'
+import { Sale, formatSaleId } from '../models/Sale.js'
+import { StockItem } from '../models/StockItem.js'
 import { Order } from '../models/Order.js'
 import { Hotel } from '../models/Hotel.js'
 import { removeUploadedImage, uploadMenuImage } from '../middleware/upload.js'
@@ -436,7 +437,22 @@ router.delete('/categories/:id/expenses/:expenseId', authenticate, authorize('OW
 }))
 
 // Manually recorded sales, e.g. walk-in cash sales or items sold outside
-// the app. Amount is the total money the sale brought in.
+// the app. A sale can hold several items recorded in one go, with an optional
+// customer name and contact. Amount is the total money the sale brought in.
+// Every sale is scoped to one hotel and carries a receipt-style ID (e.g.
+// SAL-000042); a stable fallback is derived from the record itself for sales
+// that predate receipt numbers so an ID is always available.
+const displaySaleId = sale => formatSaleId(sale.saleNumber) || `SAL-${String(sale._id).slice(-6).toUpperCase()}`
+
+// The line items of a sale. Multi-item sales store them in `items`; sales
+// recorded before multi-item support (and legacy single-item API calls) only
+// have the top-level name/quantity/unit, presented as a single line.
+const saleItems = sale => (Array.isArray(sale.items) && sale.items.length
+  ? sale.items.map(item => ({ name: item.name, quantity: item.quantity, unit: item.unit || '', amount: item.amount, stockItemId: item.stockItemId || null }))
+  : sale.name
+    ? [{ name: sale.name, quantity: sale.quantity, unit: sale.unit || '', amount: sale.amount, stockItemId: null }]
+    : [])
+
 router.get('/sales', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
   if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_sales')) return res.status(403).json({ message: 'The owner has not granted you permission to record sales.' })
   const scope = hotelScope(req)
@@ -461,10 +477,14 @@ router.get('/sales', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(asy
     todayCount: todayTotals[0]?.count || 0,
     sales: sales.map(sale => ({
       _id: sale._id,
+      saleId: displaySaleId(sale),
       name: sale.name,
+      items: saleItems(sale),
       quantity: sale.quantity,
       unit: sale.unit || '',
       amount: sale.amount,
+      customerName: sale.customerName || '',
+      customerContact: sale.customerContact || '',
       note: sale.note,
       recordedBy: sale.recordedBy?.name || '',
       createdAt: sale.createdAt,
@@ -474,24 +494,79 @@ router.get('/sales', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(asy
 
 router.post('/sales', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
   if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_sales')) return res.status(403).json({ message: 'The owner has not granted you permission to record sales.' })
-  const name = String(req.body.name || '').trim().slice(0, 60)
-  const amount = Number(req.body.amount)
-  const quantity = req.body.quantity === undefined || req.body.quantity === '' ? 1 : Number(req.body.quantity)
-  if (!name) return res.status(400).json({ message: 'Give the sale a name, e.g. Beef plates.' })
-  if (!Number.isFinite(quantity) || quantity < 0) return res.status(400).json({ message: 'Enter a quantity of zero or more.' })
-  if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ message: 'Enter a sale amount greater than zero.' })
   const scope = hotelScope(req)
   if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
-  const sale = await Sale.create({
-    hotelId: scope,
-    name,
-    quantity: Math.round(quantity * 100) / 100,
-    amount: Math.round(amount * 100) / 100,
-    unit: String(req.body.unit || '').trim().toLowerCase().slice(0, 20),
-    note: String(req.body.note || '').trim().slice(0, 200),
-    recordedBy: req.user._id,
-  })
-  res.status(201).json({ sale: { ...sale.toObject(), recordedBy: req.user.name } })
+  // A sale can record several items at once. The older single-item fields
+  // (name/quantity/unit/amount) still work and are treated as one item.
+  const rawItems = Array.isArray(req.body.items) && req.body.items.length
+    ? req.body.items
+    : [{ name: req.body.name, quantity: req.body.quantity, unit: req.body.unit, amount: req.body.amount }]
+  if (rawItems.length > 50) return res.status(400).json({ message: 'A sale can hold at most 50 items.' })
+  const items = []
+  for (const [index, raw] of rawItems.entries()) {
+    const name = String(raw?.name || '').trim().slice(0, 60)
+    const quantity = raw?.quantity === undefined || raw?.quantity === '' ? 1 : Number(raw.quantity)
+    const amount = Number(raw?.amount)
+    if (!name) return res.status(400).json({ message: `Give item ${index + 1} a name, e.g. Beef plates.` })
+    if (!Number.isFinite(quantity) || quantity < 0) return res.status(400).json({ message: `Item ${index + 1}: enter a quantity of zero or more.` })
+    if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ message: `Item ${index + 1}: enter an amount greater than zero.` })
+    items.push({
+      name,
+      quantity: Math.round(quantity * 100) / 100,
+      unit: String(raw?.unit || '').trim().toLowerCase().slice(0, 20),
+      amount: Math.round(amount * 100) / 100,
+      // Lines picked from the stock search carry the stock they draw down.
+      stockItemId: idIsValid(raw?.stockItemId) ? raw.stockItemId : null,
+    })
+  }
+  // The sale's total is the sum of its items, computed here so a tampered
+  // client can never record a total that disagrees with the lines.
+  const total = Math.round(items.reduce((sum, item) => sum + item.amount, 0) * 100) / 100
+  const customerName = String(req.body.customerName || '').trim().slice(0, 80)
+  const customerContact = String(req.body.customerContact || '').trim().slice(0, 60)
+  // Receipt numbers are sequential per hotel: take the highest used number
+  // and add one. If two staff record at the same instant the unique index
+  // rejects the loser, and it retries with a freshly read number.
+  let sale
+  for (let attempt = 0; attempt < 5 && !sale; attempt++) {
+    const highest = await Sale.findOne({ hotelId: scope }).sort({ saleNumber: -1 }).select('saleNumber')
+    try {
+      sale = await Sale.create({
+        hotelId: scope,
+        saleNumber: (highest?.saleNumber || 0) + 1,
+        // Short summary for older screens; the full breakdown lives in items.
+        name: (items.length > 1 ? `${items[0].name} +${items.length - 1} more` : items[0].name).slice(0, 60),
+        items,
+        quantity: items.length > 1 ? 1 : items[0].quantity,
+        unit: items.length > 1 ? '' : items[0].unit,
+        amount: total,
+        customerName,
+        customerContact,
+        note: String(req.body.note || '').trim().slice(0, 200),
+        recordedBy: req.user._id,
+      })
+    } catch (error) {
+      if (error.code !== 11000) throw error
+    }
+  }
+  if (!sale) return res.status(409).json({ message: 'Could not assign the sale an ID, please try again.' })
+  // Best-effort stock deduction, exactly like customer orders: a missing or
+  // already-empty stock never blocks a recorded sale, and the $gte guard
+  // keeps the count from dipping below zero when records race.
+  const stockUsage = new Map()
+  for (const item of items) {
+    if (!item.stockItemId || !(item.quantity > 0)) continue
+    const stockId = String(item.stockItemId)
+    stockUsage.set(stockId, (stockUsage.get(stockId) || 0) + item.quantity)
+  }
+  for (const [stockId, qty] of stockUsage) {
+    await StockItem.updateOne(
+      { _id: stockId, hotelId: scope, plates: { $gte: qty } },
+      { $inc: { plates: -qty, totalUsed: qty } },
+    ).catch(() => {})
+  }
+  if (stockUsage.size) req.app.get('io').to(`hotel:${scope}`).emit('stock_updated')
+  res.status(201).json({ sale: { ...sale.toObject(), saleId: displaySaleId(sale), items: saleItems(sale), recordedBy: req.user.name } })
 }))
 
 router.delete('/sales/:saleId', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
