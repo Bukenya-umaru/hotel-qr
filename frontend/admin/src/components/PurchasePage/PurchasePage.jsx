@@ -155,7 +155,7 @@ function SalesView({ onError }) {
 // ---- items (plates, sodas…), plus an optional customer name and       ----
 // ---- contact. The backend stamps every sale with an ID, SAL-000042.   ----
 
-const EMPTY_ITEM = () => ({ name: '', quantity: '1', unit: 'plates', customUnit: '', amount: '', stockId: '', unitPrice: null, manualPrice: false, committed: false })
+const EMPTY_ITEM = () => ({ name: '', quantity: '1', unit: 'plates', customUnit: '', price: '', amount: '', stockId: '', pendingStockId: '', unitPrice: null, committed: false })
 
 function MakeSaleView({ onError, onViewSales }) {
   const [items, setItems] = useState(() => [EMPTY_ITEM()])
@@ -183,8 +183,9 @@ function MakeSaleView({ onError, onViewSales }) {
   const withDraft = rows => (rows.some(row => !row.stockId && !row.committed) ? rows : [...rows, EMPTY_ITEM()])
   const removeItem = index => setItems(previous => withDraft(previous.filter((_, i) => i !== index)))
 
-  // Typing a name by hand always detaches the row from stock pricing.
-  const changeName = (index, value) => setItem(index, { name: value, stockId: '', unitPrice: null, manualPrice: false })
+  // Typing a name by hand detaches the row from the stock item (no stock
+  // badge, no stock reduction) but keeps the price typed so far.
+  const changeName = (index, value) => setItem(index, { name: value, stockId: '', pendingStockId: '' })
 
   // Searching the hotel's stock by the text typed so far.
   const stockMatches = query => {
@@ -193,46 +194,36 @@ function MakeSaleView({ onError, onViewSales }) {
     return list.slice(0, 8)
   }
 
-  // Picking a stock item adds the line to the list with its unit and
-  // per-unit price, priced at price × qty. If the same item is already on
-  // another line, that line just grows — no duplicate rows.
+  // Picking a stock item fills the row with its unit and the price of one
+  // item; the line total is price × qty. The row only joins the sale when
+  // Add is clicked, so the user can still adjust the quantity or price.
   const pickStock = (index, stockItem) => {
-    setItems(previous => {
-      const duplicateAt = previous.findIndex((item, i) =>
-        i !== index && item.name.trim().toLowerCase() === stockItem.name.trim().toLowerCase())
-      if (duplicateAt === -1) {
-        return withDraft(previous.map((item, i) => {
-          if (i !== index) return item
-          const qty = item.quantity === '' ? 1 : Math.max(0, Number(item.quantity) || 0)
-          const unitPrice = stockItem.price ?? 0
-          return { ...item, name: stockItem.name, unit: stockItem.unit || 'plates', customUnit: stockItem.customUnit || '', stockId: String(stockItem._id), unitPrice, manualPrice: false, amount: Math.round(unitPrice * qty * 100) / 100 }
-        }))
-      }
-      // Merge into the existing line: add this row's qty and re-price from
-      // stock, then drop the row that would have duplicated it.
-      const addedQty = Math.max(1, Number(previous[index].quantity) || 1)
-      return withDraft(previous
-        .map((item, i) => {
-          if (i !== duplicateAt) return item
-          const qty = Math.max(1, Number(item.quantity) || 1) + addedQty
-          const unitPrice = stockItem.price ?? 0
-          return { ...item, name: stockItem.name, unit: stockItem.unit || 'plates', customUnit: stockItem.customUnit || '', stockId: String(stockItem._id), unitPrice, manualPrice: false, quantity: String(qty), amount: Math.round(unitPrice * qty * 100) / 100 }
-        })
-        .filter((_, i) => i !== index))
-    })
+    setItems(previous => previous.map((item, i) => {
+      if (i !== index) return item
+      const qty = item.quantity === '' ? 1 : Math.max(0, Number(item.quantity) || 0)
+      const unitPrice = stockItem.price ?? 0
+      return { ...item, name: stockItem.name, unit: stockItem.unit || 'plates', customUnit: stockItem.customUnit || '', pendingStockId: String(stockItem._id), stockId: '', committed: false, price: String(stockItem.price ?? ''), unitPrice, amount: Math.round(unitPrice * qty * 100) / 100 }
+    }))
     setOpenSearch(null)
   }
 
-  // While a line is priced from stock, changing the qty re-prices it.
+  // While a line has a per-item price, changing the qty re-prices the total.
   const changeQuantity = (index, value) => setItems(previous => previous.map((item, i) => {
     if (i !== index) return item
     const qty = value === '' ? 1 : Number(value)
-    const autoPrice = item.stockId && !item.manualPrice && item.unitPrice != null && Number.isFinite(qty) && qty >= 0
+    const autoPrice = item.unitPrice != null && Number.isFinite(qty) && qty >= 0
     return { ...item, quantity: value, amount: autoPrice ? Math.round(item.unitPrice * qty * 100) / 100 : item.amount }
   }))
 
-  // Editing the amount by hand stops the automatic re-pricing.
-  const changeAmount = (index, value) => setItem(index, { amount: value, manualPrice: true })
+  // The price input holds the price of ONE item — the line total is
+  // price × qty and follows along as the quantity changes.
+  const changePrice = (index, value) => setItems(previous => previous.map((item, i) => {
+    if (i !== index) return item
+    const unitPrice = value === '' ? null : Number(value)
+    const qty = item.quantity === '' ? 1 : Number(item.quantity)
+    const ok = unitPrice != null && Number.isFinite(unitPrice) && Number.isFinite(qty) && qty >= 0
+    return { ...item, price: value, unitPrice: ok ? unitPrice : null, amount: ok ? Math.round(unitPrice * qty * 100) / 100 : '' }
+  }))
 
   // The +/− steppers on added lines: change the quantity without typing and
   // re-price the line from its per-unit price. Never below one — use × to
@@ -240,21 +231,46 @@ function MakeSaleView({ onError, onViewSales }) {
   const stepQuantity = (index, delta) => setItems(previous => previous.map((item, i) => {
     if (i !== index) return item
     const qty = Math.max(1, (Number(item.quantity) || 0) + delta)
-    const autoPrice = !item.manualPrice && item.unitPrice != null
+    const autoPrice = item.unitPrice != null
     return { ...item, quantity: String(qty), amount: autoPrice ? Math.round(item.unitPrice * qty * 100) / 100 : item.amount }
   }))
 
-  // Committing a typed item freezes it into the read-only list: its
-  // per-unit price is remembered so the steppers can re-price it later.
-  const tryCommit = index => setItems(previous => {
-    const item = previous[index]
-    if (!item || item.stockId || item.committed) return previous
+  // The Add button (or Enter) commits the row into the read-only list:
+  // stock-picked rows keep their stock link — merging into an existing line
+  // of the same item — and typed rows remember their per-item price so the
+  // steppers can re-price them later.
+  const addRow = index => {
+    const item = items[index]
+    if (!item || item.committed) return
+    const price = Number(item.price)
     const qty = item.quantity === '' ? 1 : Number(item.quantity)
-    const amount = Number(item.amount)
-    if (!item.name.trim() || !Number.isFinite(qty) || qty < 0 || !Number.isFinite(amount) || amount <= 0) return previous
-    const unitPrice = qty > 0 ? Math.round(amount / qty * 100) / 100 : null
-    return withDraft(previous.map((row, i) => (i === index ? { ...row, committed: true, unitPrice, manualPrice: false } : row)))
-  })
+    if (!item.name.trim()) { setError('Give the item a name, e.g. Beef plates.'); return }
+    if (item.price === '' || !Number.isFinite(price) || price <= 0) { setError('Enter the price of one item, e.g. 2000.'); return }
+    if (!Number.isFinite(qty) || qty < 0) { setError('Enter a quantity of zero or more.'); return }
+    if (!(price * qty > 0)) { setError('The total is zero — enter a quantity of at least one.'); return }
+    setError('')
+    setItems(previous => {
+      if (item.pendingStockId) {
+        const duplicateAt = previous.findIndex((row, i) =>
+          i !== index && row.name.trim().toLowerCase() === item.name.trim().toLowerCase())
+        if (duplicateAt !== -1) {
+          // Same item is already on the sale: add this row's qty there and
+          // drop the row instead of duplicating it.
+          const addedQty = Math.max(1, qty)
+          return withDraft(previous
+            .map((row, i) => {
+              if (i !== duplicateAt) return row
+              const mergedQty = Math.max(1, Number(row.quantity) || 1) + addedQty
+              const unitPrice = item.unitPrice ?? price
+              return { ...row, stockId: row.stockId || item.pendingStockId, unit: item.unit, customUnit: item.customUnit, pendingStockId: '', price: item.price, unitPrice, quantity: String(mergedQty), amount: Math.round(unitPrice * mergedQty * 100) / 100 }
+            })
+            .filter((_, i) => i !== index))
+        }
+        return withDraft(previous.map((row, i) => (i === index ? { ...row, stockId: item.pendingStockId, pendingStockId: '', committed: true } : row)))
+      }
+      return withDraft(previous.map((row, i) => (i === index ? { ...row, committed: true, unitPrice: price } : row)))
+    })
+  }
 
   // Live total of everything typed so far, shown above the record button.
   const runningTotal = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
@@ -263,15 +279,17 @@ function MakeSaleView({ onError, onViewSales }) {
     event.preventDefault()
     const payload = []
     // A fully empty trailing draft row is just the adder — skip it.
-    const entries = items.filter(item => item.stockId || item.committed || item.name.trim() || String(item.amount).trim())
+    const entries = items.filter(item => item.stockId || item.committed || item.pendingStockId || item.name.trim() || item.price.trim() || String(item.amount).trim())
     if (!entries.length) { setError('Add at least one item to record.'); return }
     for (const [index, item] of entries.entries()) {
       const qty = item.quantity === '' ? 1 : Number(item.quantity)
+      const price = Number(item.price)
       const value = Number(item.amount)
       if (!item.name.trim()) { setError(`Give item ${index + 1} a name, e.g. Beef plates.`); return }
+      if (item.price === '' || !Number.isFinite(price) || price <= 0) { setError(`Item ${index + 1}: enter the price of one item, e.g. 2000.`); return }
       if (!Number.isFinite(qty) || qty < 0) { setError(`Item ${index + 1}: enter a quantity of zero or more.`); return }
-      if (!Number.isFinite(value) || value <= 0) { setError(`Item ${index + 1}: enter the amount it brought in.`); return }
-      payload.push({ name: item.name.trim(), quantity: qty, unit: unitDisplay(item.unit, item.customUnit.trim()), amount: value, stockItemId: item.stockId || undefined })
+      if (!Number.isFinite(value) || value <= 0) { setError(`Item ${index + 1}: the total is zero — enter a quantity of at least one.`); return }
+      payload.push({ name: item.name.trim(), quantity: qty, unit: unitDisplay(item.unit, item.customUnit.trim()), amount: value, stockItemId: item.stockId || item.pendingStockId || undefined })
     }
     setBusy(true)
     try {
@@ -320,7 +338,7 @@ function MakeSaleView({ onError, onViewSales }) {
 
   return <div className="mx-auto w-full max-w-2xl rounded-xl border border-[#eceee8] bg-white p-4">
     <p className="text-[11px] font-bold text-[#3d443a]">Record a sale</p>
-    <p className="mt-0.5 text-[9px] text-[#9b9f96]">Search the stock to add an item with its price, or type a new one and press Enter to add it with its price. Everything records as one sale.</p>
+    <p className="mt-0.5 text-[9px] text-[#9b9f96]">Search the stock or type an item and the price of one item, then click Add to put it on the sale — the total is price × quantity.</p>
     <form className="mt-3" onSubmit={submit}>
       <div className="divide-y divide-[#f1f2ee]">
         <div className="hidden gap-1 px-1 pb-1 text-[8px] font-bold uppercase tracking-[.8px] text-[#9b9f96] sm:flex">
@@ -328,6 +346,7 @@ function MakeSaleView({ onError, onViewSales }) {
           <span className="w-[88px] shrink-0 text-center">Qty</span>
           <span className="w-[84px] shrink-0">Unit</span>
           <span className="w-[96px] shrink-0">Amount (UGX)</span>
+          <span className="w-[64px] shrink-0" />
           <span className="w-7 shrink-0" />
         </div>
         {items.map((item, index) => {
@@ -352,31 +371,34 @@ function MakeSaleView({ onError, onViewSales }) {
                 </span>
                 <span className="w-[84px] shrink-0 truncate text-[10px] text-[#757c71]">{unitDisplay(item.unit, item.customUnit)}</span>
                 <span className="w-[96px] shrink-0 truncate text-right text-[11px] font-semibold text-[#3d443a]">{money(item.amount)}</span>
+                <span className="w-[64px] shrink-0" />
                 <button type="button" onClick={() => removeItem(index)} title={`Remove ${item.name}`} className="grid size-7 shrink-0 place-items-center rounded-md text-[#c08b7e] transition hover:bg-[#fae9e5] hover:text-[#b75c48]"><Trash2 size={12} /></button>
               </div>
             ) : (
-              <div className="flex flex-wrap items-center gap-1" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) tryCommit(index) }}>
+              <div className="flex flex-wrap items-center gap-1">
                 <div className="relative min-w-0 flex-[1_1_100%] sm:flex-[2_1_0%]">
                   <input aria-label={`Item ${index + 1} name`} value={item.name} onChange={event => { changeName(index, event.target.value); setOpenSearch(index) }} onFocus={() => setOpenSearch(index)} onBlur={() => setTimeout(() => setOpenSearch(current => (current === index ? null : current)), 120)} onKeyDown={event => {
                     if (event.key === 'Escape') { setOpenSearch(null); return }
                     if (event.key !== 'Enter') return
+                    event.preventDefault()
                     const matches = stockMatches(item.name)
-                    if (matches.length === 1) { event.preventDefault(); pickStock(index, matches[0]) }
-                    else if (!matches.length) { event.preventDefault(); tryCommit(index) }
-                  }} maxLength="60" placeholder="Search stock or type an item, then press Enter" autoFocus={index === 0} className={cx(inputClass, 'w-full')} />
+                    if (matches.length === 1) pickStock(index, matches[0])
+                    else if (!matches.length) addRow(index)
+                  }} maxLength="60" placeholder="Search stock or type an item" autoFocus={index === items.length - 1} className={cx(inputClass, 'w-full')} />
                   {openSearch === index && <div className="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-lg border border-[#e6e9e1] bg-white shadow-lg">
                     {stockMatches(item.name).map(stockItem => <button key={stockItem._id} type="button" onMouseDown={() => pickStock(index, stockItem)} className="flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left transition hover:bg-[#fff4eb]">
                       <span className="min-w-0 truncate text-[10px] font-semibold text-[#3d443a]">{stockItem.name}</span>
                       <span className="shrink-0 text-[8px] text-[#9b9f96]">{money(stockItem.price)}/{unitDisplay(stockItem.unit, stockItem.customUnit)}{Number(stockItem.plates) > 0 && ` · ${stockItem.plates} in stock`}</span>
                     </button>)}
-                    {!stockMatches(item.name).length && <p className="px-2.5 py-2 text-[9px] text-[#9b9f96]">Not in stock — press Enter, then set the price.</p>}
+                    {!stockMatches(item.name).length && <p className="px-2.5 py-2 text-[9px] text-[#9b9f96]">Not in stock — set the price, then click Add.</p>}
                   </div>}
                 </div>
-                <input type="number" min="0" step="0.01" aria-label={`Item ${index + 1} quantity`} value={item.quantity} onChange={event => changeQuantity(index, event.target.value)} className={cx(inputClass, 'w-[88px] shrink-0 text-center')} />
+                <input type="number" min="0" step="0.01" aria-label={`Item ${index + 1} quantity`} value={item.quantity} onChange={event => changeQuantity(index, event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); addRow(index) } }} className={cx(inputClass, 'w-[88px] shrink-0 text-center')} />
                 <select aria-label={`Item ${index + 1} unit`} value={item.unit} onChange={event => setItem(index, { unit: event.target.value, customUnit: '' })} className={cx(inputClass, 'w-[84px] shrink-0')}>
                   {UNIT_OPTIONS.map(option => <option key={option.key} value={option.key}>{option.label}</option>)}
                 </select>
-                <input type="number" min="0" step="1" aria-label={`Item ${index + 1} amount in UGX`} placeholder="Amount" value={item.amount} onChange={event => changeAmount(index, event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); tryCommit(index) } }} className={cx(inputClass, 'w-[96px] shrink-0')} />
+                <input type="number" min="0" step="1" aria-label={`Item ${index + 1} price of one item in UGX`} placeholder="Price of one" value={item.price} onChange={event => changePrice(index, event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); addRow(index) } }} className={cx(inputClass, 'w-[96px] shrink-0')} />
+                <button type="button" onClick={() => addRow(index)} disabled={!item.name.trim() && !String(item.amount).trim()} title="Add the item to the sale" className="flex w-[64px] shrink-0 items-center justify-center gap-1 rounded-md bg-[#c65d1b] px-2 py-1.5 text-[10px] font-semibold text-white transition hover:bg-[#a34b16] disabled:cursor-not-allowed disabled:opacity-50"><Plus size={12} />Add</button>
                 {(item.name.trim() || String(item.amount).trim()) && <button type="button" onClick={() => removeItem(index)} title={`Remove ${item.name || `item ${index + 1}`}`} className="grid size-7 shrink-0 place-items-center rounded-md text-[#c08b7e] transition hover:bg-[#fae9e5] hover:text-[#b75c48]"><Trash2 size={12} /></button>}
               </div>
             )}
