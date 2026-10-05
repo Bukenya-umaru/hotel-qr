@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { io } from 'socket.io-client'
-import { Boxes, ImagePlus, Pencil, Plus, Trash2, Wallet } from 'lucide-react'
+import { Boxes, Check, ImagePlus, Pencil, Plus, Trash2, Wallet } from 'lucide-react'
 import { API_BASE_URL, api, apiAssetUrl } from '../../lib/api.js'
-import { money, cx } from '../../lib/ui.js'
+import { hasPermission, money, cx } from '../../lib/ui.js'
 import { Modal } from '../Modal/Modal.jsx'
 
 // Stock is not always counted in plates — gas cylinders, charcoal and boxes
@@ -40,6 +40,8 @@ export function StockPage({ user, canManage = true, foodTypes = [] }) {
   const [image, setImage] = useState(null)
   const [preview, setPreview] = useState('')
   const fileRef = useRef(null)
+  // The owner — or staff granted the approval permission — can sign stock off.
+  const canApprove = hasPermission(user, 'approve_records')
 
   const loadStock = async () => {
     try {
@@ -153,6 +155,21 @@ export function StockPage({ user, canManage = true, foodTypes = [] }) {
     }
   }
 
+  // Signs the stock's current count off. Approved entries lock: no more
+  // edits or removals, and newly added stock goes back to pending.
+  const approveStock = async stock => {
+    setBusy(true)
+    try {
+      await api(`/api/stock/${stock._id}/approve`, { method: 'POST' })
+      setError('')
+      await loadStock()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const lowStock = plates => plates <= 5
   // Keep the entry's current food type selectable even if its category was
   // deleted since it was chosen.
@@ -192,10 +209,13 @@ export function StockPage({ user, canManage = true, foodTypes = [] }) {
         <div className="w-full min-w-0 text-center">
           <h3 className="font-display flex items-center justify-center gap-1 text-[10px] font-bold leading-[13px] sm:gap-1.5 sm:text-[13px] sm:leading-[17px]">
             <span className="line-clamp-2 break-words">{item.name}</span>
-            {canManage && <button onClick={() => openEdit(item)} title={`Edit ${item.name}`} className="shrink-0 rounded p-0.5 text-[#b9beb2] hover:bg-[#f0f1ed] hover:text-[#71786d] sm:p-1"><Pencil size={11} className="sm:size-3.5" /></button>}
+            {canManage && !item.approved && <button onClick={() => openEdit(item)} title={`Edit ${item.name}`} className="shrink-0 rounded p-0.5 text-[#b9beb2] hover:bg-[#f0f1ed] hover:text-[#71786d] sm:p-1"><Pencil size={11} className="sm:size-3.5" /></button>}
           </h3>
           <div className="mt-0.5 flex flex-wrap items-center justify-center gap-1 sm:mt-1.5 sm:gap-1.5">
             {item.foodType && <span className="max-w-full truncate rounded bg-[#fff1e6] px-1.5 py-0.5 text-[7px] font-semibold uppercase tracking-[.6px] text-[#a34b16] sm:px-2 sm:py-1 sm:text-[9px] sm:tracking-[.8px]">{item.foodType}</span>}
+            {item.approved
+              ? <span className="rounded bg-[#eef6ec] px-1.5 py-0.5 text-[7px] font-semibold uppercase tracking-[.6px] text-[#3f8f3a] sm:px-2 sm:py-1 sm:text-[9px]">Approved</span>
+              : <span className="rounded bg-[#fbf1df] px-1.5 py-0.5 text-[7px] font-semibold uppercase tracking-[.6px] text-[#8c6b35] sm:px-2 sm:py-1 sm:text-[9px]">Pending</span>}
           </div>
           <p className="mt-1 hidden text-[10px] text-[#9b9f96] sm:mt-1.5 sm:block">{item.totalAdded} added · {item.totalUsed} served</p>
         </div>
@@ -208,9 +228,10 @@ export function StockPage({ user, canManage = true, foodTypes = [] }) {
           <p className="mt-0.5 hidden text-[9px] leading-3 text-[#a0a49b] sm:mt-0.5 sm:block">{money(item.price || 0)} per {unit.singular}</p>
         </div>
         {canManage && <div className="flex w-full items-center justify-center gap-1 sm:gap-1.5">
+          {canApprove && !item.approved && <button disabled={busy} onClick={() => approveStock(item)} aria-label={`Approve ${item.name}`} title="Approve this stock" className="grid size-6 place-items-center rounded-md bg-[#eef6ec] text-[#3f8f3a] disabled:opacity-50 sm:size-9 sm:rounded-lg"><Check size={12} className="sm:size-4" /></button>}
           <button disabled={busy} onClick={() => { setAdjusting({ item, mode: 'add' }); setAdjustAmount('') }} aria-label={`Add ${unit.plural} to ${item.name}`} title={`Add ${unit.plural}`} className="grid size-6 place-items-center rounded-md bg-[#fff1e6] text-[#a34b16] disabled:opacity-60 sm:size-9 sm:rounded-lg"><Plus size={12} className="sm:size-[18px]" /></button>
           <button disabled={busy || item.plates === 0} onClick={() => { setAdjusting({ item, mode: 'reduce' }); setAdjustAmount('') }} aria-label={`Reduce ${unit.plural} from ${item.name}`} title={`Reduce ${unit.plural}`} className="grid size-6 place-items-center rounded-md border border-[#eceee8] text-[12px] leading-none text-[#737a70] disabled:opacity-60 sm:size-9 sm:rounded-lg sm:text-[17px]">−</button>
-          <button disabled={busy} onClick={() => removeStock(item)} aria-label={`Remove ${item.name}`} title={`Remove ${item.name}`} className="grid size-6 place-items-center rounded-md border border-[#eceee8] text-[#a44f3d] disabled:opacity-50 sm:size-9 sm:rounded-lg"><Trash2 size={11} className="sm:size-4" /></button>
+          <button disabled={busy || item.approved} onClick={() => removeStock(item)} aria-label={`Remove ${item.name}`} title={item.approved ? 'Approved — cannot be changed' : `Remove ${item.name}`} className="grid size-6 place-items-center rounded-md border border-[#eceee8] text-[#a44f3d] disabled:opacity-50 sm:size-9 sm:rounded-lg"><Trash2 size={11} className="sm:size-4" /></button>
         </div>}
       </article> })}</div>}
     {adjusting && <Modal title={adjusting.mode === 'add' ? `Add ${adjusting.item.name}` : `Reduce ${adjusting.item.name}`} onClose={() => setAdjusting(null)}>

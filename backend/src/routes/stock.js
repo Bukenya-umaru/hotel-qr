@@ -43,7 +43,7 @@ router.get('/', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (r
   const scope = hotelScope(req)
   if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
   const [items, dishes] = await Promise.all([
-    StockItem.find({ hotelId: scope }).sort({ name: 1 }),
+    StockItem.find({ hotelId: scope }).sort({ name: 1 }).populate('approvedBy', 'name'),
     MenuItem.find({ hotelId: scope }).select('name stockItemId').sort({ name: 1 }),
   ])
   const linked = items.map(item => ({
@@ -59,6 +59,9 @@ router.get('/', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (r
     plates: item.plates,
     totalAdded: item.totalAdded,
     totalUsed: item.totalUsed,
+    approved: item.approved,
+    approvedAt: item.approvedAt,
+    approvedByName: item.approvedBy?.name || '',
     dishes: dishes.filter(dish => String(dish.stockItemId || '') === String(item._id)).map(dish => dish.name),
   }))
   const unlinked = dishes.filter(dish => !dish.stockItemId).map(dish => ({ _id: dish._id, name: dish.name }))
@@ -98,6 +101,11 @@ router.post('/', authenticate, authorize('OWNER', 'KITCHEN'), uploadMenuImage, a
     price,
     plates: quantity,
     totalAdded: quantity,
+    // Stock added by someone allowed to approve is trusted straight away;
+    // everyone else's waits for the owner's (or an approver's) sign-off.
+    approved: hasPerm(req.user, 'approve_records'),
+    approvedBy: hasPerm(req.user, 'approve_records') ? req.user._id : null,
+    approvedAt: hasPerm(req.user, 'approve_records') ? new Date() : null,
   })
   req.app.get('io').to(`hotel:${scope}`).emit('stock_updated')
   res.status(201).json({ item: stock })
@@ -122,7 +130,16 @@ router.patch('/:id/adjust', authenticate, authorize('OWNER', 'KITCHEN'), asyncRo
   const nextPlates = stock.plates + delta
   if (nextPlates < 0) return res.status(409).json({ message: `Only ${stock.plates} ${noun} left — you cannot reduce more than are in stock.` })
   stock.plates = nextPlates
-  if (delta > 0) stock.totalAdded += delta
+  if (delta > 0) {
+    stock.totalAdded += delta
+    // Freshly added stock needs sign-off again — unless the person adding
+    // it is allowed to approve, in which case it is trusted straight away.
+    // Reducing (waste, spoilage) never touches the approval.
+    const autoApproved = hasPerm(req.user, 'approve_records')
+    stock.approved = autoApproved
+    stock.approvedBy = autoApproved ? req.user._id : null
+    stock.approvedAt = autoApproved ? new Date() : null
+  }
   // `price` is the rate for one plate/item/kg, so it never changes with the
   // count — the money value of the entry moves on its own (price × count).
   await stock.save()
@@ -134,8 +151,10 @@ router.patch('/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadMenuImag
   if (!requireStockPermission(req, res)) return
   if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Stock not found.' })
   const scope = hotelScope(req)
-  const current = await StockItem.findOne({ _id: req.params.id, hotelId: scope }).select('unit customUnit imageUrl')
+  const current = await StockItem.findOne({ _id: req.params.id, hotelId: scope }).select('unit customUnit imageUrl approved')
   if (!current) return res.status(404).json({ message: 'Stock not found.' })
+  // Approved stock is the signed-off record — its details can no longer change.
+  if (current.approved) return res.status(403).json({ message: 'This stock has been approved and can no longer be edited.' })
   const updates = {}
   if (req.body.name !== undefined) {
     const name = normalizeName(req.body.name)
@@ -191,13 +210,33 @@ router.delete('/:id', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(as
   if (!requireStockPermission(req, res)) return
   if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Stock not found.' })
   const scope = hotelScope(req)
-  const stock = await StockItem.findOneAndDelete({ _id: req.params.id, hotelId: scope })
+  const stock = await StockItem.findOne({ _id: req.params.id, hotelId: scope })
   if (!stock) return res.status(404).json({ message: 'Stock not found.' })
+  // Approved stock is the signed-off record — it can no longer be removed.
+  if (stock.approved) return res.status(403).json({ message: 'This stock has been approved and can no longer be changed.' })
+  await StockItem.deleteOne({ _id: stock._id })
   // Detach dishes that were linked so their next orders stop deducting.
   await MenuItem.updateMany({ hotelId: scope, stockItemId: stock._id }, { $unset: { stockItemId: '' } })
   await removeUploadedImage(stock.imageUrl)
   req.app.get('io').to(`hotel:${scope}`).emit('stock_updated')
   res.status(204).end()
+}))
+
+// The owner — or staff granted the approval permission — signs the stock's
+// current count off. Approved stock can no longer be edited or removed, and
+// newly added stock goes back to pending until it is approved again.
+router.post('/:id/approve', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (!hasPerm(req.user, 'approve_records')) return res.status(403).json({ message: 'You do not have permission to approve stock.' })
+  if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Stock not found.' })
+  const scope = hotelScope(req)
+  const stock = await StockItem.findOneAndUpdate(
+    { _id: req.params.id, hotelId: scope },
+    { $set: { approved: true, approvedBy: req.user._id, approvedAt: new Date() } },
+    { new: true },
+  ).populate('approvedBy', 'name')
+  if (!stock) return res.status(404).json({ message: 'Stock not found.' })
+  req.app.get('io').to(`hotel:${scope}`).emit('stock_updated')
+  res.json({ item: stock })
 }))
 
 router.post('/:id/link', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {

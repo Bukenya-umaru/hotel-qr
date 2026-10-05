@@ -281,7 +281,7 @@ router.get('/expenses', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(
   const startOfToday = new Date()
   startOfToday.setHours(0, 0, 0, 0)
   const [expenses, allTime, todayTotals, byCategory] = await Promise.all([
-    HotelExpense.find({ hotelId: scope }).sort({ createdAt: -1 }).limit(100).populate('recordedBy', 'name'),
+    HotelExpense.find({ hotelId: scope }).sort({ createdAt: -1 }).limit(100).populate('recordedBy', 'name').populate('approvedBy', 'name'),
     HotelExpense.aggregate([
       { $match: { hotelId: new mongoose.Types.ObjectId(scope) } },
       { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } },
@@ -310,6 +310,9 @@ router.get('/expenses', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(
       note: expense.note,
       recordedBy: expense.recordedBy?.name || '',
       createdAt: expense.createdAt,
+      approved: expense.approved,
+      approvedAt: expense.approvedAt,
+      approvedByName: expense.approvedBy?.name || '',
     })),
   })
 }))
@@ -334,6 +337,9 @@ router.post('/expenses', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute
       { new: true, upsert: true },
     )
   }
+  // A record made by someone allowed to approve is trusted straight away;
+  // everyone else's waits for the owner's (or an approver's) sign-off.
+  const autoApproved = hasPerm(req.user, 'approve_records')
   const expense = await HotelExpense.create({
     hotelId: scope,
     category: category._id,
@@ -341,6 +347,9 @@ router.post('/expenses', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute
     amount: Math.round(amount * 100) / 100,
     note,
     recordedBy: req.user._id,
+    approved: autoApproved,
+    approvedBy: autoApproved ? req.user._id : null,
+    approvedAt: autoApproved ? new Date() : null,
   })
   res.status(201).json({ expense: { ...expense.toObject(), recordedBy: req.user.name } })
 }))
@@ -348,9 +357,26 @@ router.post('/expenses', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute
 router.delete('/expenses/:expenseId', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
   if (!requireExpenseAccess(req, res)) return
   if (!idIsValid(req.params.expenseId)) return res.status(404).json({ message: 'Expense not found.' })
-  const expense = await HotelExpense.findOneAndDelete({ _id: req.params.expenseId, hotelId: hotelScope(req) })
+  const expense = await HotelExpense.findOne({ _id: req.params.expenseId, hotelId: hotelScope(req) }).select('approved')
   if (!expense) return res.status(404).json({ message: 'Expense not found.' })
+  // Approved expenses are the books of record — they can no longer be changed.
+  if (expense.approved) return res.status(403).json({ message: 'This expense has been approved and can no longer be changed.' })
+  await HotelExpense.deleteOne({ _id: expense._id })
   res.status(204).end()
+}))
+
+// The owner — or staff granted the approval permission — signs an expense off.
+// Once approved the expense is locked and can no longer be deleted.
+router.post('/expenses/:expenseId/approve', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (!hasPerm(req.user, 'approve_records')) return res.status(403).json({ message: 'You do not have permission to approve expenses.' })
+  if (!idIsValid(req.params.expenseId)) return res.status(404).json({ message: 'Expense not found.' })
+  const expense = await HotelExpense.findOneAndUpdate(
+    { _id: req.params.expenseId, hotelId: hotelScope(req) },
+    { $set: { approved: true, approvedBy: req.user._id, approvedAt: new Date() } },
+    { new: true },
+  )
+  if (!expense) return res.status(404).json({ message: 'Expense not found.' })
+  res.json({ expense: { ...expense.toObject(), approvedByName: req.user.name } })
 }))
 
 // Spending totals per section, newest expense included for a quick glance.
@@ -460,7 +486,7 @@ router.get('/sales', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(asy
   const startOfToday = new Date()
   startOfToday.setHours(0, 0, 0, 0)
   const [sales, allTime, todayTotals] = await Promise.all([
-    Sale.find({ hotelId: scope }).sort({ createdAt: -1 }).limit(100).populate('recordedBy', 'name'),
+    Sale.find({ hotelId: scope }).sort({ createdAt: -1 }).limit(100).populate('recordedBy', 'name').populate('approvedBy', 'name'),
     Sale.aggregate([
       { $match: { hotelId: new mongoose.Types.ObjectId(scope) } },
       { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } },
@@ -488,6 +514,9 @@ router.get('/sales', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(asy
       note: sale.note,
       recordedBy: sale.recordedBy?.name || '',
       createdAt: sale.createdAt,
+      approved: sale.approved,
+      approvedAt: sale.approvedAt,
+      approvedByName: sale.approvedBy?.name || '',
     })),
   })
 }))
@@ -524,6 +553,9 @@ router.post('/sales', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(as
   const total = Math.round(items.reduce((sum, item) => sum + item.amount, 0) * 100) / 100
   const customerName = String(req.body.customerName || '').trim().slice(0, 80)
   const customerContact = String(req.body.customerContact || '').trim().slice(0, 60)
+  // A record made by someone allowed to approve is trusted straight away;
+  // everyone else's waits for the owner's (or an approver's) sign-off.
+  const autoApproved = hasPerm(req.user, 'approve_records')
   // Receipt numbers are sequential per hotel: take the highest used number
   // and add one. If two staff record at the same instant the unique index
   // rejects the loser, and it retries with a freshly read number.
@@ -544,6 +576,9 @@ router.post('/sales', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(as
         customerContact,
         note: String(req.body.note || '').trim().slice(0, 200),
         recordedBy: req.user._id,
+        approved: autoApproved,
+        approvedBy: autoApproved ? req.user._id : null,
+        approvedAt: autoApproved ? new Date() : null,
       })
     } catch (error) {
       if (error.code !== 11000) throw error
@@ -572,9 +607,26 @@ router.post('/sales', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(as
 router.delete('/sales/:saleId', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
   if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_sales')) return res.status(403).json({ message: 'The owner has not granted you permission to record sales.' })
   if (!idIsValid(req.params.saleId)) return res.status(404).json({ message: 'Sale not found.' })
-  const sale = await Sale.findOneAndDelete({ _id: req.params.saleId, hotelId: hotelScope(req) })
+  const sale = await Sale.findOne({ _id: req.params.saleId, hotelId: hotelScope(req) }).select('approved')
   if (!sale) return res.status(404).json({ message: 'Sale not found.' })
+  // Approved sales are the books of record — they can no longer be changed.
+  if (sale.approved) return res.status(403).json({ message: 'This sale has been approved and can no longer be changed.' })
+  await Sale.deleteOne({ _id: sale._id })
   res.status(204).end()
+}))
+
+// The owner — or staff granted the approval permission — signs a sale off.
+// Once approved the sale is locked and can no longer be deleted.
+router.post('/sales/:saleId/approve', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (!hasPerm(req.user, 'approve_records')) return res.status(403).json({ message: 'You do not have permission to approve sales.' })
+  if (!idIsValid(req.params.saleId)) return res.status(404).json({ message: 'Sale not found.' })
+  const sale = await Sale.findOneAndUpdate(
+    { _id: req.params.saleId, hotelId: hotelScope(req) },
+    { $set: { approved: true, approvedBy: req.user._id, approvedAt: new Date() } },
+    { new: true },
+  )
+  if (!sale) return res.status(404).json({ message: 'Sale not found.' })
+  res.json({ sale: { ...sale.toObject(), saleId: displaySaleId(sale), items: saleItems(sale), approvedByName: req.user.name } })
 }))
 
 router.get('/staff', authenticate, authorize('OWNER'), asyncRoute(async (req, res) => {

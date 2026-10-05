@@ -26,6 +26,13 @@ const schema = new mongoose.Schema({
   totalAdded: { type: Number, required: true, min: 0, default: 0 },
   // Running total of plates deducted by orders (manual reduces excluded).
   totalUsed: { type: Number, required: true, min: 0, default: 0 },
+  // Sign-off on the current count: stock added by someone who cannot approve
+  // waits for the owner (or staff granted the approval permission). Approved
+  // stock is locked — its details can no longer be edited or removed, and
+  // freshly added stock goes back to pending until approved again.
+  approved: { type: Boolean, default: false, index: true },
+  approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  approvedAt: { type: Date, default: null },
 }, { timestamps: true })
 
 schema.index({ hotelId: 1, name: 1 }, { unique: true })

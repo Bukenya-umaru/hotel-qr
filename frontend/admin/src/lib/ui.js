@@ -56,6 +56,7 @@ export const PERMISSIONS = [
   { key: 'manage_stock', label: 'Manage stock' },
   { key: 'manage_expenses', label: 'Manage expenses' },
   { key: 'manage_sales', label: 'Record sales' },
+  { key: 'approve_records', label: 'Approve sales, stock & expenses' },
 ]
 
 // Ways a stock entry or a recorded sale can be counted. 'Other' lets the

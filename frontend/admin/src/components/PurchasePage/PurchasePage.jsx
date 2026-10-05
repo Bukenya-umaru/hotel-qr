@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  BadgePlus, Banknote, Check, ChevronRight, Minus, Plus, Receipt, Trash2,
+  BadgePlus, Banknote, CalendarDays, Check, ChevronRight, Minus, Plus, Receipt, Trash2,
 } from 'lucide-react'
 import { api } from '../../lib/api.js'
 import { money, cx, UNIT_OPTIONS, unitDisplay } from '../../lib/ui.js'
@@ -10,7 +10,7 @@ import { Modal } from '../Modal/Modal.jsx'
 // here and shows its subsections — Make sale, Sales and Expenses — each
 // opening its own workspace, the same way Categories shows Food type and
 // Expenses.
-export function PurchasePage({ initialView = 'menu', canManageExpenses = true }) {
+export function PurchasePage({ initialView = 'menu', canManageExpenses = true, canApprove = false }) {
   const [view, setView] = useState(initialView) // 'menu' | 'make-sale' | 'sales' | 'expenses'
   const [saleCount, setSaleCount] = useState(null)
   const [expenseCount, setExpenseCount] = useState(null)
@@ -76,8 +76,8 @@ export function PurchasePage({ initialView = 'menu', canManageExpenses = true })
     </div>}
 
     {view === 'make-sale' && <MakeSaleView onError={setError} onViewSales={() => setView('sales')} />}
-    {view === 'sales' && <SalesView onError={setError} />}
-    {view === 'expenses' && <ExpensesView onError={setError} />}
+    {view === 'sales' && <SalesView onError={setError} canApprove={canApprove} />}
+    {view === 'expenses' && <ExpensesView onError={setError} canApprove={canApprove} />}
   </div>
 }
 
@@ -88,13 +88,55 @@ const saleLine = sale => ((Array.isArray(sale.items) && sale.items.length ? sale
   .map(item => `${item.name || 'Item'}${Number(item.quantity) !== 1 ? ` ×${item.quantity}${item.unit ? ` ${item.unit}` : ''}` : ''}`)
   .join(', '))
 
+// ---- Shared date filter (Sales and Expenses) — a From/To range over the ----
+// ---- record times with quick presets. Empty from/to mean no filter, and ----
+// ---- days parse in local time so boundaries hit the hotel's own midnight. ----
+const isoDay = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+const dayBound = (value, end) => {
+  if (!value) return null
+  const [y, m, d] = value.split('-').map(Number)
+  return end ? new Date(y, m - 1, d, 23, 59, 59, 999).getTime() : new Date(y, m - 1, d).getTime()
+}
+const DATE_PRESETS = [['today', 'Today'], ['week', 'Last 7 days'], ['month', 'This month'], ['all', 'All']]
+const presetRange = preset => {
+  const now = new Date()
+  if (preset === 'all') return { from: '', to: '' }
+  if (preset === 'today') return { from: isoDay(now), to: isoDay(now) }
+  if (preset === 'week') { const from = new Date(now); from.setDate(from.getDate() - 6); return { from: isoDay(from), to: isoDay(now) } }
+  return { from: isoDay(new Date(now.getFullYear(), now.getMonth(), 1)), to: isoDay(now) }
+}
+const inDayRange = (time, fromBound, toBound) => (fromBound == null || time >= fromBound) && (toBound == null || time <= toBound)
+
+// The From/To date inputs and preset chips shared by the Sales and
+// Expenses filters.
+function DateFilterRow({ range, setRange }) {
+  return <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+    <label className="flex items-center gap-1 rounded-lg border border-[#e6e9e1] bg-[#fbfcf9] px-2 py-1">
+      <CalendarDays size={12} className="shrink-0 text-[#bd6424]" />
+      <span className="text-[9px] font-semibold text-[#757c71]">From</span>
+      <input type="date" aria-label="Filter from date" value={range.from} max={range.to || undefined} onChange={event => setRange({ ...range, from: event.target.value })} className="bg-transparent text-[10px] font-medium text-[#293128] outline-none" />
+    </label>
+    <label className="flex items-center gap-1 rounded-lg border border-[#e6e9e1] bg-[#fbfcf9] px-2 py-1">
+      <CalendarDays size={12} className="shrink-0 text-[#bd6424]" />
+      <span className="text-[9px] font-semibold text-[#757c71]">To</span>
+      <input type="date" aria-label="Filter to date" value={range.to} min={range.from || undefined} max={isoDay(new Date())} onChange={event => setRange({ ...range, to: event.target.value })} className="bg-transparent text-[10px] font-medium text-[#293128] outline-none" />
+    </label>
+    {DATE_PRESETS.map(([key, label]) => {
+      const target = presetRange(key)
+      const active = range.from === target.from && range.to === target.to
+      return <button key={key} type="button" onClick={() => setRange(target)} className={cx('rounded-full px-2.5 py-1 text-[9px] font-semibold transition', active ? 'bg-[#f4f4f0] text-[#293128]' : 'text-[#757c71] hover:bg-[#f4f4f0] hover:text-[#3d443a]')}>{label}</button>
+    })}
+  </div>
+}
+
 // ---- Subsection: Sales — every sale made by the hotel, newest first,   ----
 // ---- each shown with its own ID. Recording lives in the Make sale tab. ----
 
-function SalesView({ onError }) {
+function SalesView({ onError, canApprove = false }) {
   const [sales, setSales] = useState([])
   const [stats, setStats] = useState({ total: 0, count: 0, todayTotal: 0, todayCount: 0 })
   const [busy, setBusy] = useState(false)
+  const [range, setRange] = useState({ from: '', to: '' }) // Date filter: empty from/to = everything.
 
   const load = async () => {
     try {
@@ -122,7 +164,30 @@ function SalesView({ onError }) {
     }
   }
 
+  // The owner — or staff granted the approval permission — signs a sale off.
+  // Approved sales are locked: they can no longer be removed.
+  const approveSale = async sale => {
+    setBusy(true)
+    try {
+      await api(`/api/owner/sales/${sale._id}/approve`, { method: 'POST' })
+      onError('')
+      await load()
+    } catch (err) {
+      onError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const saleTime = value => new Date(value).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+
+  // Date filter — a From/To range over the sale times plus quick presets.
+  // Empty from/to mean no filter.
+  const fromBound = dayBound(range.from, false)
+  const toBound = dayBound(range.to, true)
+  const hasFilter = Boolean(range.from || range.to)
+  const filtered = sales.filter(sale => inDayRange(new Date(sale.createdAt).getTime(), fromBound, toBound))
+  const filteredTotal = filtered.reduce((sum, sale) => sum + sale.amount, 0)
 
   return <div className="rounded-xl border border-[#eceee8] bg-white p-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -130,24 +195,28 @@ function SalesView({ onError }) {
         <span className="rounded-full bg-[#f4f4f0] px-2 py-0.5 text-[9px] font-semibold text-[#757c71]">{stats.count}</span>
       </p>
       <div className="flex flex-wrap items-center gap-1.5">
+        {hasFilter && <span className="rounded-full bg-[#c65d1b] px-2.5 py-1 text-[9px] font-semibold text-white">Selected {money(filteredTotal)} · {filtered.length} sale{filtered.length === 1 ? '' : 's'}</span>}
         <span className="rounded-full bg-[#eef6ec] px-2.5 py-1 text-[9px] font-semibold text-[#3f8f3a]">Today {money(stats.todayTotal)} · {stats.todayCount} sale{stats.todayCount === 1 ? '' : 's'}</span>
         <span className="rounded-full bg-[#fff1e6] px-2.5 py-1 text-[9px] font-semibold text-[#a34b16]">All time {money(stats.total)}</span>
       </div>
     </div>
-    {sales.length > 0 && <ul className="mt-3 divide-y divide-[#f1f2ee]">
-      {sales.map(sale => <li key={sale._id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
+    <DateFilterRow range={range} setRange={setRange} />
+    {filtered.length > 0 && <ul className="mt-3 divide-y divide-[#f1f2ee]">
+      {filtered.map(sale => <li key={sale._id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
         <div className="min-w-0 flex-1">
           <p className="truncate text-[11px] font-semibold text-[#3d443a]">{saleLine(sale)}</p>
           <p className="mt-0.5 flex items-center gap-1.5 text-[9px] text-[#9b9f96]">
             <span className="shrink-0 rounded bg-[#f4f4f0] px-1.5 py-0.5 font-mono text-[8px] font-bold tracking-wide text-[#757c71]">{sale.saleId}</span>
             <span className="truncate">{saleTime(sale.createdAt)}{sale.recordedBy && ` · by ${sale.recordedBy}`}{sale.customerName && ` · for ${sale.customerName}`}{sale.customerContact && ` · ${sale.customerContact}`}{sale.note && ` · ${sale.note}`}</span>
           </p>
+          {sale.approved && <p className="mt-0.5 flex items-center gap-1 text-[8px] font-bold text-[#3f8f3a]"><Check size={10} />Approved{sale.approvedByName && ` by ${sale.approvedByName}`}</p>}
         </div>
+        {!sale.approved && canApprove && <button disabled={busy} onClick={() => approveSale(sale)} title={`Approve ${sale.saleId}`} className="flex shrink-0 items-center gap-1 rounded-md bg-[#eef6ec] px-2 py-1 text-[9px] font-bold text-[#3f8f3a] transition hover:bg-[#dcefdc] disabled:opacity-50"><Check size={11} />Approve</button>}
         <span className="shrink-0 text-[11px] font-bold text-[#3f8f3a]">{money(sale.amount)}</span>
-        <button disabled={busy} onClick={() => removeSale(sale)} title={`Remove ${sale.name}`} className="shrink-0 rounded-md p-1 text-[#c08b7e] hover:bg-[#fae9e5] hover:text-[#b75c48] disabled:opacity-50"><Trash2 size={13} /></button>
+        <button disabled={busy || sale.approved} onClick={() => removeSale(sale)} title={sale.approved ? 'Approved — cannot be changed' : `Remove ${sale.name}`} className="shrink-0 rounded-md p-1 text-[#c08b7e] hover:bg-[#fae9e5] hover:text-[#b75c48] disabled:opacity-50"><Trash2 size={13} /></button>
       </li>)}
     </ul>}
-    {!sales.length && <p className="mt-3 rounded-xl border border-dashed border-[#e6e9e1] px-3 py-6 text-center text-[10px] text-[#9b9f96]">No sales made yet — open “Make sale” to record the first one.</p>}
+    {!filtered.length && <p className="mt-3 rounded-xl border border-dashed border-[#e6e9e1] px-3 py-6 text-center text-[10px] text-[#9b9f96]">{hasFilter ? 'No sales in the selected dates — pick another range or choose All.' : 'No sales made yet — open “Make sale” to record the first one.'}</p>}
   </div>
 }
 
@@ -424,12 +493,13 @@ function MakeSaleView({ onError, onViewSales }) {
 // ---- Subsection: Expenses — everything the hotel spends, filed under the ----
 // ---- expense categories managed in Categories > Expenses in the sidebar. ----
 
-function ExpensesView({ onError }) {
+function ExpensesView({ onError, canApprove = false }) {
   const [expenses, setExpenses] = useState([])
   const [byCategory, setByCategory] = useState([])
   const [stats, setStats] = useState({ total: 0, count: 0, todayTotal: 0, todayCount: 0 })
   const [busy, setBusy] = useState(false)
   const [showPopup, setShowPopup] = useState(false)
+  const [range, setRange] = useState({ from: '', to: '' }) // Date filter: empty from/to = everything.
 
   const load = async () => {
     try {
@@ -459,7 +529,29 @@ function ExpensesView({ onError }) {
     }
   }
 
+  // The owner — or staff granted the approval permission — signs an expense
+  // off. Approved expenses are locked: they can no longer be removed.
+  const approveExpense = async expense => {
+    setBusy(true)
+    try {
+      await api(`/api/owner/expenses/${expense._id}/approve`, { method: 'POST' })
+      onError('')
+      await load()
+    } catch (err) {
+      onError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const expenseTime = value => new Date(value).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+
+  // Date filter — the same From/To range and presets as the Sales list.
+  const fromBound = dayBound(range.from, false)
+  const toBound = dayBound(range.to, true)
+  const hasFilter = Boolean(range.from || range.to)
+  const filtered = expenses.filter(expense => inDayRange(new Date(expense.createdAt).getTime(), fromBound, toBound))
+  const filteredTotal = filtered.reduce((sum, expense) => sum + expense.amount, 0)
 
   return <div className="rounded-xl border border-[#eceee8] bg-white p-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -467,25 +559,29 @@ function ExpensesView({ onError }) {
         <span className="rounded-full bg-[#f4f4f0] px-2 py-0.5 text-[9px] font-semibold text-[#757c71]">{stats.count}</span>
       </p>
       <div className="flex flex-wrap items-center gap-1.5">
+        {hasFilter && <span className="rounded-full bg-[#c65d1b] px-2.5 py-1 text-[9px] font-semibold text-white">Selected {money(filteredTotal)} · {filtered.length} expense{filtered.length === 1 ? '' : 's'}</span>}
         <span className="rounded-full bg-[#fae9e5] px-2.5 py-1 text-[9px] font-semibold text-[#a44f3d]">Today {money(stats.todayTotal)} · {stats.todayCount} expense{stats.todayCount === 1 ? '' : 's'}</span>
         <span className="rounded-full bg-[#f4f4f0] px-2.5 py-1 text-[9px] font-semibold text-[#757c71]">All time {money(stats.total)}</span>
         <button onClick={() => setShowPopup(true)} className="flex items-center gap-1.5 rounded-lg bg-[#c65d1b] px-3 py-2 text-[10px] font-semibold text-white hover:bg-[#a34b16]"><Plus size={13} />Record expense</button>
       </div>
     </div>
+    <DateFilterRow range={range} setRange={setRange} />
     {byCategory.length > 0 && <div className="mt-2.5 flex flex-wrap gap-1.5">
       {byCategory.map(entry => <span key={entry.category} className="rounded-full bg-[#f7f8f5] px-2.5 py-1 text-[9px] font-semibold text-[#757c71]">{entry.category} · {money(entry.total)} ({entry.count})</span>)}
     </div>}
-    {expenses.length > 0 && <ul className="mt-3 divide-y divide-[#f1f2ee]">
-      {expenses.map(expense => <li key={expense._id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
+    {filtered.length > 0 && <ul className="mt-3 divide-y divide-[#f1f2ee]">
+      {filtered.map(expense => <li key={expense._id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
         <div className="min-w-0 flex-1">
           <p className="truncate text-[11px] font-semibold text-[#3d443a]">{expense.categoryName}</p>
           <p className="mt-0.5 truncate text-[9px] text-[#9b9f96]">{expenseTime(expense.createdAt)}{expense.recordedBy && ` · by ${expense.recordedBy}`}{expense.note && ` · ${expense.note}`}</p>
+          {expense.approved && <p className="mt-0.5 flex items-center gap-1 text-[8px] font-bold text-[#3f8f3a]"><Check size={10} />Approved{expense.approvedByName && ` by ${expense.approvedByName}`}</p>}
         </div>
+        {!expense.approved && canApprove && <button disabled={busy} onClick={() => approveExpense(expense)} title="Approve expense" className="flex shrink-0 items-center gap-1 rounded-md bg-[#eef6ec] px-2 py-1 text-[9px] font-bold text-[#3f8f3a] transition hover:bg-[#dcefdc] disabled:opacity-50"><Check size={11} />Approve</button>}
         <span className="shrink-0 text-[11px] font-bold text-[#b75c48]">−{money(expense.amount)}</span>
-        <button disabled={busy} onClick={() => removeExpense(expense)} title={`Remove ${expense.categoryName} expense`} className="shrink-0 rounded-md p-1 text-[#c08b7e] hover:bg-[#fae9e5] hover:text-[#b75c48] disabled:opacity-50"><Trash2 size={13} /></button>
+        <button disabled={busy || expense.approved} onClick={() => removeExpense(expense)} title={expense.approved ? 'Approved — cannot be changed' : `Remove ${expense.categoryName} expense`} className="shrink-0 rounded-md p-1 text-[#c08b7e] hover:bg-[#fae9e5] hover:text-[#b75c48] disabled:opacity-50"><Trash2 size={13} /></button>
       </li>)}
     </ul>}
-    {!expenses.length && <p className="mt-3 rounded-xl border border-dashed border-[#e6e9e1] px-3 py-6 text-center text-[10px] text-[#9b9f96]">No expenses recorded yet — click “Record expense” above to record your first one.</p>}
+    {!filtered.length && <p className="mt-3 rounded-xl border border-dashed border-[#e6e9e1] px-3 py-6 text-center text-[10px] text-[#9b9f96]">{hasFilter ? 'No expenses in the selected dates — pick another range or choose All.' : 'No expenses recorded yet — click “Record expense” above to record your first one.'}</p>}
     {showPopup && <RecordExpenseModal onClose={() => setShowPopup(false)} onSaved={() => { setShowPopup(false); load() }} />}
   </div>
 }

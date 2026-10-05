@@ -355,9 +355,9 @@ export default function App() {
   else if (page === 'Tables' && ['OWNER', 'KITCHEN'].includes(role)) content = <TablesPage user={user} canManage={canManageTables} />
   else if (page === 'Food type') content = <CategoriesPage initialView="foodtype" />
   else if (page === 'Expenses') content = <CategoriesPage initialView="expenses" />
-  else if (page === 'Make sale' && ['OWNER', 'KITCHEN'].includes(role)) content = <PurchasePage initialView="make-sale" canManageExpenses={hasPermission(user, 'manage_expenses')} />
-  else if (page === 'Sales' && ['OWNER', 'KITCHEN'].includes(role)) content = <PurchasePage initialView="sales" canManageExpenses={hasPermission(user, 'manage_expenses')} />
-  else if (page === 'Purchase expenses' && ['OWNER', 'KITCHEN'].includes(role)) content = <PurchasePage initialView="expenses" canManageExpenses={hasPermission(user, 'manage_expenses')} />
+  else if (page === 'Make sale' && ['OWNER', 'KITCHEN'].includes(role)) content = <PurchasePage initialView="make-sale" canManageExpenses={hasPermission(user, 'manage_expenses')} canApprove={hasPermission(user, 'approve_records')} />
+  else if (page === 'Sales' && ['OWNER', 'KITCHEN'].includes(role)) content = <PurchasePage initialView="sales" canManageExpenses={hasPermission(user, 'manage_expenses')} canApprove={hasPermission(user, 'approve_records')} />
+  else if (page === 'Purchase expenses' && ['OWNER', 'KITCHEN'].includes(role)) content = <PurchasePage initialView="expenses" canManageExpenses={hasPermission(user, 'manage_expenses')} canApprove={hasPermission(user, 'approve_records')} />
   else if (page === 'Stock' && ['OWNER', 'KITCHEN'].includes(role)) content = <StockPage user={user} canManage={canManageStock} foodTypes={managedCategoryNames} />
   else if (page === 'Help & support' && ['OWNER', 'DEVELOPER'].includes(role)) content = <SupportPage role={role} />
   else if (page === 'Orders') content = <OrdersTable orders={orders} onAdvance={role === 'KITCHEN' || role === 'OWNER' ? advanceOrder : undefined} />
