@@ -318,7 +318,7 @@ function MakeSaleView({ onError, onViewSales }) {
     </div>
   </div>
 
-  return <div className="mx-auto w-full max-w-xl rounded-xl border border-[#eceee8] bg-white p-4">
+  return <div className="mx-auto w-full max-w-2xl rounded-xl border border-[#eceee8] bg-white p-4">
     <p className="text-[11px] font-bold text-[#3d443a]">Record a sale</p>
     <p className="mt-0.5 text-[9px] text-[#9b9f96]">Search the stock to add an item with its price, or type a new one and press Enter to add it with its price. Everything records as one sale.</p>
     <form className="mt-3" onSubmit={submit}>
