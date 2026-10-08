@@ -13,7 +13,7 @@ import { money, today, cx, orderCode, orderTime, navItems } from '../../lib/ui.j
 import { NotificationsMenu } from '../NotificationsMenu/NotificationsMenu.jsx'
 import { SearchModal } from '../SearchModal/SearchModal.jsx'
 
-export function Header({ role, page, onLogin, user, titleOverride, hotelName, notifications, unreadCount, onMarkAllRead, onClearNotifications, onOpenNotification, onNavigate, menu = [], orders = [] }) {
+export function Header({ role, page, onLogin, user, titleOverride, hotelName, notifications, unreadCount, onMarkAllRead, onClearNotifications, onOpenNotification, onNavigate, orders = [] }) {
   const [searchOpen, setSearchOpen] = useState(false)
   const title = titleOverride || (page === 'Overview' ? 'Business overview' : page)
   return <header className="sticky top-0 z-10 flex min-h-[68px] items-center justify-between gap-3 border-b border-[#eaece6] bg-[#f7f7f4]/90 px-3 py-2 backdrop-blur-md sm:h-[76px] sm:px-5 sm:py-0 md:px-9">
@@ -24,6 +24,6 @@ export function Header({ role, page, onLogin, user, titleOverride, hotelName, no
       <NotificationsMenu notifications={notifications} unreadCount={unreadCount} onOpen={onOpenNotification} onMarkAllRead={onMarkAllRead} onClear={onClearNotifications} />
       {!user && <button onClick={onLogin} className="ml-1 rounded-lg bg-[#c65d1b] px-3.5 py-2 text-[11px] font-semibold text-white hover:bg-[#a34b16]">Sign in</button>}
     </div>
-    {searchOpen && <SearchModal onClose={() => setSearchOpen(false)} onNavigate={onNavigate} menu={menu} orders={orders} role={role} />}
+    {searchOpen && <SearchModal onClose={() => setSearchOpen(false)} onNavigate={onNavigate} orders={orders} role={role} />}
   </header>
 }

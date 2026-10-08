@@ -12,6 +12,20 @@ const itemSchema = new mongoose.Schema({
   stockItemId: { type: mongoose.Schema.Types.ObjectId, ref: 'StockItem', default: null },
 }, { _id: false })
 
+// A snapshot of what an edited sale looked like before one change, so the
+// owner can see "changed from X to this". Kept small: summary, total,
+// customer and the full item lines.
+const editSchema = new mongoose.Schema({
+  name: { type: String, default: '' },
+  items: { type: [itemSchema], default: undefined },
+  amount: { type: Number, default: 0 },
+  customerName: { type: String, default: '' },
+  note: { type: String, default: '' },
+  editedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  editedByName: { type: String, default: '' },
+  editedAt: { type: Date, default: Date.now },
+}, { _id: true })
+
 // A single manually recorded sale — e.g. walk-in cash sales or items sold
 // outside the app. A sale can hold several items recorded in one go, with an
 // optional customer name and contact. `amount` is the total money the whole
@@ -43,6 +57,10 @@ const schema = new mongoose.Schema({
   approved: { type: Boolean, default: false, index: true },
   approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   approvedAt: { type: Date, default: null },
+  // Change trail: each time an unapproved sale is edited, one entry records
+  // what it looked like before the change and who made it. The owner sees
+  // "changed from X to this" on the sale card.
+  edits: { type: [editSchema], default: undefined },
 }, { timestamps: true })
 
 schema.index({ hotelId: 1, createdAt: -1 })

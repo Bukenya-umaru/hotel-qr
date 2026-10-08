@@ -28,8 +28,9 @@ const unitInfo = (value, customUnit = '') => {
 // rate multiplied by what is left in stock.
 const stockValue = item => Math.round((Number(item.price) || 0) * (Number(item.plates) || 0) * 100) / 100
 
-export function StockPage({ user, canManage = true, foodTypes = [] }) {
+export function StockPage({ user, canManage = true }) {
   const [items, setItems] = useState([])
+  const [foodTypes, setFoodTypes] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -55,6 +56,7 @@ export function StockPage({ user, canManage = true, foodTypes = [] }) {
 
   useEffect(() => {
     loadStock()
+    api('/api/owner/categories').then(data => setFoodTypes(data.categories.map(category => category.name))).catch(() => {})
     if (!user?.hotelId) return undefined
     const socket = io(API_BASE_URL || undefined, { withCredentials: true })
     socket.emit('join_hotel', user.hotelId)

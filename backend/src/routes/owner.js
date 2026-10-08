@@ -517,6 +517,17 @@ router.get('/sales', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(asy
       approved: sale.approved,
       approvedAt: sale.approvedAt,
       approvedByName: sale.approvedBy?.name || '',
+      // Change trail for the owner: what the sale looked like before each
+      // edit, newest last.
+      edits: (sale.edits || []).map(edit => ({
+        name: edit.name,
+        items: (edit.items || []).map(item => ({ name: item.name, quantity: item.quantity, unit: item.unit || '', amount: item.amount })),
+        amount: edit.amount,
+        customerName: edit.customerName || '',
+        note: edit.note || '',
+        editedByName: edit.editedByName || '',
+        editedAt: edit.editedAt,
+      })),
     })),
   })
 }))
@@ -613,6 +624,94 @@ router.delete('/sales/:saleId', authenticate, authorize('OWNER', 'KITCHEN'), asy
   if (sale.approved) return res.status(403).json({ message: 'This sale has been approved and can no longer be changed.' })
   await Sale.deleteOne({ _id: sale._id })
   res.status(204).end()
+}))
+
+// A chef can edit their own unapproved sale until it is approved. Every edit
+// snapshots the sale as it was BEFORE the change into `edits`, so the owner
+// can see "changed from X to this" with who made the change and when.
+const saleEditPayload = req => {
+  const rawItems = Array.isArray(req.body.items) && req.body.items.length
+    ? req.body.items
+    : [{ name: req.body.name, quantity: req.body.quantity, unit: req.body.unit, amount: req.body.amount }]
+  if (rawItems.length > 50) return { error: 'A sale can hold at most 50 items.' }
+  const items = []
+  for (const [index, raw] of rawItems.entries()) {
+    const name = String(raw?.name || '').trim().slice(0, 60)
+    const quantity = raw?.quantity === undefined || raw?.quantity === '' ? 1 : Number(raw.quantity)
+    const amount = Number(raw?.amount)
+    if (!name) return { error: `Give item ${index + 1} a name, e.g. Beef plates.` }
+    if (!Number.isFinite(quantity) || quantity < 0) return { error: `Item ${index + 1}: enter a quantity of zero or more.` }
+    if (!Number.isFinite(amount) || amount <= 0) return { error: `Item ${index + 1}: enter an amount greater than zero.` }
+    items.push({
+      name,
+      quantity: Math.round(quantity * 100) / 100,
+      unit: String(raw?.unit || '').trim().toLowerCase().slice(0, 20),
+      amount: Math.round(amount * 100) / 100,
+      stockItemId: idIsValid(raw?.stockItemId) ? raw.stockItemId : null,
+    })
+  }
+  return { items, total: Math.round(items.reduce((sum, item) => sum + item.amount, 0) * 100) / 100 }
+}
+
+router.patch('/sales/:saleId', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_sales')) return res.status(403).json({ message: 'The owner has not granted you permission to record sales.' })
+  if (!idIsValid(req.params.saleId)) return res.status(404).json({ message: 'Sale not found.' })
+  const scope = hotelScope(req)
+  if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
+  const sale = await Sale.findOne({ _id: req.params.saleId, hotelId: scope })
+  if (!sale) return res.status(404).json({ message: 'Sale not found.' })
+  // Approved sales are the books of record — they can no longer be changed.
+  if (sale.approved) return res.status(403).json({ message: 'This sale has been approved and can no longer be changed.' })
+  const parsed = saleEditPayload(req)
+  if (parsed.error) return res.status(400).json({ message: parsed.error })
+  const { items, total } = parsed
+  const customerName = String(req.body.customerName || '').trim().slice(0, 80)
+  const customerContact = String(req.body.customerContact || '').trim().slice(0, 60)
+  const note = String(req.body.note || '').trim().slice(0, 200)
+  const sameItems = sale.items?.length === items.length && sale.items.every((item, index) =>
+    item.name === items[index].name && item.quantity === items[index].quantity
+    && item.unit === items[index].unit && item.amount === items[index].amount)
+  const unchanged = sameItems && sale.customerName === customerName && sale.customerContact === customerContact && sale.note === note
+  if (unchanged) return res.status(400).json({ message: 'Nothing changed — update the items, customer or note before saving.' })
+  // Snapshot the sale as it stands BEFORE applying the edit.
+  sale.edits = [...(sale.edits || []), {
+    name: sale.name,
+    items: saleItems(sale).map(item => ({ name: item.name, quantity: item.quantity, unit: item.unit, amount: item.amount, stockItemId: item.stockItemId })),
+    amount: sale.amount,
+    customerName: sale.customerName || '',
+    note: sale.note || '',
+    editedBy: req.user._id,
+    editedByName: req.user.name,
+    editedAt: new Date(),
+  }].slice(-20)
+  sale.name = (items.length > 1 ? `${items[0].name} +${items.length - 1} more` : items[0].name).slice(0, 60)
+  sale.items = items
+  sale.quantity = items.length > 1 ? 1 : items[0].quantity
+  sale.unit = items.length > 1 ? '' : items[0].unit
+  sale.amount = total
+  sale.customerName = customerName
+  sale.customerContact = customerContact
+  sale.note = note
+  await sale.save()
+  // Stock follows the corrected quantities: restore what the previous lines
+  // drew down, then deduct the new ones. Best-effort, same as when recording.
+  const stockDelta = new Map()
+  for (const item of sale.edits[sale.edits.length - 1].items || []) {
+    const stockId = item.stockItemId && idIsValid(item.stockItemId) ? String(item.stockItemId) : null
+    if (stockId && item.quantity > 0) stockDelta.set(stockId, (stockDelta.get(stockId) || 0) + item.quantity)
+  }
+  for (const item of items) {
+    if (item.stockItemId && item.quantity > 0) stockDelta.set(String(item.stockItemId), (stockDelta.get(String(item.stockItemId)) || 0) - item.quantity)
+  }
+  for (const [stockId, delta] of stockDelta) {
+    if (delta > 0) {
+      await StockItem.updateOne({ _id: stockId, hotelId: scope }, { $inc: { plates: delta } }).catch(() => {})
+    } else if (delta < 0) {
+      await StockItem.updateOne({ _id: stockId, hotelId: scope, plates: { $gte: -delta } }, { $inc: { plates: delta } }).catch(() => {})
+    }
+  }
+  if (stockDelta.size) req.app.get('io').to(`hotel:${hotelScope(req)}`).emit('stock_updated')
+  res.json({ sale: { ...sale.toObject(), saleId: displaySaleId(sale), items: saleItems(sale), recordedBy: req.user.name } })
 }))
 
 // The owner — or staff granted the approval permission — signs a sale off.

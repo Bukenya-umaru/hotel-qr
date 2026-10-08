@@ -51,7 +51,6 @@ export const orderTime = order => order.time || (order.createdAt
 // permissions keeps full access, matching how existing accounts behave.
 export const PERMISSIONS = [
   { key: 'view_sales', label: 'View sales' },
-  { key: 'manage_menu', label: 'Manage menu' },
   { key: 'manage_tables', label: 'Manage tables' },
   { key: 'manage_stock', label: 'Manage stock' },
   { key: 'manage_expenses', label: 'Manage expenses' },
@@ -87,7 +86,6 @@ export const navItems = {
     { label: 'Overview', icon: LayoutDashboard },
     { label: 'Orders', icon: ShoppingBag },
     { label: 'Categories', icon: Rows3, children: [{ label: 'Food type' }, { label: 'Expenses' }] },
-    { label: 'Menu', icon: Utensils },
     { label: 'Stock', icon: Boxes },
     { label: 'Purchase', icon: ShoppingCart, children: [{ label: 'Make sale' }, { label: 'Sales' }, { label: 'Expenses', target: 'Purchase expenses' }] },
     { label: 'Tables', icon: ChefHat },
@@ -96,9 +94,7 @@ export const navItems = {
     { label: 'Help & support', icon: CircleHelp },
   ],
   KITCHEN: [
-    { label: 'Chef orders', icon: ChefHat },
     { label: 'Categories', icon: Rows3, children: [{ label: 'Food type' }, { label: 'Expenses' }] },
-    { label: 'Menu', icon: Utensils },
     { label: 'Stock', icon: Boxes },
     { label: 'Purchase', icon: ShoppingCart, children: [{ label: 'Make sale' }, { label: 'Sales' }, { label: 'Expenses', target: 'Purchase expenses' }] },
     { label: 'Tables', icon: ChefHat },

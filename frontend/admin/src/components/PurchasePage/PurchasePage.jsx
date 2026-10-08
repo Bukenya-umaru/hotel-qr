@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import {
-  BadgePlus, Banknote, CalendarDays, Check, ChevronRight, Minus, Plus, Receipt, Trash2,
+  ArrowDown, BadgePlus, Banknote, CalendarDays, Check, ChevronRight, History, Minus, Pencil, Plus, Receipt, Trash2,
 } from 'lucide-react'
 import { api } from '../../lib/api.js'
 import { money, cx, UNIT_OPTIONS, unitDisplay } from '../../lib/ui.js'
@@ -81,6 +81,10 @@ export function PurchasePage({ initialView = 'menu', canManageExpenses = true, c
   </div>
 }
 
+// Units the sale form knows natively; anything else is treated as a custom
+// word carried in `customUnit`.
+const UNIT_KEYS = UNIT_OPTIONS.map(option => option.key)
+
 // One-line summary of what a sale contains, e.g. "Beef plates ×3, Soda ×2".
 // Multi-item sales carry an items array; older single-item sales are shown
 // from their top-level name/quantity/unit.
@@ -137,6 +141,8 @@ function SalesView({ onError, canApprove = false }) {
   const [stats, setStats] = useState({ total: 0, count: 0, todayTotal: 0, todayCount: 0 })
   const [busy, setBusy] = useState(false)
   const [range, setRange] = useState({ from: '', to: '' }) // Date filter: empty from/to = everything.
+  const [editing, setEditing] = useState(null) // Unapproved sale being edited.
+  const [historyFor, setHistoryFor] = useState(null) // Sale whose change trail is open.
 
   const load = async () => {
     try {
@@ -212,11 +218,160 @@ function SalesView({ onError, canApprove = false }) {
           {sale.approved && <p className="mt-0.5 flex items-center gap-1 text-[8px] font-bold text-[#3f8f3a]"><Check size={10} />Approved{sale.approvedByName && ` by ${sale.approvedByName}`}</p>}
         </div>
         {!sale.approved && canApprove && <button disabled={busy} onClick={() => approveSale(sale)} title={`Approve ${sale.saleId}`} className="flex shrink-0 items-center gap-1 rounded-md bg-[#eef6ec] px-2 py-1 text-[9px] font-bold text-[#3f8f3a] transition hover:bg-[#dcefdc] disabled:opacity-50"><Check size={11} />Approve</button>}
+        {sale.edits?.length > 0 && <button onClick={() => setHistoryFor(sale)} title="See what changed" className="flex shrink-0 items-center gap-1 rounded-md bg-[#fbf5e8] px-2 py-1 text-[9px] font-bold text-[#92764a] transition hover:bg-[#f5ecd9]"><History size={11} />Edited</button>}
         <span className="shrink-0 text-[11px] font-bold text-[#3f8f3a]">{money(sale.amount)}</span>
+        {!sale.approved && <button disabled={busy} onClick={() => setEditing(sale)} title={`Edit ${sale.saleId}`} className="shrink-0 rounded-md p-1 text-[#8d9389] transition hover:bg-[#f4f4f0] hover:text-[#3d443a]"><Pencil size={13} /></button>}
         <button disabled={busy || sale.approved} onClick={() => removeSale(sale)} title={sale.approved ? 'Approved — cannot be changed' : `Remove ${sale.name}`} className="shrink-0 rounded-md p-1 text-[#c08b7e] hover:bg-[#fae9e5] hover:text-[#b75c48] disabled:opacity-50"><Trash2 size={13} /></button>
       </li>)}
     </ul>}
     {!filtered.length && <p className="mt-3 rounded-xl border border-dashed border-[#e6e9e1] px-3 py-6 text-center text-[10px] text-[#9b9f96]">{hasFilter ? 'No sales in the selected dates — pick another range or choose All.' : 'No sales made yet — open “Make sale” to record the first one.'}</p>}
+    {editing && <EditSaleModal sale={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load() }} />}
+    {historyFor && <SaleHistoryModal sale={historyFor} onClose={() => setHistoryFor(null)} />}
+  </div>
+}
+
+// Edit an unapproved sale. Approved sales can no longer be changed — the
+// backend rejects it and the edit button is hidden for them anyway.
+function EditSaleModal({ sale, onClose, onSaved }) {
+  const [items, setItems] = useState(() => (Array.isArray(sale.items) && sale.items.length
+    ? sale.items.map(item => ({ name: item.name, quantity: String(item.quantity ?? 1), unit: UNIT_KEYS.includes(item.unit) ? item.unit : 'other', customUnit: UNIT_KEYS.includes(item.unit) ? '' : (item.unit || ''), price: item.quantity ? Math.round((item.amount / item.quantity) * 100) / 100 : item.amount, amount: item.amount, unitPrice: item.quantity ? Math.round((item.amount / item.quantity) * 100) / 100 : null, stockId: item.stockItemId || '', pendingStockId: '', committed: true }))
+    : []))
+  const [customerName, setCustomerName] = useState(sale.customerName || '')
+  const [customerContact, setCustomerContact] = useState(sale.customerContact || '')
+  const [note, setNote] = useState(sale.note || '')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const setItem = (index, patch) => setItems(previous => previous.map((item, i) => (i === index ? { ...item, ...patch } : item)))
+  const removeItem = index => setItems(previous => previous.filter((_, i) => i !== index))
+
+  const changeQuantity = (index, value) => setItems(previous => previous.map((item, i) => {
+    if (i !== index) return item
+    const qty = value === '' ? 1 : Number(value)
+    const autoPrice = item.unitPrice != null && Number.isFinite(qty) && qty >= 0
+    return { ...item, quantity: value, amount: autoPrice ? Math.round(item.unitPrice * qty * 100) / 100 : item.amount }
+  }))
+
+  const changePrice = (index, value) => setItems(previous => previous.map((item, i) => {
+    if (i !== index) return item
+    const unitPrice = value === '' ? null : Number(value)
+    const qty = item.quantity === '' ? 1 : Number(item.quantity)
+    const ok = unitPrice != null && Number.isFinite(unitPrice) && Number.isFinite(qty) && qty >= 0
+    return { ...item, price: value, unitPrice: ok ? unitPrice : null, amount: ok ? Math.round(unitPrice * qty * 100) / 100 : '' }
+  }))
+
+  const stepQuantity = (index, delta) => setItems(previous => previous.map((item, i) => {
+    if (i !== index) return item
+    const qty = Math.max(1, (Number(item.quantity) || 0) + delta)
+    const autoPrice = item.unitPrice != null
+    return { ...item, quantity: String(qty), amount: autoPrice ? Math.round(item.unitPrice * qty * 100) / 100 : item.amount }
+  }))
+
+  const total = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
+
+  const submit = async event => {
+    event.preventDefault()
+    const payload = []
+    for (const [index, item] of items.entries()) {
+      const qty = item.quantity === '' ? 1 : Number(item.quantity)
+      const value = Number(item.amount)
+      if (!item.name.trim()) { setError(`Item ${index + 1}: give it a name.`); return }
+      if (!Number.isFinite(value) || value <= 0) { setError(`Item ${index + 1}: enter a valid total.`); return }
+      if (!Number.isFinite(qty) || qty < 0) { setError(`Item ${index + 1}: enter a valid quantity.`); return }
+      payload.push({ name: item.name.trim(), quantity: qty, unit: unitDisplay(item.unit, item.customUnit.trim()), amount: value, stockItemId: item.stockId || undefined })
+    }
+    if (!payload.length) { setError('The sale needs at least one item.'); return }
+    setBusy(true)
+    try {
+      await api(`/api/owner/sales/${sale._id}`, { method: 'PATCH', body: JSON.stringify({
+        items: payload,
+        customerName: customerName.trim(),
+        customerContact: customerContact.trim(),
+        note: note.trim(),
+      }) })
+      onSaved()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const inputClass = 'w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px] outline-none focus:border-[#dca875] focus:ring-2 focus:ring-[#fff1e6]'
+  const labelClass = 'mb-1 block text-[10px] font-semibold text-[#737a70]'
+
+  return <Modal title={`Edit sale ${sale.saleId}`} onClose={onClose}>
+    <form className="space-y-3.5" onSubmit={submit}>
+      <p className="text-[10px] leading-4 text-[#9b9f96]">This sale is not approved yet, so it can still be corrected. The owner will see what it looked like before your change.</p>
+      <div className="space-y-2">
+        {items.map((item, index) => <div key={index} className="rounded-lg border border-[#eceee8] p-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <input aria-label={`Item ${index + 1} name`} value={item.name} onChange={event => setItem(index, { name: event.target.value })} maxLength="60" className={cx(inputClass, 'min-w-0 flex-1')} />
+            <button type="button" onClick={() => removeItem(index)} title={`Remove ${item.name}`} className="shrink-0 rounded-md p-1.5 text-[#c08b7e] transition hover:bg-[#fae9e5] hover:text-[#b75c48]"><Trash2 size={13} /></button>
+          </div>
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            <label className="block"><span className={labelClass}>Qty</span>
+              <div className="flex items-center gap-1">
+                <button type="button" onClick={() => stepQuantity(index, -1)} aria-label="Decrease quantity" className="grid size-7 shrink-0 place-items-center rounded-md border border-[#e6e9e1] text-[#757c71] hover:bg-[#f4f4f0]"><Minus size={12} /></button>
+                <input type="number" min="0" step="0.01" aria-label={`Item ${index + 1} quantity`} value={item.quantity} onChange={event => changeQuantity(index, event.target.value)} className={cx(inputClass, 'px-2 py-1.5 text-center')} />
+                <button type="button" onClick={() => stepQuantity(index, 1)} aria-label="Increase quantity" className="grid size-7 shrink-0 place-items-center rounded-md border border-[#e6e9e1] text-[#757c71] hover:bg-[#f4f4f0]"><Plus size={12} /></button>
+              </div>
+            </label>
+            <label className="block"><span className={labelClass}>Price of one</span>
+              <input type="number" min="0" step="1" aria-label={`Item ${index + 1} price of one`} value={item.price} onChange={event => changePrice(index, event.target.value)} className={cx(inputClass, 'px-2 py-1.5')} />
+            </label>
+            <label className="block"><span className={labelClass}>Total</span>
+              <input type="number" min="0" step="1" aria-label={`Item ${index + 1} total`} value={item.amount} onChange={event => setItem(index, { amount: Number(event.target.value) || 0, unitPrice: null })} className={cx(inputClass, 'px-2 py-1.5')} />
+            </label>
+          </div>
+        </div>)}
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="block"><span className={labelClass}>Customer name</span>
+          <input value={customerName} onChange={event => setCustomerName(event.target.value)} maxLength="80" placeholder="Optional" className={inputClass} />
+        </label>
+        <label className="block"><span className={labelClass}>Contact</span>
+          <input value={customerContact} onChange={event => setCustomerContact(event.target.value)} maxLength="60" placeholder="Optional" className={inputClass} />
+        </label>
+      </div>
+      <label className="block"><span className={labelClass}>Note</span>
+        <input value={note} onChange={event => setNote(event.target.value)} maxLength="200" placeholder="Optional, e.g. paid cash" className={inputClass} />
+      </label>
+      {error && <p className="text-[11px] text-[#b75c48]">{error}</p>}
+      <div className="flex items-center justify-between border-t border-[#f1f2ee] pt-3">
+        <span className="text-[10px] font-semibold text-[#757c71]">New total <b className="ml-1 text-[13px] font-bold text-[#293128]">{money(total)}</b></span>
+        <button disabled={busy} className="rounded-lg bg-[#c65d1b] px-4 py-2 text-[10px] font-semibold text-white hover:bg-[#a34b16] disabled:opacity-60">{busy ? 'Saving…' : 'Save changes'}</button>
+      </div>
+    </form>
+  </Modal>
+}
+
+// The change trail: each edit snapshots what the sale looked like before it.
+// Shown to whoever inspects the sale — the owner sees "changed from this to
+// this" with who made the change and when.
+function SaleHistoryModal({ sale, onClose }) {
+  const previous = sale.edits?.length ? sale.edits[sale.edits.length - 1] : null
+  return <Modal title={`Changes to ${sale.saleId}`} onClose={onClose}>
+    <div className="space-y-3">
+      <div className="rounded-lg border border-[#e6e9e1] p-3">
+        <p className="text-[10px] font-bold text-[#9b9f96]">CURRENT (after edit)</p>
+        <SaleSnapshot name={sale.name} items={sale.items} amount={sale.amount} customerName={sale.customerName} note={sale.note} />
+      </div>
+      {[...sale.edits].reverse().map((edit, index) => <Fragment key={index}>
+        <div className="flex items-center gap-2 text-[9px] font-semibold text-[#92764a]"><ArrowDown size={12} />changed to the block above — by {edit.editedByName || 'staff'} · {new Date(edit.editedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
+        <div className="rounded-lg border border-[#f1f2ee] bg-[#fbfcf9] p-3">
+          <p className="text-[10px] font-bold text-[#9b9f96]">BEFORE{sale.edits.length > 1 && index < sale.edits.length - 1 ? ' (earlier version)' : ''}</p>
+          <SaleSnapshot name={edit.name} items={edit.items} amount={edit.amount} customerName={edit.customerName} note={edit.note} />
+        </div>
+      </Fragment>)}
+    </div>
+  </Modal>
+}
+
+function SaleSnapshot({ name, items, amount, customerName, note }) {
+  return <div className="mt-1">
+    <p className="text-[11px] font-semibold text-[#3d443a]">{saleLine({ items, name })}</p>
+    <p className="mt-0.5 text-[9px] text-[#9b9f96]">{money(amount)}{customerName && ` · for ${customerName}`}{note && ` · ${note}`}</p>
   </div>
 }
 

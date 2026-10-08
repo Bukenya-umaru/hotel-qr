@@ -13,7 +13,8 @@ import { money, today, cx, orderCode, orderTime, navItems } from '../../lib/ui.j
 import { MetricCard } from '../MetricCard/MetricCard.jsx'
 import { OrdersTable } from '../OrdersTable/OrdersTable.jsx'
 
-export function Overview({ orders, menu, hotelName, onNavigate, analytics, currency }) {
+
+export function Overview({ orders, hotelName, onNavigate, analytics, currency }) {
   const [period, setPeriod] = useState('This week')
   const chartData = analytics.series?.length ? analytics.series.map(day => ({
     day: day.day || new Date(`${day.date}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short' }),
@@ -44,8 +45,8 @@ export function Overview({ orders, menu, hotelName, onNavigate, analytics, curre
         </div>
       </section>
       <section className="rounded-2xl border border-[#eceee8] bg-white p-4 sm:p-5">
-        <div className="flex items-center justify-between"><div><h2 className="font-display text-[14px] font-bold">Popular dishes</h2><p className="mt-1 text-[10px] text-[#999e94]">Top sellers this week</p></div><button onClick={() => onNavigate('Menu')} className="text-[10px] font-semibold text-[#b5571d] hover:underline">Full menu <ArrowRight size={11} className="ml-1 inline" /></button></div>
-        <div className="mt-4 space-y-[17px]">{menu.slice(0, 4).map((item, i) => <div className="flex items-center gap-3" key={item.id}><div className={cx('grid size-10 shrink-0 place-items-center rounded-xl text-[19px]', item.color || 'bg-[#f0efe9]')}>{item.emoji || '🍽️'}</div><div className="min-w-0 flex-1"><p className="truncate text-[11px] font-semibold text-[#41483e]">{item.name}</p><p className="mt-0.5 text-[10px] text-[#a0a49b]">{[42, 36, 28, 22][i]} orders</p></div><div className="text-right"><p className="text-[11px] font-semibold">{money([777, 648, 336, 187][i])}</p><p className="mt-0.5 text-[9px] text-[#9da297]">revenue</p></div></div>)}</div>
+        <div><h2 className="font-display text-[14px] font-bold">Popular dishes</h2><p className="mt-1 text-[10px] text-[#999e94]">Top sellers this week</p></div>
+        <p className="mt-4 flex h-[120px] items-center justify-center rounded-xl border border-dashed border-[#dfe4d9] text-center text-[10px] text-[#9ba194] sm:h-[150px]">Dish reports are coming soon.</p>
       </section>
     </div>
     <OrdersTable orders={orders.slice(0, 4)} compact onViewAll={() => onNavigate('Orders')} />
