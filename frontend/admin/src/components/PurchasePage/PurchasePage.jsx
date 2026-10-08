@@ -55,7 +55,7 @@ export function PurchasePage({ initialView = 'menu', canManageExpenses = true, c
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
         <h2 className="font-display text-lg font-bold">Purchase</h2>
-        <p className="mt-1 text-[12px] text-[#8d9389]">{view === 'menu'
+        <p className="mt-1 text-[12px] text-[#94a3b8]">{view === 'menu'
           ? 'Choose a subsection to work in.'
           : view === 'make-sale'
           ? 'Record one or more items as a single sale, with an optional customer name and contact.'
@@ -64,14 +64,14 @@ export function PurchasePage({ initialView = 'menu', canManageExpenses = true, c
           : 'Every sale made by this hotel, newest first, each with its own ID.'}</p>
       </div>
     </div>
-    {error && <div role="alert" className="flex items-center justify-between gap-3 rounded-lg bg-[#fae9e5] px-3 py-2.5 text-[11px] text-[#a44f3d]"><span>{error}</span><button onClick={() => setError('')} aria-label="Dismiss error">×</button></div>}
+    {error && <div role="alert" className="flex items-center justify-between gap-3 rounded-lg bg-[#fef2f2] px-3 py-2.5 text-[11px] text-[#dc2626]"><span>{error}</span><button onClick={() => setError('')} aria-label="Dismiss error">×</button></div>}
 
     {view === 'menu' && <div className="grid gap-3 sm:grid-cols-2">
-      {SUBSECTIONS.map(({ key, icon: Icon, title, description, stat }) => <button key={key} onClick={() => setView(key)} className="group flex flex-col items-start gap-2 rounded-2xl border border-[#eceee8] bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-[#dca875] hover:shadow-md">
-        <span className="grid size-10 place-items-center rounded-xl bg-[#fff1e6] text-[#c65d1b]"><Icon size={19} /></span>
-        <span className="flex items-center gap-1 text-[13px] font-bold text-[#293128]">{title}<ChevronRight size={14} className="text-[#a6aa9f] transition-transform group-hover:translate-x-0.5" /></span>
-        <span className="text-[10px] leading-4 text-[#8d9389]">{description}</span>
-        <span className="mt-1 rounded-full bg-[#f4f4f0] px-2 py-0.5 text-[9px] font-semibold text-[#757c71]">{stat}</span>
+      {SUBSECTIONS.map(({ key, icon: Icon, title, description, stat }) => <button key={key} onClick={() => setView(key)} className="group flex flex-col items-start gap-2 rounded-2xl border border-[#e7ebf0] bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-[#fdba74] hover:shadow-md">
+        <span className="grid size-10 place-items-center rounded-xl bg-[#fff4ec] text-[#f97316]"><Icon size={19} /></span>
+        <span className="flex items-center gap-1 text-[13px] font-bold text-[#0f172a]">{title}<ChevronRight size={14} className="text-[#94a3b8] transition-transform group-hover:translate-x-0.5" /></span>
+        <span className="text-[10px] leading-4 text-[#94a3b8]">{description}</span>
+        <span className="mt-1 rounded-full bg-[#f1f4f9] px-2 py-0.5 text-[9px] font-semibold text-[#64748b]">{stat}</span>
       </button>)}
     </div>}
 
@@ -115,20 +115,20 @@ const inDayRange = (time, fromBound, toBound) => (fromBound == null || time >= f
 // Expenses filters.
 function DateFilterRow({ range, setRange }) {
   return <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-    <label className="flex items-center gap-1 rounded-lg border border-[#e6e9e1] bg-[#fbfcf9] px-2 py-1">
-      <CalendarDays size={12} className="shrink-0 text-[#bd6424]" />
-      <span className="text-[9px] font-semibold text-[#757c71]">From</span>
-      <input type="date" aria-label="Filter from date" value={range.from} max={range.to || undefined} onChange={event => setRange({ ...range, from: event.target.value })} className="bg-transparent text-[10px] font-medium text-[#293128] outline-none" />
+    <label className="flex items-center gap-1 rounded-lg border border-[#e7ebf0] bg-[#f8fafc] px-2 py-1">
+      <CalendarDays size={12} className="shrink-0 text-[#f97316]" />
+      <span className="text-[9px] font-semibold text-[#64748b]">From</span>
+      <input type="date" aria-label="Filter from date" value={range.from} max={range.to || undefined} onChange={event => setRange({ ...range, from: event.target.value })} className="bg-transparent text-[10px] font-medium text-[#0f172a] outline-none" />
     </label>
-    <label className="flex items-center gap-1 rounded-lg border border-[#e6e9e1] bg-[#fbfcf9] px-2 py-1">
-      <CalendarDays size={12} className="shrink-0 text-[#bd6424]" />
-      <span className="text-[9px] font-semibold text-[#757c71]">To</span>
-      <input type="date" aria-label="Filter to date" value={range.to} min={range.from || undefined} max={isoDay(new Date())} onChange={event => setRange({ ...range, to: event.target.value })} className="bg-transparent text-[10px] font-medium text-[#293128] outline-none" />
+    <label className="flex items-center gap-1 rounded-lg border border-[#e7ebf0] bg-[#f8fafc] px-2 py-1">
+      <CalendarDays size={12} className="shrink-0 text-[#f97316]" />
+      <span className="text-[9px] font-semibold text-[#64748b]">To</span>
+      <input type="date" aria-label="Filter to date" value={range.to} min={range.from || undefined} max={isoDay(new Date())} onChange={event => setRange({ ...range, to: event.target.value })} className="bg-transparent text-[10px] font-medium text-[#0f172a] outline-none" />
     </label>
     {DATE_PRESETS.map(([key, label]) => {
       const target = presetRange(key)
       const active = range.from === target.from && range.to === target.to
-      return <button key={key} type="button" onClick={() => setRange(target)} className={cx('rounded-full px-2.5 py-1 text-[9px] font-semibold transition', active ? 'bg-[#f4f4f0] text-[#293128]' : 'text-[#757c71] hover:bg-[#f4f4f0] hover:text-[#3d443a]')}>{label}</button>
+      return <button key={key} type="button" onClick={() => setRange(target)} className={cx('rounded-full px-2.5 py-1 text-[9px] font-semibold transition', active ? 'bg-[#f1f4f9] text-[#0f172a]' : 'text-[#64748b] hover:bg-[#f1f4f9] hover:text-[#0f172a]')}>{label}</button>
     })}
   </div>
 }
@@ -195,36 +195,36 @@ function SalesView({ onError, canApprove = false }) {
   const filtered = sales.filter(sale => inDayRange(new Date(sale.createdAt).getTime(), fromBound, toBound))
   const filteredTotal = filtered.reduce((sum, sale) => sum + sale.amount, 0)
 
-  return <div className="rounded-xl border border-[#eceee8] bg-white p-4">
+  return <div className="rounded-xl border border-[#e7ebf0] bg-white p-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <p className="flex items-center gap-2 text-[11px] font-bold text-[#3d443a]">Recorded sales
-        <span className="rounded-full bg-[#f4f4f0] px-2 py-0.5 text-[9px] font-semibold text-[#757c71]">{stats.count}</span>
+      <p className="flex items-center gap-2 text-[11px] font-bold text-[#0f172a]">Recorded sales
+        <span className="rounded-full bg-[#f1f4f9] px-2 py-0.5 text-[9px] font-semibold text-[#64748b]">{stats.count}</span>
       </p>
       <div className="flex flex-wrap items-center gap-1.5">
-        {hasFilter && <span className="rounded-full bg-[#c65d1b] px-2.5 py-1 text-[9px] font-semibold text-white">Selected {money(filteredTotal)} · {filtered.length} sale{filtered.length === 1 ? '' : 's'}</span>}
-        <span className="rounded-full bg-[#eef6ec] px-2.5 py-1 text-[9px] font-semibold text-[#3f8f3a]">Today {money(stats.todayTotal)} · {stats.todayCount} sale{stats.todayCount === 1 ? '' : 's'}</span>
-        <span className="rounded-full bg-[#fff1e6] px-2.5 py-1 text-[9px] font-semibold text-[#a34b16]">All time {money(stats.total)}</span>
+        {hasFilter && <span className="rounded-full bg-[#f97316] px-2.5 py-1 text-[9px] font-semibold text-white">Selected {money(filteredTotal)} · {filtered.length} sale{filtered.length === 1 ? '' : 's'}</span>}
+        <span className="rounded-full bg-[#f0fdf4] px-2.5 py-1 text-[9px] font-semibold text-[#16a34a]">Today {money(stats.todayTotal)} · {stats.todayCount} sale{stats.todayCount === 1 ? '' : 's'}</span>
+        <span className="rounded-full bg-[#fff4ec] px-2.5 py-1 text-[9px] font-semibold text-[#ea580c]">All time {money(stats.total)}</span>
       </div>
     </div>
     <DateFilterRow range={range} setRange={setRange} />
-    {filtered.length > 0 && <ul className="mt-3 divide-y divide-[#f1f2ee]">
+    {filtered.length > 0 && <ul className="mt-3 divide-y divide-[#f1f5f9]">
       {filtered.map(sale => <li key={sale._id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[11px] font-semibold text-[#3d443a]">{saleLine(sale)}</p>
-          <p className="mt-0.5 flex items-center gap-1.5 text-[9px] text-[#9b9f96]">
-            <span className="shrink-0 rounded bg-[#f4f4f0] px-1.5 py-0.5 font-mono text-[8px] font-bold tracking-wide text-[#757c71]">{sale.saleId}</span>
+          <p className="truncate text-[11px] font-semibold text-[#0f172a]">{saleLine(sale)}</p>
+          <p className="mt-0.5 flex items-center gap-1.5 text-[9px] text-[#94a3b8]">
+            <span className="shrink-0 rounded bg-[#f1f4f9] px-1.5 py-0.5 font-mono text-[8px] font-bold tracking-wide text-[#64748b]">{sale.saleId}</span>
             <span className="truncate">{saleTime(sale.createdAt)}{sale.recordedBy && ` · by ${sale.recordedBy}`}{sale.customerName && ` · for ${sale.customerName}`}{sale.customerContact && ` · ${sale.customerContact}`}{sale.note && ` · ${sale.note}`}</span>
           </p>
-          {sale.approved && <p className="mt-0.5 flex items-center gap-1 text-[8px] font-bold text-[#3f8f3a]"><Check size={10} />Approved{sale.approvedByName && ` by ${sale.approvedByName}`}</p>}
+          {sale.approved && <p className="mt-0.5 flex items-center gap-1 text-[8px] font-bold text-[#16a34a]"><Check size={10} />Approved{sale.approvedByName && ` by ${sale.approvedByName}`}</p>}
         </div>
-        {!sale.approved && canApprove && <button disabled={busy} onClick={() => approveSale(sale)} title={`Approve ${sale.saleId}`} className="flex shrink-0 items-center gap-1 rounded-md bg-[#eef6ec] px-2 py-1 text-[9px] font-bold text-[#3f8f3a] transition hover:bg-[#dcefdc] disabled:opacity-50"><Check size={11} />Approve</button>}
-        {sale.edits?.length > 0 && <button onClick={() => setHistoryFor(sale)} title="See what changed" className="flex shrink-0 items-center gap-1 rounded-md bg-[#fbf5e8] px-2 py-1 text-[9px] font-bold text-[#92764a] transition hover:bg-[#f5ecd9]"><History size={11} />Edited</button>}
-        <span className="shrink-0 text-[11px] font-bold text-[#3f8f3a]">{money(sale.amount)}</span>
-        {!sale.approved && <button disabled={busy} onClick={() => setEditing(sale)} title={`Edit ${sale.saleId}`} className="shrink-0 rounded-md p-1 text-[#8d9389] transition hover:bg-[#f4f4f0] hover:text-[#3d443a]"><Pencil size={13} /></button>}
-        <button disabled={busy || sale.approved} onClick={() => removeSale(sale)} title={sale.approved ? 'Approved — cannot be changed' : `Remove ${sale.name}`} className="shrink-0 rounded-md p-1 text-[#c08b7e] hover:bg-[#fae9e5] hover:text-[#b75c48] disabled:opacity-50"><Trash2 size={13} /></button>
+        {!sale.approved && canApprove && <button disabled={busy} onClick={() => approveSale(sale)} title={`Approve ${sale.saleId}`} className="flex shrink-0 items-center gap-1 rounded-md bg-[#f0fdf4] px-2 py-1 text-[9px] font-bold text-[#16a34a] transition hover:bg-[#dcfce7] disabled:opacity-50"><Check size={11} />Approve</button>}
+        {sale.edits?.length > 0 && <button onClick={() => setHistoryFor(sale)} title="See what changed" className="flex shrink-0 items-center gap-1 rounded-md bg-[#fef9ee] px-2 py-1 text-[9px] font-bold text-[#b45309] transition hover:bg-[#fef9ee]"><History size={11} />Edited</button>}
+        <span className="shrink-0 text-[11px] font-bold text-[#16a34a]">{money(sale.amount)}</span>
+        {!sale.approved && <button disabled={busy} onClick={() => setEditing(sale)} title={`Edit ${sale.saleId}`} className="shrink-0 rounded-md p-1 text-[#94a3b8] transition hover:bg-[#f1f4f9] hover:text-[#0f172a]"><Pencil size={13} /></button>}
+        <button disabled={busy || sale.approved} onClick={() => removeSale(sale)} title={sale.approved ? 'Approved — cannot be changed' : `Remove ${sale.name}`} className="shrink-0 rounded-md p-1 text-[#f87171] hover:bg-[#fef2f2] hover:text-[#dc2626] disabled:opacity-50"><Trash2 size={13} /></button>
       </li>)}
     </ul>}
-    {!filtered.length && <p className="mt-3 rounded-xl border border-dashed border-[#e6e9e1] px-3 py-6 text-center text-[10px] text-[#9b9f96]">{hasFilter ? 'No sales in the selected dates — pick another range or choose All.' : 'No sales made yet — open “Make sale” to record the first one.'}</p>}
+    {!filtered.length && <p className="mt-3 rounded-xl border border-dashed border-[#e7ebf0] px-3 py-6 text-center text-[10px] text-[#94a3b8]">{hasFilter ? 'No sales in the selected dates — pick another range or choose All.' : 'No sales made yet — open “Make sale” to record the first one.'}</p>}
     {editing && <EditSaleModal sale={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load() }} />}
     {historyFor && <SaleHistoryModal sale={historyFor} onClose={() => setHistoryFor(null)} />}
   </div>
@@ -297,24 +297,24 @@ function EditSaleModal({ sale, onClose, onSaved }) {
     }
   }
 
-  const inputClass = 'w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px] outline-none focus:border-[#dca875] focus:ring-2 focus:ring-[#fff1e6]'
-  const labelClass = 'mb-1 block text-[10px] font-semibold text-[#737a70]'
+  const inputClass = 'w-full rounded-lg border border-[#e7ebf0] bg-white px-3 py-2.5 text-[12px] outline-none focus:border-[#fdba74] focus:ring-2 focus:ring-[#fff4ec]'
+  const labelClass = 'mb-1 block text-[10px] font-semibold text-[#64748b]'
 
   return <Modal title={`Edit sale ${sale.saleId}`} onClose={onClose}>
     <form className="space-y-3.5" onSubmit={submit}>
-      <p className="text-[10px] leading-4 text-[#9b9f96]">This sale is not approved yet, so it can still be corrected. The owner will see what it looked like before your change.</p>
+      <p className="text-[10px] leading-4 text-[#94a3b8]">This sale is not approved yet, so it can still be corrected. The owner will see what it looked like before your change.</p>
       <div className="space-y-2">
-        {items.map((item, index) => <div key={index} className="rounded-lg border border-[#eceee8] p-2.5">
+        {items.map((item, index) => <div key={index} className="rounded-lg border border-[#e7ebf0] p-2.5">
           <div className="flex items-center justify-between gap-2">
             <input aria-label={`Item ${index + 1} name`} value={item.name} onChange={event => setItem(index, { name: event.target.value })} maxLength="60" className={cx(inputClass, 'min-w-0 flex-1')} />
-            <button type="button" onClick={() => removeItem(index)} title={`Remove ${item.name}`} className="shrink-0 rounded-md p-1.5 text-[#c08b7e] transition hover:bg-[#fae9e5] hover:text-[#b75c48]"><Trash2 size={13} /></button>
+            <button type="button" onClick={() => removeItem(index)} title={`Remove ${item.name}`} className="shrink-0 rounded-md p-1.5 text-[#f87171] transition hover:bg-[#fef2f2] hover:text-[#dc2626]"><Trash2 size={13} /></button>
           </div>
           <div className="mt-2 grid grid-cols-3 gap-2">
             <label className="block"><span className={labelClass}>Qty</span>
               <div className="flex items-center gap-1">
-                <button type="button" onClick={() => stepQuantity(index, -1)} aria-label="Decrease quantity" className="grid size-7 shrink-0 place-items-center rounded-md border border-[#e6e9e1] text-[#757c71] hover:bg-[#f4f4f0]"><Minus size={12} /></button>
+                <button type="button" onClick={() => stepQuantity(index, -1)} aria-label="Decrease quantity" className="grid size-7 shrink-0 place-items-center rounded-md border border-[#e7ebf0] text-[#64748b] hover:bg-[#f1f4f9]"><Minus size={12} /></button>
                 <input type="number" min="0" step="0.01" aria-label={`Item ${index + 1} quantity`} value={item.quantity} onChange={event => changeQuantity(index, event.target.value)} className={cx(inputClass, 'px-2 py-1.5 text-center')} />
-                <button type="button" onClick={() => stepQuantity(index, 1)} aria-label="Increase quantity" className="grid size-7 shrink-0 place-items-center rounded-md border border-[#e6e9e1] text-[#757c71] hover:bg-[#f4f4f0]"><Plus size={12} /></button>
+                <button type="button" onClick={() => stepQuantity(index, 1)} aria-label="Increase quantity" className="grid size-7 shrink-0 place-items-center rounded-md border border-[#e7ebf0] text-[#64748b] hover:bg-[#f1f4f9]"><Plus size={12} /></button>
               </div>
             </label>
             <label className="block"><span className={labelClass}>Price of one</span>
@@ -337,10 +337,10 @@ function EditSaleModal({ sale, onClose, onSaved }) {
       <label className="block"><span className={labelClass}>Note</span>
         <input value={note} onChange={event => setNote(event.target.value)} maxLength="200" placeholder="Optional, e.g. paid cash" className={inputClass} />
       </label>
-      {error && <p className="text-[11px] text-[#b75c48]">{error}</p>}
-      <div className="flex items-center justify-between border-t border-[#f1f2ee] pt-3">
-        <span className="text-[10px] font-semibold text-[#757c71]">New total <b className="ml-1 text-[13px] font-bold text-[#293128]">{money(total)}</b></span>
-        <button disabled={busy} className="rounded-lg bg-[#c65d1b] px-4 py-2 text-[10px] font-semibold text-white hover:bg-[#a34b16] disabled:opacity-60">{busy ? 'Saving…' : 'Save changes'}</button>
+      {error && <p className="text-[11px] text-[#dc2626]">{error}</p>}
+      <div className="flex items-center justify-between border-t border-[#f1f5f9] pt-3">
+        <span className="text-[10px] font-semibold text-[#64748b]">New total <b className="ml-1 text-[13px] font-bold text-[#0f172a]">{money(total)}</b></span>
+        <button disabled={busy} className="rounded-lg bg-[#f97316] px-4 py-2 text-[10px] font-semibold text-white hover:bg-[#ea580c] disabled:opacity-60">{busy ? 'Saving…' : 'Save changes'}</button>
       </div>
     </form>
   </Modal>
@@ -353,14 +353,14 @@ function SaleHistoryModal({ sale, onClose }) {
   const previous = sale.edits?.length ? sale.edits[sale.edits.length - 1] : null
   return <Modal title={`Changes to ${sale.saleId}`} onClose={onClose}>
     <div className="space-y-3">
-      <div className="rounded-lg border border-[#e6e9e1] p-3">
-        <p className="text-[10px] font-bold text-[#9b9f96]">CURRENT (after edit)</p>
+      <div className="rounded-lg border border-[#e7ebf0] p-3">
+        <p className="text-[10px] font-bold text-[#94a3b8]">CURRENT (after edit)</p>
         <SaleSnapshot name={sale.name} items={sale.items} amount={sale.amount} customerName={sale.customerName} note={sale.note} />
       </div>
       {[...sale.edits].reverse().map((edit, index) => <Fragment key={index}>
-        <div className="flex items-center gap-2 text-[9px] font-semibold text-[#92764a]"><ArrowDown size={12} />changed to the block above — by {edit.editedByName || 'staff'} · {new Date(edit.editedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
-        <div className="rounded-lg border border-[#f1f2ee] bg-[#fbfcf9] p-3">
-          <p className="text-[10px] font-bold text-[#9b9f96]">BEFORE{sale.edits.length > 1 && index < sale.edits.length - 1 ? ' (earlier version)' : ''}</p>
+        <div className="flex items-center gap-2 text-[9px] font-semibold text-[#b45309]"><ArrowDown size={12} />changed to the block above — by {edit.editedByName || 'staff'} · {new Date(edit.editedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
+        <div className="rounded-lg border border-[#f1f5f9] bg-[#f8fafc] p-3">
+          <p className="text-[10px] font-bold text-[#94a3b8]">BEFORE{sale.edits.length > 1 && index < sale.edits.length - 1 ? ' (earlier version)' : ''}</p>
           <SaleSnapshot name={edit.name} items={edit.items} amount={edit.amount} customerName={edit.customerName} note={edit.note} />
         </div>
       </Fragment>)}
@@ -370,8 +370,8 @@ function SaleHistoryModal({ sale, onClose }) {
 
 function SaleSnapshot({ name, items, amount, customerName, note }) {
   return <div className="mt-1">
-    <p className="text-[11px] font-semibold text-[#3d443a]">{saleLine({ items, name })}</p>
-    <p className="mt-0.5 text-[9px] text-[#9b9f96]">{money(amount)}{customerName && ` · for ${customerName}`}{note && ` · ${note}`}</p>
+    <p className="text-[11px] font-semibold text-[#0f172a]">{saleLine({ items, name })}</p>
+    <p className="mt-0.5 text-[9px] text-[#94a3b8]">{money(amount)}{customerName && ` · for ${customerName}`}{note && ` · ${note}`}</p>
   </div>
 }
 
@@ -540,32 +540,32 @@ function MakeSaleView({ onError, onViewSales }) {
     setNote('')
   }
 
-  const inputClass = 'rounded-md border border-[#e6e9e1] bg-white px-2 py-1.5 text-[11px] outline-none transition placeholder:text-[#b0b4ac] focus:border-[#dca875] focus:ring-2 focus:ring-[#fff1e6]'
+  const inputClass = 'rounded-md border border-[#e7ebf0] bg-white px-2 py-1.5 text-[11px] outline-none transition placeholder:text-[#a8b3c4] focus:border-[#fdba74] focus:ring-2 focus:ring-[#fff4ec]'
 
   // After a successful save, confirm the sale and show the ID it was given.
-  if (recorded) return <div className="mx-auto w-full max-w-xl rounded-xl border border-[#eceee8] bg-white p-5">
+  if (recorded) return <div className="mx-auto w-full max-w-xl rounded-xl border border-[#e7ebf0] bg-white p-5">
     <div className="flex flex-col items-center gap-1.5 py-4 text-center">
-      <span className="grid size-12 place-items-center rounded-full bg-[#eef6ec] text-[#3f8f3a]"><Check size={22} /></span>
-      <p className="mt-1 text-[13px] font-bold text-[#293128]">Sale recorded</p>
-      <p className="text-[10px] text-[#8d9389]">Saved to this hotel’s sales with its own ID — quote it any time.</p>
+      <span className="grid size-12 place-items-center rounded-full bg-[#f0fdf4] text-[#16a34a]"><Check size={22} /></span>
+      <p className="mt-1 text-[13px] font-bold text-[#0f172a]">Sale recorded</p>
+      <p className="text-[10px] text-[#94a3b8]">Saved to this hotel’s sales with its own ID — quote it any time.</p>
       <div className="mt-2.5 flex flex-wrap items-center justify-center gap-2">
-        <span className="rounded-lg bg-[#fff1e6] px-3 py-1.5 font-mono text-[12px] font-bold tracking-wide text-[#a34b16]">{recorded.saleId}</span>
-        <span className="text-[12px] font-bold text-[#3f8f3a]">{money(recorded.amount)}</span>
+        <span className="rounded-lg bg-[#fff4ec] px-3 py-1.5 font-mono text-[12px] font-bold tracking-wide text-[#ea580c]">{recorded.saleId}</span>
+        <span className="text-[12px] font-bold text-[#16a34a]">{money(recorded.amount)}</span>
       </div>
-      <p className="mt-1 max-w-sm break-words text-[10px] leading-4 text-[#9b9f96]">{saleLine(recorded)}{recorded.customerName && ` · for ${recorded.customerName}`}{recorded.note && ` · ${recorded.note}`}</p>
+      <p className="mt-1 max-w-sm break-words text-[10px] leading-4 text-[#94a3b8]">{saleLine(recorded)}{recorded.customerName && ` · for ${recorded.customerName}`}{recorded.note && ` · ${recorded.note}`}</p>
       <div className="mt-4 flex flex-wrap justify-center gap-2">
-        <button onClick={startAnother} className="flex items-center gap-1.5 rounded-lg bg-[#c65d1b] px-3.5 py-2 text-[10px] font-semibold text-white hover:bg-[#a34b16]"><Plus size={13} />Record another sale</button>
-        <button onClick={onViewSales} className="rounded-lg border border-[#e6e9e1] px-3.5 py-2 text-[10px] font-semibold text-[#757c71] transition hover:border-[#dca875] hover:text-[#a34b16]">View all sales</button>
+        <button onClick={startAnother} className="flex items-center gap-1.5 rounded-lg bg-[#f97316] px-3.5 py-2 text-[10px] font-semibold text-white hover:bg-[#ea580c]"><Plus size={13} />Record another sale</button>
+        <button onClick={onViewSales} className="rounded-lg border border-[#e7ebf0] px-3.5 py-2 text-[10px] font-semibold text-[#64748b] transition hover:border-[#fdba74] hover:text-[#ea580c]">View all sales</button>
       </div>
     </div>
   </div>
 
-  return <div className="mx-auto w-full max-w-2xl rounded-xl border border-[#eceee8] bg-white p-4">
-    <p className="text-[11px] font-bold text-[#3d443a]">Record a sale</p>
-    <p className="mt-0.5 text-[9px] text-[#9b9f96]">Search the stock or type an item and the price of one item, then click Add to put it on the sale — the total is price × quantity.</p>
+  return <div className="mx-auto w-full max-w-2xl rounded-xl border border-[#e7ebf0] bg-white p-4">
+    <p className="text-[11px] font-bold text-[#0f172a]">Record a sale</p>
+    <p className="mt-0.5 text-[9px] text-[#94a3b8]">Search the stock or type an item and the price of one item, then click Add to put it on the sale — the total is price × quantity.</p>
     <form className="mt-3" onSubmit={submit}>
-      <div className="divide-y divide-[#f1f2ee]">
-        <div className="hidden gap-1 px-1 pb-1 text-[8px] font-bold uppercase tracking-[.8px] text-[#9b9f96] sm:flex">
+      <div className="divide-y divide-[#f1f5f9]">
+        <div className="hidden gap-1 px-1 pb-1 text-[8px] font-bold uppercase tracking-[.8px] text-[#94a3b8] sm:flex">
           <span className="min-w-0 flex-[2_1_0%]">Item</span>
           <span className="w-[88px] shrink-0 text-center">Qty</span>
           <span className="w-[84px] shrink-0">Unit</span>
@@ -582,21 +582,21 @@ function MakeSaleView({ onError, onViewSales }) {
               // quantity, and × removes the line.
               <div className="flex flex-wrap items-center gap-1">
                 <div className="min-w-0 flex-[1_1_100%] sm:flex-[2_1_0%]">
-                  <p className="flex items-center gap-1.5 px-1 text-[11px] font-semibold text-[#3d443a]">
+                  <p className="flex items-center gap-1.5 px-1 text-[11px] font-semibold text-[#0f172a]">
                     <span className="min-w-0 truncate">{item.name}</span>
-                    {item.stockId && <span className="shrink-0 rounded bg-[#eef6ec] px-1 py-0.5 text-[8px] font-bold text-[#3f8f3a]">stock</span>}
+                    {item.stockId && <span className="shrink-0 rounded bg-[#f0fdf4] px-1 py-0.5 text-[8px] font-bold text-[#16a34a]">stock</span>}
                   </p>
-                  <p className="px-1 text-[8px] text-[#9b9f96]">{money(item.unitPrice)} per {unitDisplay(item.unit, item.customUnit)}{item.stockId && ' · reduces stock when recorded'}</p>
+                  <p className="px-1 text-[8px] text-[#94a3b8]">{money(item.unitPrice)} per {unitDisplay(item.unit, item.customUnit)}{item.stockId && ' · reduces stock when recorded'}</p>
                 </div>
                 <span className="flex w-[88px] shrink-0 items-center justify-center gap-0.5">
-                  <button type="button" onClick={() => stepQuantity(index, -1)} aria-label={`Decrease ${item.name} quantity`} className="grid size-5 place-items-center rounded-md text-[#757c71] transition hover:bg-[#f4f4f0] hover:text-[#3d443a]"><Minus size={11} /></button>
-                  <span className="min-w-4 text-center text-[11px] font-semibold text-[#3d443a]">{item.quantity}</span>
-                  <button type="button" onClick={() => stepQuantity(index, 1)} aria-label={`Increase ${item.name} quantity`} className="grid size-5 place-items-center rounded-md text-[#757c71] transition hover:bg-[#f4f4f0] hover:text-[#3d443a]"><Plus size={11} /></button>
+                  <button type="button" onClick={() => stepQuantity(index, -1)} aria-label={`Decrease ${item.name} quantity`} className="grid size-5 place-items-center rounded-md text-[#64748b] transition hover:bg-[#f1f4f9] hover:text-[#0f172a]"><Minus size={11} /></button>
+                  <span className="min-w-4 text-center text-[11px] font-semibold text-[#0f172a]">{item.quantity}</span>
+                  <button type="button" onClick={() => stepQuantity(index, 1)} aria-label={`Increase ${item.name} quantity`} className="grid size-5 place-items-center rounded-md text-[#64748b] transition hover:bg-[#f1f4f9] hover:text-[#0f172a]"><Plus size={11} /></button>
                 </span>
-                <span className="w-[84px] shrink-0 truncate text-[10px] text-[#757c71]">{unitDisplay(item.unit, item.customUnit)}</span>
-                <span className="w-[96px] shrink-0 truncate text-right text-[11px] font-semibold text-[#3d443a]">{money(item.amount)}</span>
+                <span className="w-[84px] shrink-0 truncate text-[10px] text-[#64748b]">{unitDisplay(item.unit, item.customUnit)}</span>
+                <span className="w-[96px] shrink-0 truncate text-right text-[11px] font-semibold text-[#0f172a]">{money(item.amount)}</span>
                 <span className="w-[64px] shrink-0" />
-                <button type="button" onClick={() => removeItem(index)} title={`Remove ${item.name}`} className="grid size-7 shrink-0 place-items-center rounded-md text-[#c08b7e] transition hover:bg-[#fae9e5] hover:text-[#b75c48]"><Trash2 size={12} /></button>
+                <button type="button" onClick={() => removeItem(index)} title={`Remove ${item.name}`} className="grid size-7 shrink-0 place-items-center rounded-md text-[#f87171] transition hover:bg-[#fef2f2] hover:text-[#dc2626]"><Trash2 size={12} /></button>
               </div>
             ) : (
               <div className="flex flex-wrap items-center gap-1">
@@ -609,12 +609,12 @@ function MakeSaleView({ onError, onViewSales }) {
                     if (matches.length === 1) pickStock(index, matches[0])
                     else if (!matches.length) addRow(index)
                   }} maxLength="60" placeholder="Search stock or type an item" autoFocus={index === items.length - 1} className={cx(inputClass, 'w-full')} />
-                  {openSearch === index && <div className="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-lg border border-[#e6e9e1] bg-white shadow-lg">
-                    {stockMatches(item.name).map(stockItem => <button key={stockItem._id} type="button" onMouseDown={() => pickStock(index, stockItem)} className="flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left transition hover:bg-[#fff4eb]">
-                      <span className="min-w-0 truncate text-[10px] font-semibold text-[#3d443a]">{stockItem.name}</span>
-                      <span className="shrink-0 text-[8px] text-[#9b9f96]">{money(stockItem.price)}/{unitDisplay(stockItem.unit, stockItem.customUnit)}{Number(stockItem.plates) > 0 && ` · ${stockItem.plates} in stock`}</span>
+                  {openSearch === index && <div className="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-lg border border-[#e7ebf0] bg-white shadow-lg">
+                    {stockMatches(item.name).map(stockItem => <button key={stockItem._id} type="button" onMouseDown={() => pickStock(index, stockItem)} className="flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left transition hover:bg-[#fff6ee]">
+                      <span className="min-w-0 truncate text-[10px] font-semibold text-[#0f172a]">{stockItem.name}</span>
+                      <span className="shrink-0 text-[8px] text-[#94a3b8]">{money(stockItem.price)}/{unitDisplay(stockItem.unit, stockItem.customUnit)}{Number(stockItem.plates) > 0 && ` · ${stockItem.plates} in stock`}</span>
                     </button>)}
-                    {!stockMatches(item.name).length && <p className="px-2.5 py-2 text-[9px] text-[#9b9f96]">Not in stock — set the price, then click Add.</p>}
+                    {!stockMatches(item.name).length && <p className="px-2.5 py-2 text-[9px] text-[#94a3b8]">Not in stock — set the price, then click Add.</p>}
                   </div>}
                 </div>
                 <input type="number" min="0" step="0.01" aria-label={`Item ${index + 1} quantity`} value={item.quantity} onChange={event => changeQuantity(index, event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); addRow(index) } }} className={cx(inputClass, 'w-[88px] shrink-0 text-center')} />
@@ -622,24 +622,24 @@ function MakeSaleView({ onError, onViewSales }) {
                   {UNIT_OPTIONS.map(option => <option key={option.key} value={option.key}>{option.label}</option>)}
                 </select>
                 <input type="number" min="0" step="1" aria-label={`Item ${index + 1} price of one item in UGX`} placeholder="Price of one" value={item.price} onChange={event => changePrice(index, event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); addRow(index) } }} className={cx(inputClass, 'w-[96px] shrink-0')} />
-                <button type="button" onClick={() => addRow(index)} disabled={!item.name.trim() && !String(item.amount).trim()} title="Add the item to the sale" className="flex w-[64px] shrink-0 items-center justify-center gap-1 rounded-md bg-[#c65d1b] px-2 py-1.5 text-[10px] font-semibold text-white transition hover:bg-[#a34b16] disabled:cursor-not-allowed disabled:opacity-50"><Plus size={12} />Add</button>
-                {(item.name.trim() || String(item.amount).trim()) && <button type="button" onClick={() => removeItem(index)} title={`Remove ${item.name || `item ${index + 1}`}`} className="grid size-7 shrink-0 place-items-center rounded-md text-[#c08b7e] transition hover:bg-[#fae9e5] hover:text-[#b75c48]"><Trash2 size={12} /></button>}
+                <button type="button" onClick={() => addRow(index)} disabled={!item.name.trim() && !String(item.amount).trim()} title="Add the item to the sale" className="flex w-[64px] shrink-0 items-center justify-center gap-1 rounded-md bg-[#f97316] px-2 py-1.5 text-[10px] font-semibold text-white transition hover:bg-[#ea580c] disabled:cursor-not-allowed disabled:opacity-50"><Plus size={12} />Add</button>
+                {(item.name.trim() || String(item.amount).trim()) && <button type="button" onClick={() => removeItem(index)} title={`Remove ${item.name || `item ${index + 1}`}`} className="grid size-7 shrink-0 place-items-center rounded-md text-[#f87171] transition hover:bg-[#fef2f2] hover:text-[#dc2626]"><Trash2 size={12} /></button>}
               </div>
             )}
           </div>
         })}
       </div>
 
-      <div className="mt-2 grid gap-1.5 border-t border-[#f1f2ee] pt-2.5 sm:grid-cols-2">
+      <div className="mt-2 grid gap-1.5 border-t border-[#f1f5f9] pt-2.5 sm:grid-cols-2">
         <input aria-label="Customer name" value={customerName} onChange={event => setCustomerName(event.target.value)} maxLength="80" placeholder="Customer name — optional" className={inputClass} />
         <input aria-label="Customer contact" value={customerContact} onChange={event => setCustomerContact(event.target.value)} maxLength="60" placeholder="Contact — optional" className={inputClass} />
       </div>
       <input aria-label="Note" value={note} onChange={event => setNote(event.target.value)} maxLength="200" placeholder="Note — optional, e.g. paid cash" className={cx(inputClass, 'mt-1.5')} />
 
-      {error && <p className="mt-2 text-[11px] text-[#b75c48]">{error}</p>}
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[#f1f2ee] pt-3">
-        <span className="text-[10px] font-semibold text-[#757c71]">Sale total <b className="ml-1 text-[13px] font-bold text-[#293128]">{money(runningTotal)}</b></span>
-        <button disabled={busy} className="rounded-lg bg-[#c65d1b] px-4 py-2 text-[10px] font-semibold text-white transition hover:bg-[#a34b16] disabled:cursor-not-allowed disabled:opacity-60">{busy ? 'Recording…' : 'Record sale'}</button>
+      {error && <p className="mt-2 text-[11px] text-[#dc2626]">{error}</p>}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[#f1f5f9] pt-3">
+        <span className="text-[10px] font-semibold text-[#64748b]">Sale total <b className="ml-1 text-[13px] font-bold text-[#0f172a]">{money(runningTotal)}</b></span>
+        <button disabled={busy} className="rounded-lg bg-[#f97316] px-4 py-2 text-[10px] font-semibold text-white transition hover:bg-[#ea580c] disabled:cursor-not-allowed disabled:opacity-60">{busy ? 'Recording…' : 'Record sale'}</button>
       </div>
     </form>
   </div>
@@ -708,35 +708,35 @@ function ExpensesView({ onError, canApprove = false }) {
   const filtered = expenses.filter(expense => inDayRange(new Date(expense.createdAt).getTime(), fromBound, toBound))
   const filteredTotal = filtered.reduce((sum, expense) => sum + expense.amount, 0)
 
-  return <div className="rounded-xl border border-[#eceee8] bg-white p-4">
+  return <div className="rounded-xl border border-[#e7ebf0] bg-white p-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <p className="flex items-center gap-2 text-[11px] font-bold text-[#3d443a]">Recorded expenses
-        <span className="rounded-full bg-[#f4f4f0] px-2 py-0.5 text-[9px] font-semibold text-[#757c71]">{stats.count}</span>
+      <p className="flex items-center gap-2 text-[11px] font-bold text-[#0f172a]">Recorded expenses
+        <span className="rounded-full bg-[#f1f4f9] px-2 py-0.5 text-[9px] font-semibold text-[#64748b]">{stats.count}</span>
       </p>
       <div className="flex flex-wrap items-center gap-1.5">
-        {hasFilter && <span className="rounded-full bg-[#c65d1b] px-2.5 py-1 text-[9px] font-semibold text-white">Selected {money(filteredTotal)} · {filtered.length} expense{filtered.length === 1 ? '' : 's'}</span>}
-        <span className="rounded-full bg-[#fae9e5] px-2.5 py-1 text-[9px] font-semibold text-[#a44f3d]">Today {money(stats.todayTotal)} · {stats.todayCount} expense{stats.todayCount === 1 ? '' : 's'}</span>
-        <span className="rounded-full bg-[#f4f4f0] px-2.5 py-1 text-[9px] font-semibold text-[#757c71]">All time {money(stats.total)}</span>
-        <button onClick={() => setShowPopup(true)} className="flex items-center gap-1.5 rounded-lg bg-[#c65d1b] px-3 py-2 text-[10px] font-semibold text-white hover:bg-[#a34b16]"><Plus size={13} />Record expense</button>
+        {hasFilter && <span className="rounded-full bg-[#f97316] px-2.5 py-1 text-[9px] font-semibold text-white">Selected {money(filteredTotal)} · {filtered.length} expense{filtered.length === 1 ? '' : 's'}</span>}
+        <span className="rounded-full bg-[#fef2f2] px-2.5 py-1 text-[9px] font-semibold text-[#dc2626]">Today {money(stats.todayTotal)} · {stats.todayCount} expense{stats.todayCount === 1 ? '' : 's'}</span>
+        <span className="rounded-full bg-[#f1f4f9] px-2.5 py-1 text-[9px] font-semibold text-[#64748b]">All time {money(stats.total)}</span>
+        <button onClick={() => setShowPopup(true)} className="flex items-center gap-1.5 rounded-lg bg-[#f97316] px-3 py-2 text-[10px] font-semibold text-white hover:bg-[#ea580c]"><Plus size={13} />Record expense</button>
       </div>
     </div>
     <DateFilterRow range={range} setRange={setRange} />
     {byCategory.length > 0 && <div className="mt-2.5 flex flex-wrap gap-1.5">
-      {byCategory.map(entry => <span key={entry.category} className="rounded-full bg-[#f7f8f5] px-2.5 py-1 text-[9px] font-semibold text-[#757c71]">{entry.category} · {money(entry.total)} ({entry.count})</span>)}
+      {byCategory.map(entry => <span key={entry.category} className="rounded-full bg-[#f8fafc] px-2.5 py-1 text-[9px] font-semibold text-[#64748b]">{entry.category} · {money(entry.total)} ({entry.count})</span>)}
     </div>}
-    {filtered.length > 0 && <ul className="mt-3 divide-y divide-[#f1f2ee]">
+    {filtered.length > 0 && <ul className="mt-3 divide-y divide-[#f1f5f9]">
       {filtered.map(expense => <li key={expense._id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[11px] font-semibold text-[#3d443a]">{expense.categoryName}</p>
-          <p className="mt-0.5 truncate text-[9px] text-[#9b9f96]">{expenseTime(expense.createdAt)}{expense.recordedBy && ` · by ${expense.recordedBy}`}{expense.note && ` · ${expense.note}`}</p>
-          {expense.approved && <p className="mt-0.5 flex items-center gap-1 text-[8px] font-bold text-[#3f8f3a]"><Check size={10} />Approved{expense.approvedByName && ` by ${expense.approvedByName}`}</p>}
+          <p className="truncate text-[11px] font-semibold text-[#0f172a]">{expense.categoryName}</p>
+          <p className="mt-0.5 truncate text-[9px] text-[#94a3b8]">{expenseTime(expense.createdAt)}{expense.recordedBy && ` · by ${expense.recordedBy}`}{expense.note && ` · ${expense.note}`}</p>
+          {expense.approved && <p className="mt-0.5 flex items-center gap-1 text-[8px] font-bold text-[#16a34a]"><Check size={10} />Approved{expense.approvedByName && ` by ${expense.approvedByName}`}</p>}
         </div>
-        {!expense.approved && canApprove && <button disabled={busy} onClick={() => approveExpense(expense)} title="Approve expense" className="flex shrink-0 items-center gap-1 rounded-md bg-[#eef6ec] px-2 py-1 text-[9px] font-bold text-[#3f8f3a] transition hover:bg-[#dcefdc] disabled:opacity-50"><Check size={11} />Approve</button>}
-        <span className="shrink-0 text-[11px] font-bold text-[#b75c48]">−{money(expense.amount)}</span>
-        <button disabled={busy || expense.approved} onClick={() => removeExpense(expense)} title={expense.approved ? 'Approved — cannot be changed' : `Remove ${expense.categoryName} expense`} className="shrink-0 rounded-md p-1 text-[#c08b7e] hover:bg-[#fae9e5] hover:text-[#b75c48] disabled:opacity-50"><Trash2 size={13} /></button>
+        {!expense.approved && canApprove && <button disabled={busy} onClick={() => approveExpense(expense)} title="Approve expense" className="flex shrink-0 items-center gap-1 rounded-md bg-[#f0fdf4] px-2 py-1 text-[9px] font-bold text-[#16a34a] transition hover:bg-[#dcfce7] disabled:opacity-50"><Check size={11} />Approve</button>}
+        <span className="shrink-0 text-[11px] font-bold text-[#dc2626]">−{money(expense.amount)}</span>
+        <button disabled={busy || expense.approved} onClick={() => removeExpense(expense)} title={expense.approved ? 'Approved — cannot be changed' : `Remove ${expense.categoryName} expense`} className="shrink-0 rounded-md p-1 text-[#f87171] hover:bg-[#fef2f2] hover:text-[#dc2626] disabled:opacity-50"><Trash2 size={13} /></button>
       </li>)}
     </ul>}
-    {!filtered.length && <p className="mt-3 rounded-xl border border-dashed border-[#e6e9e1] px-3 py-6 text-center text-[10px] text-[#9b9f96]">{hasFilter ? 'No expenses in the selected dates — pick another range or choose All.' : 'No expenses recorded yet — click “Record expense” above to record your first one.'}</p>}
+    {!filtered.length && <p className="mt-3 rounded-xl border border-dashed border-[#e7ebf0] px-3 py-6 text-center text-[10px] text-[#94a3b8]">{hasFilter ? 'No expenses in the selected dates — pick another range or choose All.' : 'No expenses recorded yet — click “Record expense” above to record your first one.'}</p>}
     {showPopup && <RecordExpenseModal onClose={() => setShowPopup(false)} onSaved={() => { setShowPopup(false); load() }} />}
   </div>
 }
@@ -791,16 +791,16 @@ function RecordExpenseModal({ onClose, onSaved }) {
     }
   }
 
-  const inputClass = 'w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px] outline-none focus:border-[#dca875] focus:ring-2 focus:ring-[#fff1e6]'
-  const labelClass = 'mb-1.5 block text-[10px] font-semibold text-[#737a70]'
-  const modeButton = active => cx('rounded-md px-2 py-1.5 text-[10px] font-semibold transition', active ? 'bg-white text-[#c65d1b] shadow-sm' : 'text-[#757c71] hover:text-[#3d443a]')
+  const inputClass = 'w-full rounded-lg border border-[#e7ebf0] bg-white px-3 py-2.5 text-[12px] outline-none focus:border-[#fdba74] focus:ring-2 focus:ring-[#fff4ec]'
+  const labelClass = 'mb-1.5 block text-[10px] font-semibold text-[#64748b]'
+  const modeButton = active => cx('rounded-md px-2 py-1.5 text-[10px] font-semibold transition', active ? 'bg-white text-[#f97316] shadow-sm' : 'text-[#64748b] hover:text-[#0f172a]')
 
   return <Modal title="Record expense" onClose={onClose}>
     <form className="space-y-3.5" onSubmit={submit}>
       <div>
-        <span className={labelClass}>Category <span className="text-[#b75c48]">*</span></span>
-        {categories === null ? <p className="text-[10px] text-[#9b9f96]">Loading categories…</p> : <>
-          {categories.length > 0 && <div className="grid grid-cols-2 gap-1 rounded-lg bg-[#f4f4f0] p-1">
+        <span className={labelClass}>Category <span className="text-[#dc2626]">*</span></span>
+        {categories === null ? <p className="text-[10px] text-[#94a3b8]">Loading categories…</p> : <>
+          {categories.length > 0 && <div className="grid grid-cols-2 gap-1 rounded-lg bg-[#f1f4f9] p-1">
             <button type="button" onClick={() => setMode('existing')} className={modeButton(mode === 'existing')}>Pick a category</button>
             <button type="button" onClick={() => setMode('new')} className={modeButton(mode === 'new')}>New category</button>
           </div>}
@@ -809,14 +809,14 @@ function RecordExpenseModal({ onClose, onSaved }) {
             {categories.map(category => <option key={category._id} value={category._id}>{category.name}</option>)}
           </select>}
           {mode === 'new' && <input required autoFocus value={newName} onChange={event => setNewName(event.target.value)} maxLength="60" placeholder="Category name, e.g. Cooking gas" className={cx(inputClass, 'mt-2')} />}
-          <p className="mt-1.5 text-[9px] leading-4 text-[#a0a49b]">{categories.length
+          <p className="mt-1.5 text-[9px] leading-4 text-[#94a3b8]">{categories.length
             ? 'Categories are the same expense categories managed under Categories > Expenses in the sidebar.'
             : 'No expense categories yet — type a name to create your first one. You can manage them under Categories > Expenses.'}</p>
         </>}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <label className="block"><span className={labelClass}>Amount (UGX) <span className="text-[#b75c48]">*</span></span>
+        <label className="block"><span className={labelClass}>Amount (UGX) <span className="text-[#dc2626]">*</span></span>
           <input required type="number" min="0" step="1" value={amount} onChange={event => setAmount(event.target.value)} placeholder="e.g. 25000" className={inputClass} />
         </label>
         <label className="block"><span className={labelClass}>Note — optional</span>
@@ -824,8 +824,8 @@ function RecordExpenseModal({ onClose, onSaved }) {
         </label>
       </div>
 
-      {error && <p className="text-[11px] text-[#b75c48]">{error}</p>}
-      <button disabled={busy || mode === null} className="w-full rounded-lg bg-[#c65d1b] py-2.5 text-[11px] font-semibold text-white hover:bg-[#a34b16] disabled:cursor-not-allowed disabled:opacity-60">{busy ? 'Recording…' : 'Record expense'}</button>
+      {error && <p className="text-[11px] text-[#dc2626]">{error}</p>}
+      <button disabled={busy || mode === null} className="w-full rounded-lg bg-[#f97316] py-2.5 text-[11px] font-semibold text-white hover:bg-[#ea580c] disabled:cursor-not-allowed disabled:opacity-60">{busy ? 'Recording…' : 'Record expense'}</button>
     </form>
   </Modal>
 }

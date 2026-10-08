@@ -55,52 +55,52 @@ export function SupportPage({ role = 'OWNER' }) {
     }
   }
 
-  if (loading) return <div className="rounded-2xl border border-[#eceee8] bg-white p-8 text-center text-[11px] text-[#8d9389]">Loading help & support details…</div>
+  if (loading) return <div className="rounded-2xl border border-[#e7ebf0] bg-white p-8 text-center text-[11px] text-[#94a3b8]">Loading help & support details…</div>
 
   return <div className="space-y-5">
     <div>
       <h2 className="font-display text-lg font-bold">Help & support</h2>
-      <p className="mt-1 text-[12px] text-[#8d9389]">
+      <p className="mt-1 text-[12px] text-[#94a3b8]">
         {isOwner
           ? 'These details appear on the customer menu page, so guests can call or message you directly from their phone.'
           : 'Maintain the help & support details shown to customers on the menu page for this business.'}
       </p>
     </div>
 
-    {saved && <div className="flex items-center gap-2 rounded-lg bg-[#eef7ee] px-3 py-2.5 text-[11px] font-medium text-[#2f6b3a]"><CircleCheck size={15} />Help & support details updated — customers see them right away.</div>}
-    {error && <div role="alert" className="flex items-center justify-between gap-3 rounded-lg bg-[#fae9e5] px-3 py-2.5 text-[11px] text-[#a44f3d]"><span>{error}</span><button onClick={() => setError('')} aria-label="Dismiss error">×</button></div>}
+    {saved && <div className="flex items-center gap-2 rounded-lg bg-[#f0fdf4] px-3 py-2.5 text-[11px] font-medium text-[#16a34a]"><CircleCheck size={15} />Help & support details updated — customers see them right away.</div>}
+    {error && <div role="alert" className="flex items-center justify-between gap-3 rounded-lg bg-[#fef2f2] px-3 py-2.5 text-[11px] text-[#dc2626]"><span>{error}</span><button onClick={() => setError('')} aria-label="Dismiss error">×</button></div>}
 
     <form onSubmit={save} className="space-y-4">
-      <section className="grid gap-4 rounded-2xl border border-[#eceee8] bg-white p-4 sm:grid-cols-2 sm:p-5">
-        {FIELDS.map(({ key, label, placeholder, icon: Icon }) => <label key={key} className="block text-[10px] font-semibold text-[#737a70]">
-          <span className="flex items-center gap-1.5"><Icon size={13} className="text-[#bd6424]" />{label}</span>
+      <section className="grid gap-4 rounded-2xl border border-[#e7ebf0] bg-white p-4 sm:grid-cols-2 sm:p-5">
+        {FIELDS.map(({ key, label, placeholder, icon: Icon }) => <label key={key} className="block text-[10px] font-semibold text-[#64748b]">
+          <span className="flex items-center gap-1.5"><Icon size={13} className="text-[#f97316]" />{label}</span>
           <input
             value={form[key]}
             onChange={event => setField(key, event.target.value)}
             placeholder={placeholder}
             maxLength={key === 'email' ? 120 : 40}
-            className="mt-1.5 block w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px] outline-none transition placeholder:text-[#b0b4ac] focus:border-[#ce824c] focus:ring-2 focus:ring-[#fff1e6]"
+            className="mt-1.5 block w-full rounded-lg border border-[#e7ebf0] bg-white px-3 py-2.5 text-[12px] outline-none transition placeholder:text-[#a8b3c4] focus:border-[#fb923c] focus:ring-2 focus:ring-[#fff4ec]"
           />
         </label>)}
       </section>
 
-      <section className="rounded-2xl border border-[#eceee8] bg-white p-4 sm:p-5">
-        <label className="block text-[10px] font-semibold text-[#737a70]">
-          <span className="flex items-center gap-1.5"><CircleHelp size={13} className="text-[#bd6424]" />Short help message</span>
+      <section className="rounded-2xl border border-[#e7ebf0] bg-white p-4 sm:p-5">
+        <label className="block text-[10px] font-semibold text-[#64748b]">
+          <span className="flex items-center gap-1.5"><CircleHelp size={13} className="text-[#f97316]" />Short help message</span>
           <textarea
             rows={3}
             value={form.message}
             onChange={event => setField('message', event.target.value)}
             maxLength={400}
             placeholder="e.g. For allergies or special requests, talk to any waiter or call the front desk."
-            className="mt-1.5 block w-full resize-none rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px] outline-none transition placeholder:text-[#b0b4ac] focus:border-[#ce824c] focus:ring-2 focus:ring-[#fff1e6]"
+            className="mt-1.5 block w-full resize-none rounded-lg border border-[#e7ebf0] bg-white px-3 py-2.5 text-[12px] outline-none transition placeholder:text-[#a8b3c4] focus:border-[#fb923c] focus:ring-2 focus:ring-[#fff4ec]"
           />
-          <span className="mt-1 block text-right text-[9px] font-normal text-[#9b9f96]">{form.message.length}/400</span>
+          <span className="mt-1 block text-right text-[9px] font-normal text-[#94a3b8]">{form.message.length}/400</span>
         </label>
       </section>
 
       <div className="flex items-center justify-end gap-3">
-        <button type="submit" disabled={saving} className="flex items-center gap-2 rounded-lg bg-[#c65d1b] px-4 py-2.5 text-[11px] font-semibold text-white disabled:opacity-60"><Save size={14} />{saving ? 'Saving…' : 'Save details'}</button>
+        <button type="submit" disabled={saving} className="flex items-center gap-2 rounded-lg bg-[#f97316] px-4 py-2.5 text-[11px] font-semibold text-white disabled:opacity-60"><Save size={14} />{saving ? 'Saving…' : 'Save details'}</button>
       </div>
     </form>
   </div>

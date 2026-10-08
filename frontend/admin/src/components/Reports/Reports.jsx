@@ -39,14 +39,14 @@ export function Reports({ orders, analytics, currency, onRange }) {
   })) : []
   return <div className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <p className="text-[12px] text-[#8d9389]">See how your business is performing over time.</p>
+      <p className="text-[12px] text-[#94a3b8]">See how your business is performing over time.</p>
       <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-        {['Daily', 'Monthly', 'Yearly'].map(preset => <button key={preset} onClick={() => setPreset(preset)} className="rounded-lg border border-[#eceee8] bg-white px-3 py-2 text-[10px] font-semibold text-[#767e71] hover:border-[#d08445]">{preset} sales</button>)}
+        {['Daily', 'Monthly', 'Yearly'].map(preset => <button key={preset} onClick={() => setPreset(preset)} className="rounded-lg border border-[#e7ebf0] bg-white px-3 py-2 text-[10px] font-semibold text-[#64748b] hover:border-[#fb923c]">{preset} sales</button>)}
       </div>
       <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-end">
-        <label className="min-w-0 text-[9px] font-semibold text-[#858b81]">From<input type="date" value={range.from} max={range.to} onChange={event => setRange({ ...range, from: event.target.value })} className="mt-1 block w-full min-w-0 rounded-lg border border-[#e8eae3] bg-white px-2 py-2 text-[10px] text-[#687061] sm:mt-0 sm:inline-block sm:ml-2 sm:w-auto" /></label>
-        <label className="min-w-0 text-[9px] font-semibold text-[#858b81]">To<input type="date" value={range.to} min={range.from} max={dateText(new Date())} onChange={event => setRange({ ...range, to: event.target.value })} className="mt-1 block w-full min-w-0 rounded-lg border border-[#e8eae3] bg-white px-2 py-2 text-[10px] text-[#687061] sm:mt-0 sm:inline-block sm:ml-2 sm:w-auto" /></label>
-        <button onClick={() => onRange(range.from, range.to)} className="col-span-2 rounded-lg bg-[#c65d1b] px-3 py-2 text-[10px] font-semibold text-white sm:col-span-1">Apply</button>
+        <label className="min-w-0 text-[9px] font-semibold text-[#94a3b8]">From<input type="date" value={range.from} max={range.to} onChange={event => setRange({ ...range, from: event.target.value })} className="mt-1 block w-full min-w-0 rounded-lg border border-[#e7ebf0] bg-white px-2 py-2 text-[10px] text-[#64748b] sm:mt-0 sm:inline-block sm:ml-2 sm:w-auto" /></label>
+        <label className="min-w-0 text-[9px] font-semibold text-[#94a3b8]">To<input type="date" value={range.to} min={range.from} max={dateText(new Date())} onChange={event => setRange({ ...range, to: event.target.value })} className="mt-1 block w-full min-w-0 rounded-lg border border-[#e7ebf0] bg-white px-2 py-2 text-[10px] text-[#64748b] sm:mt-0 sm:inline-block sm:ml-2 sm:w-auto" /></label>
+        <button onClick={() => onRange(range.from, range.to)} className="col-span-2 rounded-lg bg-[#f97316] px-3 py-2 text-[10px] font-semibold text-white sm:col-span-1">Apply</button>
       </div>
     </div>
     <div className="grid grid-cols-2 gap-2.5 min-[420px]:gap-3 lg:grid-cols-3">
@@ -54,9 +54,9 @@ export function Reports({ orders, analytics, currency, onRange }) {
       <MetricCard title="Net profit" value={money(analytics.weekProfit, currency)} change={!analytics.isActual && '9.3%'} icon={TrendingUp} detail={`${analytics.weekRevenue ? (analytics.weekProfit / analytics.weekRevenue * 100).toFixed(1) : '0.0'}% profit margin`} inverse />
       <MetricCard title="Orders completed" value={analytics.weekOrders} change={!analytics.isActual && '6.4%'} icon={Package} detail="Selected period" />
     </div>
-    <section className="rounded-2xl border border-[#eceee8] bg-white p-4 sm:p-5">
-      <div><h2 className="font-display text-[14px] font-bold">Sales performance</h2><p className="mt-1 text-[10px] text-[#999e94]">Revenue compared to gross profit</p></div>
-      <div className="mt-6 h-[220px] sm:h-[290px]"><ResponsiveContainer width="100%" height="100%"><BarChart data={series} barGap={5} margin={{ left: -15, right: 5 }}><CartesianGrid vertical={false} stroke="#eff0ec" strokeDasharray="3 5" /><XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#a0a49b', fontSize: 10 }} dy={8} /><YAxis axisLine={false} tickLine={false} tick={{ fill: '#a0a49b', fontSize: 9 }} tickFormatter={value => `UGX ${value / 1000}k`} /><Tooltip contentStyle={{ border: '1px solid #eceee8', borderRadius: 10, fontSize: 11 }} formatter={value => money(value, currency)} /><Bar dataKey="revenue" fill="#ba5b1c" radius={[5, 5, 0, 0]} /><Bar dataKey="profit" fill="#f5ddc8" radius={[5, 5, 0, 0]} /></BarChart></ResponsiveContainer></div>
+    <section className="rounded-2xl border border-[#e7ebf0] bg-white p-4 sm:p-5">
+      <div><h2 className="font-display text-[14px] font-bold">Sales performance</h2><p className="mt-1 text-[10px] text-[#94a3b8]">Revenue compared to gross profit</p></div>
+      <div className="mt-6 h-[220px] sm:h-[290px]"><ResponsiveContainer width="100%" height="100%"><BarChart data={series} barGap={5} margin={{ left: -15, right: 5 }}><CartesianGrid vertical={false} stroke="#f1f5f9" strokeDasharray="3 5" /><XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10 }} dy={8} /><YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 9 }} tickFormatter={value => `UGX ${value / 1000}k`} /><Tooltip contentStyle={{ border: '1px solid #e7ebf0', borderRadius: 10, fontSize: 11 }} formatter={value => money(value, currency)} /><Bar dataKey="revenue" fill="#ea580c" radius={[5, 5, 0, 0]} /><Bar dataKey="profit" fill="#fed7aa" radius={[5, 5, 0, 0]} /></BarChart></ResponsiveContainer></div>
     </section>
     <OrdersTable orders={analytics.reportOrders || orders} compact={false} />
   </div>

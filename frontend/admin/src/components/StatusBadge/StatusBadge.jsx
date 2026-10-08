@@ -14,5 +14,5 @@ import { Badge } from '../Badge/Badge.jsx'
 
 export function StatusBadge({ status }) {
   const tone = { Pending: 'amber', Preparing: 'blue', Ready: 'green', Served: 'gray', Cancelled: 'red' }[status] || 'gray'
-  return <Badge tone={tone}><span className={cx('size-1.5 rounded-full', tone === 'amber' ? 'bg-[#d5a345]' : tone === 'blue' ? 'bg-[#7192b0]' : tone === 'green' ? 'bg-[#bd641f]' : tone === 'red' ? 'bg-[#ca7662]' : 'bg-[#979b91]')} />{status}</Badge>
+  return <Badge tone={tone}><span className={cx('size-1.5 rounded-full', tone === 'amber' ? 'bg-[#f59e0b]' : tone === 'blue' ? 'bg-[#3b82f6]' : tone === 'green' ? 'bg-[#f97316]' : tone === 'red' ? 'bg-[#f87171]' : 'bg-[#94a3b8]')} />{status}</Badge>
 }

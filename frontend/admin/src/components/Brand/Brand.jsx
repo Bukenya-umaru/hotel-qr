@@ -13,7 +13,7 @@ import { money, today, cx, orderCode, orderTime, navItems } from '../../lib/ui.j
 
 export function Brand({ compact = false }) {
   return <div className="flex items-center gap-2.5">
-    <div className="grid size-9 place-items-center rounded-xl bg-[#c65d1b] text-white"><Leaf size={19} strokeWidth={1.8} /></div>
-    {!compact && <span className="font-display text-[19px] font-extrabold tracking-[-1px]">WAGA <span className="text-[#df8746]">BITS</span></span>}
+    <div className="grid size-9 place-items-center rounded-xl bg-[#f97316] text-white"><Leaf size={19} strokeWidth={1.8} /></div>
+    {!compact && <span className="font-display text-[19px] font-extrabold tracking-[-1px]">WAGA <span className="text-[#fb923c]">BITS</span></span>}
   </div>
 }

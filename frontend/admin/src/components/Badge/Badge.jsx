@@ -13,11 +13,11 @@ import { money, today, cx, orderCode, orderTime, navItems } from '../../lib/ui.j
 
 export function Badge({ children, tone = 'green', className = '' }) {
   const tones = {
-    green: 'bg-[#fff1e6] text-[#a74f19]',
-    amber: 'bg-[#fbf1df] text-[#ac7a24]',
-    gray: 'bg-[#f0f1ed] text-[#72776e]',
-    red: 'bg-[#fae9e5] text-[#b75c48]',
-    blue: 'bg-[#eaf0f6] text-[#54799c]',
+    green: 'bg-[#fff4ec] text-[#ea580c]',
+    amber: 'bg-[#fef9ee] text-[#b45309]',
+    gray: 'bg-[#f1f5f9] text-[#64748b]',
+    red: 'bg-[#fef2f2] text-[#dc2626]',
+    blue: 'bg-[#e7ebf0] text-[#3b82f6]',
   }
   return <span className={cx('inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold sm:gap-1.5 sm:px-2.5 sm:py-1 sm:text-[11px]', tones[tone], className)}>{children}</span>
 }

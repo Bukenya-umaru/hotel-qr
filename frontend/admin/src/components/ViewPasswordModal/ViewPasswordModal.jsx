@@ -33,15 +33,15 @@ export function ViewPasswordModal({ account, onClose }) {
   }, [loading, error, secondsLeft, onClose])
 
   return <Modal title={`${account.name}'s password`} onClose={onClose}>
-    {loading && <p className="flex items-center gap-2 text-[11px] text-[#757c71]"><Loader2 size={14} className="animate-spin" />Decrypting password…</p>}
-    {error && <p className="text-[11px] leading-5 text-[#b75c48]">{error}</p>}
+    {loading && <p className="flex items-center gap-2 text-[11px] text-[#64748b]"><Loader2 size={14} className="animate-spin" />Decrypting password…</p>}
+    {error && <p className="text-[11px] leading-5 text-[#dc2626]">{error}</p>}
     {!loading && !error && <>
-      <p className="text-[11px] text-[#757c71]">Share this privately with {account.role === 'OWNER' ? 'the business owner' : 'the chef'} and help them update it after signing in.</p>
-      <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-[#f7f8f5] px-4 py-3">
+      <p className="text-[11px] text-[#64748b]">Share this privately with {account.role === 'OWNER' ? 'the business owner' : 'the chef'} and help them update it after signing in.</p>
+      <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-[#f8fafc] px-4 py-3">
         <code className="min-w-0 flex-1 select-all break-all text-[13px] font-semibold tracking-wide">{password}</code>
-        <span className="flex shrink-0 items-center gap-1.5 text-[10px] font-semibold text-[#a75720]"><Eye size={13} />{secondsLeft}s</span>
+        <span className="flex shrink-0 items-center gap-1.5 text-[10px] font-semibold text-[#ea580c]"><Eye size={13} />{secondsLeft}s</span>
       </div>
-      <p className="mt-3 text-[10px] text-[#999e94]">For security this view closes automatically after {VIEW_SECONDS} seconds.</p>
+      <p className="mt-3 text-[10px] text-[#94a3b8]">For security this view closes automatically after {VIEW_SECONDS} seconds.</p>
     </>}
   </Modal>
 }

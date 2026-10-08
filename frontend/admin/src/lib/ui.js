@@ -35,10 +35,10 @@ export const passwordStrength = password => {
 }
 
 export const STRENGTH_STEPS = [
-  { label: 'Weak', color: '#d9534f', width: '25%' },
-  { label: 'Fair', color: '#d88340', width: '50%' },
-  { label: 'Strong', color: '#5a9e52', width: '75%' },
-  { label: 'Excellent', color: '#3f8f3a', width: '100%' },
+  { label: 'Weak', color: '#ef4444', width: '25%' },
+  { label: 'Fair', color: '#fb923c', width: '50%' },
+  { label: 'Strong', color: '#22c55e', width: '75%' },
+  { label: 'Excellent', color: '#16a34a', width: '100%' },
 ]
 
 export const orderCode = order => order.id?.replace('SS-', '') || String(order._id || '').slice(-6).toUpperCase()

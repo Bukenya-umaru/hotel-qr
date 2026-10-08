@@ -185,105 +185,105 @@ export function StockPage({ user, canManage = true }) {
   const lowCount = items.filter(item => item.plates > 0 && lowStock(item.plates)).length
   const totalCount = items.reduce((sum, item) => sum + (Number(item.plates) || 0), 0)
 
-  const unitButton = active => cx('rounded-lg border px-2.5 py-1.5 text-[10px] font-semibold transition', active ? 'border-[#c65d1b] bg-[#fff1e6] text-[#c65d1b]' : 'border-[#e6e9e1] bg-white text-[#757c71] hover:border-[#dca875]')
+  const unitButton = active => cx('rounded-lg border px-2.5 py-1.5 text-[10px] font-semibold transition', active ? 'border-[#f97316] bg-[#fff4ec] text-[#f97316]' : 'border-[#e7ebf0] bg-white text-[#64748b] hover:border-[#fdba74]')
 
   return <div className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
         <h2 className="font-display text-lg font-bold">Kitchen stock</h2>
-        <p className="mt-1 text-[12px] text-[#8d9389]">Track what you have in the kitchen — plated portions, counted items, cups of milk, weighed stock, or any unit you name. Adjust the count by hand as you prep and serve.</p>
+        <p className="mt-1 text-[12px] text-[#94a3b8]">Track what you have in the kitchen — plated portions, counted items, cups of milk, weighed stock, or any unit you name. Adjust the count by hand as you prep and serve.</p>
       </div>
-      {canManage && <button onClick={openPopup} className="flex items-center gap-2 rounded-lg bg-[#c65d1b] px-3.5 py-2.5 text-[11px] font-semibold text-white hover:bg-[#a34b16]"><Plus size={15} />Add stock</button>}
+      {canManage && <button onClick={openPopup} className="flex items-center gap-2 rounded-lg bg-[#f97316] px-3.5 py-2.5 text-[11px] font-semibold text-white hover:bg-[#ea580c]"><Plus size={15} />Add stock</button>}
     </div>
-    {error && <div role="alert" className="flex items-center justify-between gap-3 rounded-lg bg-[#fae9e5] px-3 py-2.5 text-[11px] text-[#a44f3d]"><span>{error}</span><button onClick={() => setError('')} aria-label="Dismiss error">×</button></div>}
+    {error && <div role="alert" className="flex items-center justify-between gap-3 rounded-lg bg-[#fef2f2] px-3 py-2.5 text-[11px] text-[#dc2626]"><span>{error}</span><button onClick={() => setError('')} aria-label="Dismiss error">×</button></div>}
     {items.length > 0 && <div className="flex flex-wrap items-center gap-1.5 sm:gap-2.5">
-      <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#fff1e6] px-2 py-1 text-[10px] font-bold text-[#a34b16] sm:px-3 sm:py-2 sm:text-[12px]"><Wallet size={12} className="sm:size-[15px]" />Total income {money(totalValue)}</span>
-      <span className="inline-flex items-center gap-1.5 rounded-lg border border-[#eceee8] bg-white px-2 py-1 text-[10px] font-semibold text-[#555e51] sm:px-3 sm:py-2 sm:text-[12px]">{items.length} {items.length === 1 ? 'entry' : 'entries'} · {totalCount} in total</span>
-      {outCount > 0 && <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#fae9e5] px-2 py-1 text-[10px] font-semibold text-[#a44f3d] sm:px-3 sm:py-2 sm:text-[12px]">{outCount} out of stock</span>}
-      {lowCount > 0 && <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#fbf1df] px-2 py-1 text-[10px] font-semibold text-[#8c6b35] sm:px-3 sm:py-2 sm:text-[12px]">{lowCount} running low</span>}
+      <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#fff4ec] px-2 py-1 text-[10px] font-bold text-[#ea580c] sm:px-3 sm:py-2 sm:text-[12px]"><Wallet size={12} className="sm:size-[15px]" />Total income {money(totalValue)}</span>
+      <span className="inline-flex items-center gap-1.5 rounded-lg border border-[#e7ebf0] bg-white px-2 py-1 text-[10px] font-semibold text-[#334155] sm:px-3 sm:py-2 sm:text-[12px]">{items.length} {items.length === 1 ? 'entry' : 'entries'} · {totalCount} in total</span>
+      {outCount > 0 && <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#fef2f2] px-2 py-1 text-[10px] font-semibold text-[#dc2626] sm:px-3 sm:py-2 sm:text-[12px]">{outCount} out of stock</span>}
+      {lowCount > 0 && <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#fef9ee] px-2 py-1 text-[10px] font-semibold text-[#b45309] sm:px-3 sm:py-2 sm:text-[12px]">{lowCount} running low</span>}
     </div>}
-    {!items.length ? <div className="rounded-2xl border border-dashed border-[#dfe4d9] bg-white px-5 py-12 text-center"><Boxes className="mx-auto text-[#c65d1b]" size={26} /><p className="mt-3 text-[12px] font-semibold">No stock tracked yet</p><p className="mt-1 text-[10px] text-[#8d9389]">{canManage ? 'Click Add stock to record your first batch — pick the food type, how it is counted (plates, items, cups, kg or your own unit), price, and quantity.' : 'Stock entries will appear here once the kitchen adds them.'}</p></div> :
-      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4 lg:gap-4 2xl:grid-cols-5">{items.map(item => { const unit = unitInfo(item.unit, item.customUnit); return <article key={item._id} className="flex min-w-0 flex-col items-center gap-1 rounded-xl border border-[#eceee8] bg-white p-1.5 transition hover:border-[#dca875] sm:gap-2.5 sm:p-4">
-        <span className="relative block aspect-[4/3] w-full overflow-hidden rounded-lg bg-[#f0f1ed] text-[#c0c4b8] sm:aspect-[16/10] sm:rounded-xl">
+    {!items.length ? <div className="rounded-2xl border border-dashed border-[#dbe1ea] bg-white px-5 py-12 text-center"><Boxes className="mx-auto text-[#f97316]" size={26} /><p className="mt-3 text-[12px] font-semibold">No stock tracked yet</p><p className="mt-1 text-[10px] text-[#94a3b8]">{canManage ? 'Click Add stock to record your first batch — pick the food type, how it is counted (plates, items, cups, kg or your own unit), price, and quantity.' : 'Stock entries will appear here once the kitchen adds them.'}</p></div> :
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4 lg:gap-4 2xl:grid-cols-5">{items.map(item => { const unit = unitInfo(item.unit, item.customUnit); return <article key={item._id} className="flex min-w-0 flex-col items-center gap-1 rounded-xl border border-[#e7ebf0] bg-white p-1.5 transition hover:border-[#fdba74] sm:gap-2.5 sm:p-4">
+        <span className="relative block aspect-[4/3] w-full overflow-hidden rounded-lg bg-[#f1f5f9] text-[#e2e8f0] sm:aspect-[16/10] sm:rounded-xl">
           {item.imageUrl ? <img src={apiAssetUrl(item.imageUrl)} alt={item.name} className="size-full object-cover" /> : <span className="grid size-full place-items-center"><Boxes size={16} className="sm:size-7" /></span>}
-          <span title={item.plates === 0 ? 'Out of stock' : lowStock(item.plates) ? 'Running low' : 'In stock'} className={cx('absolute right-1 top-1 size-2 rounded-full ring-2 ring-white sm:right-1.5 sm:top-1.5 sm:size-3', item.plates === 0 ? 'bg-[#d9534f]' : lowStock(item.plates) ? 'bg-[#e0a63c]' : 'bg-[#5aa54f]')} />
+          <span title={item.plates === 0 ? 'Out of stock' : lowStock(item.plates) ? 'Running low' : 'In stock'} className={cx('absolute right-1 top-1 size-2 rounded-full ring-2 ring-white sm:right-1.5 sm:top-1.5 sm:size-3', item.plates === 0 ? 'bg-[#ef4444]' : lowStock(item.plates) ? 'bg-[#f59e0b]' : 'bg-[#22c55e]')} />
         </span>
         <div className="w-full min-w-0 text-center">
           <h3 className="font-display flex items-center justify-center gap-1 text-[10px] font-bold leading-[13px] sm:gap-1.5 sm:text-[13px] sm:leading-[17px]">
             <span className="line-clamp-2 break-words">{item.name}</span>
-            {canManage && !item.approved && <button onClick={() => openEdit(item)} title={`Edit ${item.name}`} className="shrink-0 rounded p-0.5 text-[#b9beb2] hover:bg-[#f0f1ed] hover:text-[#71786d] sm:p-1"><Pencil size={11} className="sm:size-3.5" /></button>}
+            {canManage && !item.approved && <button onClick={() => openEdit(item)} title={`Edit ${item.name}`} className="shrink-0 rounded p-0.5 text-[#e2e8f0] hover:bg-[#f1f5f9] hover:text-[#64748b] sm:p-1"><Pencil size={11} className="sm:size-3.5" /></button>}
           </h3>
           <div className="mt-0.5 flex flex-wrap items-center justify-center gap-1 sm:mt-1.5 sm:gap-1.5">
-            {item.foodType && <span className="max-w-full truncate rounded bg-[#fff1e6] px-1.5 py-0.5 text-[7px] font-semibold uppercase tracking-[.6px] text-[#a34b16] sm:px-2 sm:py-1 sm:text-[9px] sm:tracking-[.8px]">{item.foodType}</span>}
+            {item.foodType && <span className="max-w-full truncate rounded bg-[#fff4ec] px-1.5 py-0.5 text-[7px] font-semibold uppercase tracking-[.6px] text-[#ea580c] sm:px-2 sm:py-1 sm:text-[9px] sm:tracking-[.8px]">{item.foodType}</span>}
             {item.approved
-              ? <span className="rounded bg-[#eef6ec] px-1.5 py-0.5 text-[7px] font-semibold uppercase tracking-[.6px] text-[#3f8f3a] sm:px-2 sm:py-1 sm:text-[9px]">Approved</span>
-              : <span className="rounded bg-[#fbf1df] px-1.5 py-0.5 text-[7px] font-semibold uppercase tracking-[.6px] text-[#8c6b35] sm:px-2 sm:py-1 sm:text-[9px]">Pending</span>}
+              ? <span className="rounded bg-[#f0fdf4] px-1.5 py-0.5 text-[7px] font-semibold uppercase tracking-[.6px] text-[#16a34a] sm:px-2 sm:py-1 sm:text-[9px]">Approved</span>
+              : <span className="rounded bg-[#fef9ee] px-1.5 py-0.5 text-[7px] font-semibold uppercase tracking-[.6px] text-[#b45309] sm:px-2 sm:py-1 sm:text-[9px]">Pending</span>}
           </div>
-          <p className="mt-1 hidden text-[10px] text-[#9b9f96] sm:mt-1.5 sm:block">{item.totalAdded} added · {item.totalUsed} served</p>
+          <p className="mt-1 hidden text-[10px] text-[#94a3b8] sm:mt-1.5 sm:block">{item.totalAdded} added · {item.totalUsed} served</p>
         </div>
-        <div className="w-full border-t border-dashed border-[#ebede7] pt-1 text-center sm:pt-2">
+        <div className="w-full border-t border-dashed border-[#e7ebf0] pt-1 text-center sm:pt-2">
           <div className="flex items-baseline justify-center gap-1 sm:gap-1.5">
-            <span className="font-display text-[15px] font-extrabold leading-4 text-[#293128] sm:text-[24px] sm:leading-7">{item.plates}</span>
-            <span className="text-[7px] uppercase tracking-[.6px] text-[#a0a49b] sm:text-[10px] sm:tracking-[.8px]">{unit.plural}</span>
+            <span className="font-display text-[15px] font-extrabold leading-4 text-[#0f172a] sm:text-[24px] sm:leading-7">{item.plates}</span>
+            <span className="text-[7px] uppercase tracking-[.6px] text-[#94a3b8] sm:text-[10px] sm:tracking-[.8px]">{unit.plural}</span>
           </div>
-          <p title={`${money(stockValue(item))} worth of stock, at ${money(item.price || 0)} per ${unit.singular}`} className="mt-0.5 truncate text-[9px] font-bold leading-3 text-[#3f8f3a] sm:mt-1 sm:text-[12px] sm:leading-4">{money(stockValue(item))}</p>
-          <p className="mt-0.5 hidden text-[9px] leading-3 text-[#a0a49b] sm:mt-0.5 sm:block">{money(item.price || 0)} per {unit.singular}</p>
+          <p title={`${money(stockValue(item))} worth of stock, at ${money(item.price || 0)} per ${unit.singular}`} className="mt-0.5 truncate text-[9px] font-bold leading-3 text-[#16a34a] sm:mt-1 sm:text-[12px] sm:leading-4">{money(stockValue(item))}</p>
+          <p className="mt-0.5 hidden text-[9px] leading-3 text-[#94a3b8] sm:mt-0.5 sm:block">{money(item.price || 0)} per {unit.singular}</p>
         </div>
         {canManage && <div className="flex w-full items-center justify-center gap-1 sm:gap-1.5">
-          {canApprove && !item.approved && <button disabled={busy} onClick={() => approveStock(item)} aria-label={`Approve ${item.name}`} title="Approve this stock" className="grid size-6 place-items-center rounded-md bg-[#eef6ec] text-[#3f8f3a] disabled:opacity-50 sm:size-9 sm:rounded-lg"><Check size={12} className="sm:size-4" /></button>}
-          <button disabled={busy} onClick={() => { setAdjusting({ item, mode: 'add' }); setAdjustAmount('') }} aria-label={`Add ${unit.plural} to ${item.name}`} title={`Add ${unit.plural}`} className="grid size-6 place-items-center rounded-md bg-[#fff1e6] text-[#a34b16] disabled:opacity-60 sm:size-9 sm:rounded-lg"><Plus size={12} className="sm:size-[18px]" /></button>
-          <button disabled={busy || item.plates === 0} onClick={() => { setAdjusting({ item, mode: 'reduce' }); setAdjustAmount('') }} aria-label={`Reduce ${unit.plural} from ${item.name}`} title={`Reduce ${unit.plural}`} className="grid size-6 place-items-center rounded-md border border-[#eceee8] text-[12px] leading-none text-[#737a70] disabled:opacity-60 sm:size-9 sm:rounded-lg sm:text-[17px]">−</button>
-          <button disabled={busy || item.approved} onClick={() => removeStock(item)} aria-label={`Remove ${item.name}`} title={item.approved ? 'Approved — cannot be changed' : `Remove ${item.name}`} className="grid size-6 place-items-center rounded-md border border-[#eceee8] text-[#a44f3d] disabled:opacity-50 sm:size-9 sm:rounded-lg"><Trash2 size={11} className="sm:size-4" /></button>
+          {canApprove && !item.approved && <button disabled={busy} onClick={() => approveStock(item)} aria-label={`Approve ${item.name}`} title="Approve this stock" className="grid size-6 place-items-center rounded-md bg-[#f0fdf4] text-[#16a34a] disabled:opacity-50 sm:size-9 sm:rounded-lg"><Check size={12} className="sm:size-4" /></button>}
+          <button disabled={busy} onClick={() => { setAdjusting({ item, mode: 'add' }); setAdjustAmount('') }} aria-label={`Add ${unit.plural} to ${item.name}`} title={`Add ${unit.plural}`} className="grid size-6 place-items-center rounded-md bg-[#fff4ec] text-[#ea580c] disabled:opacity-60 sm:size-9 sm:rounded-lg"><Plus size={12} className="sm:size-[18px]" /></button>
+          <button disabled={busy || item.plates === 0} onClick={() => { setAdjusting({ item, mode: 'reduce' }); setAdjustAmount('') }} aria-label={`Reduce ${unit.plural} from ${item.name}`} title={`Reduce ${unit.plural}`} className="grid size-6 place-items-center rounded-md border border-[#e7ebf0] text-[12px] leading-none text-[#64748b] disabled:opacity-60 sm:size-9 sm:rounded-lg sm:text-[17px]">−</button>
+          <button disabled={busy || item.approved} onClick={() => removeStock(item)} aria-label={`Remove ${item.name}`} title={item.approved ? 'Approved — cannot be changed' : `Remove ${item.name}`} className="grid size-6 place-items-center rounded-md border border-[#e7ebf0] text-[#dc2626] disabled:opacity-50 sm:size-9 sm:rounded-lg"><Trash2 size={11} className="sm:size-4" /></button>
         </div>}
       </article> })}</div>}
     {adjusting && <Modal title={adjusting.mode === 'add' ? `Add ${adjusting.item.name}` : `Reduce ${adjusting.item.name}`} onClose={() => setAdjusting(null)}>
       {(() => { const unit = unitInfo(adjusting.item.unit, adjusting.item.customUnit); return <form className="space-y-3.5" onSubmit={event => { event.preventDefault(); adjustStock() }}>
-        <p className="text-[11px] leading-5 text-[#8d9389]">{adjusting.mode === 'add' ? `${unit.label} you have just prepared and added.` : `${unit.label} removed without an order — staff meals, waste, or spoilage.`} Current count: <b>{adjusting.item.plates} {unit.plural}</b>, worth <b>{money(stockValue(adjusting.item))}</b> at {money(adjusting.item.price || 0)} per {unit.singular}.</p>
-        <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#737a70]">{unit.label}</span><input autoFocus required type="number" min="0.1" step={unit.step} value={adjustAmount} onChange={event => setAdjustAmount(event.target.value)} className="w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px]" /></label>
-        <button disabled={busy} className="w-full rounded-lg bg-[#c65d1b] py-2.5 text-[11px] font-semibold text-white disabled:opacity-60">{adjusting.mode === 'add' ? `Add ${unit.plural}` : `Reduce ${unit.plural}`}</button>
+        <p className="text-[11px] leading-5 text-[#94a3b8]">{adjusting.mode === 'add' ? `${unit.label} you have just prepared and added.` : `${unit.label} removed without an order — staff meals, waste, or spoilage.`} Current count: <b>{adjusting.item.plates} {unit.plural}</b>, worth <b>{money(stockValue(adjusting.item))}</b> at {money(adjusting.item.price || 0)} per {unit.singular}.</p>
+        <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#64748b]">{unit.label}</span><input autoFocus required type="number" min="0.1" step={unit.step} value={adjustAmount} onChange={event => setAdjustAmount(event.target.value)} className="w-full rounded-lg border border-[#e7ebf0] bg-white px-3 py-2.5 text-[12px]" /></label>
+        <button disabled={busy} className="w-full rounded-lg bg-[#f97316] py-2.5 text-[11px] font-semibold text-white disabled:opacity-60">{adjusting.mode === 'add' ? `Add ${unit.plural}` : `Reduce ${unit.plural}`}</button>
       </form> })()}
     </Modal>}
     {showForm && <Modal title={editing ? `Edit ${editing.name}` : 'Add stock'} onClose={() => { setShowForm(false); setEditing(null) }}>
       <form className="space-y-3.5" onSubmit={submitStock}>
-        <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#737a70]">Food type <span className="text-[#b75c48]">*</span></span>
-          <select required value={form.foodType} onChange={event => setForm({ ...form, foodType: event.target.value })} className="w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px]">
+        <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#64748b]">Food type <span className="text-[#dc2626]">*</span></span>
+          <select required value={form.foodType} onChange={event => setForm({ ...form, foodType: event.target.value })} className="w-full rounded-lg border border-[#e7ebf0] bg-white px-3 py-2.5 text-[12px]">
             <option value="">Click to select food type…</option>
             {typeOptions.map(type => <option key={type} value={type}>{type}</option>)}
           </select>
-          <span className="mt-1 block text-[9px] text-[#a0a49b]">Only categories created under Categories → Food type are listed.</span>
-          {!foodTypes.length && <span className="mt-1.5 block rounded-lg bg-[#fbf1df] px-2.5 py-2 text-[9px] leading-4 text-[#8c6b35]">No food type categories yet. Close this and add one under Categories → Food type first.</span>}
+          <span className="mt-1 block text-[9px] text-[#94a3b8]">Only categories created under Categories → Food type are listed.</span>
+          {!foodTypes.length && <span className="mt-1.5 block rounded-lg bg-[#fef9ee] px-2.5 py-2 text-[9px] leading-4 text-[#b45309]">No food type categories yet. Close this and add one under Categories → Food type first.</span>}
         </label>
-        <div><span className="mb-1.5 block text-[10px] font-semibold text-[#737a70]">How is it counted? <span className="text-[#b75c48]">*</span></span>
+        <div><span className="mb-1.5 block text-[10px] font-semibold text-[#64748b]">How is it counted? <span className="text-[#dc2626]">*</span></span>
           <div className="flex flex-wrap gap-1.5">
             {UNITS.map(entry => <button type="button" key={entry.value} onClick={() => setForm({ ...form, unit: entry.value })} className={unitButton(form.unit === entry.value)}>{entry.label}</button>)}
           </div>
-          {form.unit === 'other' && <input required value={form.customUnit} onChange={event => setForm({ ...form, customUnit: event.target.value })} maxLength="20" placeholder="Name the unit, e.g. crate, tray, bottle" className="mt-2 w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px]" />}
-          <span className="mt-1 block text-[9px] text-[#a0a49b]">{formUnit.hint}</span>
+          {form.unit === 'other' && <input required value={form.customUnit} onChange={event => setForm({ ...form, customUnit: event.target.value })} maxLength="20" placeholder="Name the unit, e.g. crate, tray, bottle" className="mt-2 w-full rounded-lg border border-[#e7ebf0] bg-white px-3 py-2.5 text-[12px]" />}
+          <span className="mt-1 block text-[9px] text-[#94a3b8]">{formUnit.hint}</span>
         </div>
         <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
-          <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#737a70]">Price per {formUnit.singular} (UGX) <span className="text-[#b75c48]">*</span></span>
-            <input required type="number" min="0" step="1" value={form.price} onChange={event => setForm({ ...form, price: event.target.value })} placeholder={form.unit === 'kg' ? 'e.g. 8000 per kg' : form.unit === 'items' ? 'e.g. 45000 per cylinder' : form.unit === 'cups' ? 'e.g. 500 per cup' : form.unit === 'other' ? `per ${form.customUnit || 'unit'}` : 'e.g. 5000 per plate'} className="w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px]" />
-            <span className="mt-1 block text-[9px] leading-4 text-[#a0a49b]">The price of one {formUnit.singular}. Total value is worked out from the number you enter below.</span>
-            <span className="mt-1.5 flex items-center gap-1.5 rounded-lg bg-[#eef6ec] px-2.5 py-2 text-[10px] font-semibold text-[#3f8f3a]"><Wallet size={12} />Total value {money((Number(form.price) || 0) * (Number(form.quantity) || 0))}</span>
+          <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#64748b]">Price per {formUnit.singular} (UGX) <span className="text-[#dc2626]">*</span></span>
+            <input required type="number" min="0" step="1" value={form.price} onChange={event => setForm({ ...form, price: event.target.value })} placeholder={form.unit === 'kg' ? 'e.g. 8000 per kg' : form.unit === 'items' ? 'e.g. 45000 per cylinder' : form.unit === 'cups' ? 'e.g. 500 per cup' : form.unit === 'other' ? `per ${form.customUnit || 'unit'}` : 'e.g. 5000 per plate'} className="w-full rounded-lg border border-[#e7ebf0] bg-white px-3 py-2.5 text-[12px]" />
+            <span className="mt-1 block text-[9px] leading-4 text-[#94a3b8]">The price of one {formUnit.singular}. Total value is worked out from the number you enter below.</span>
+            <span className="mt-1.5 flex items-center gap-1.5 rounded-lg bg-[#f0fdf4] px-2.5 py-2 text-[10px] font-semibold text-[#16a34a]"><Wallet size={12} />Total value {money((Number(form.price) || 0) * (Number(form.quantity) || 0))}</span>
           </label>
-          <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#737a70]">Number of {formUnit.plural} <span className="text-[#b75c48]">*</span></span>
-            <input required type="number" min="0" step={formUnit.step} value={form.quantity} onChange={event => setForm({ ...form, quantity: event.target.value })} placeholder={form.unit === 'kg' ? 'e.g. 12.5' : form.unit === 'items' ? 'e.g. 4' : form.unit === 'cups' ? 'e.g. 30' : 'e.g. 20'} className="w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px]" />
+          <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#64748b]">Number of {formUnit.plural} <span className="text-[#dc2626]">*</span></span>
+            <input required type="number" min="0" step={formUnit.step} value={form.quantity} onChange={event => setForm({ ...form, quantity: event.target.value })} placeholder={form.unit === 'kg' ? 'e.g. 12.5' : form.unit === 'items' ? 'e.g. 4' : form.unit === 'cups' ? 'e.g. 30' : 'e.g. 20'} className="w-full rounded-lg border border-[#e7ebf0] bg-white px-3 py-2.5 text-[12px]" />
           </label>
         </div>
-        <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#737a70]">Stock name <span className="text-[#b75c48]">*</span></span>
-          <input required value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} maxLength="60" placeholder="e.g. Fresh milk" className="w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2.5 text-[12px]" />
+        <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#64748b]">Stock name <span className="text-[#dc2626]">*</span></span>
+          <input required value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} maxLength="60" placeholder="e.g. Fresh milk" className="w-full rounded-lg border border-[#e7ebf0] bg-white px-3 py-2.5 text-[12px]" />
         </label>
-        <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#737a70]">Photo</span>
+        <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#64748b]">Photo</span>
           <span className="flex items-center gap-2.5">
-            <span className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-lg border border-[#e6e9e1] bg-[#fafbf8] text-[#c0c4b8]">
+            <span className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-lg border border-[#e7ebf0] bg-[#f8fafc] text-[#e2e8f0]">
               {preview ? <img src={preview} alt="Stock preview" className="size-full object-cover" /> : <ImagePlus size={18} />}
             </span>
-            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={event => setImage(event.target.files?.[0] || null)} className="block w-full rounded-lg border border-[#e6e9e1] bg-white px-3 py-2 text-[10px] file:mr-3 file:rounded-md file:border-0 file:bg-[#fff1e6] file:px-3 file:py-1.5 file:text-[10px] file:font-semibold file:text-[#c65d1b]" />
+            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={event => setImage(event.target.files?.[0] || null)} className="block w-full rounded-lg border border-[#e7ebf0] bg-white px-3 py-2 text-[10px] file:mr-3 file:rounded-md file:border-0 file:bg-[#fff4ec] file:px-3 file:py-1.5 file:text-[10px] file:font-semibold file:text-[#f97316]" />
           </span>
-          <span className="mt-1 block text-[9px] text-[#a0a49b]">{editing ? 'JPG, PNG or WebP — maximum 5 MB. Leave empty to keep the current photo.' : 'JPG, PNG or WebP — maximum 5 MB. Optional.'}</span>
+          <span className="mt-1 block text-[9px] text-[#94a3b8]">{editing ? 'JPG, PNG or WebP — maximum 5 MB. Leave empty to keep the current photo.' : 'JPG, PNG or WebP — maximum 5 MB. Optional.'}</span>
         </label>
-        {error && <p className="text-[11px] text-[#b75c48]">{error}</p>}
-        <button disabled={busy || (!editing && !foodTypes.length)} className="w-full rounded-lg bg-[#c65d1b] py-2.5 text-[11px] font-semibold text-white disabled:opacity-60">{busy ? 'Saving…' : editing ? 'Save changes' : 'Add stock'}</button>
+        {error && <p className="text-[11px] text-[#dc2626]">{error}</p>}
+        <button disabled={busy || (!editing && !foodTypes.length)} className="w-full rounded-lg bg-[#f97316] py-2.5 text-[11px] font-semibold text-white disabled:opacity-60">{busy ? 'Saving…' : editing ? 'Save changes' : 'Add stock'}</button>
       </form>
     </Modal>}
   </div>

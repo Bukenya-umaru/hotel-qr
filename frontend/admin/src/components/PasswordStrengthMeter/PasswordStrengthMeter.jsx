@@ -8,9 +8,9 @@ export function PasswordStrengthMeter({ password }) {
   return <div className="mt-2">
     <div className="flex gap-1">{[0, 1, 2, 3].map(index => (
       <span key={index} className="h-1 flex-1 rounded-full transition-colors duration-200"
-        style={{ backgroundColor: index < score ? step.color : '#e6e9e1' }} />
+        style={{ backgroundColor: index < score ? step.color : '#e7ebf0' }} />
     ))}</div>
-    <p className="mt-1 text-[10px]" style={{ color: step ? step.color : '#999e94' }}>
+    <p className="mt-1 text-[10px]" style={{ color: step ? step.color : '#94a3b8' }}>
       {step ? `${step.label} password` : PASSWORD_RULE}
     </p>
   </div>

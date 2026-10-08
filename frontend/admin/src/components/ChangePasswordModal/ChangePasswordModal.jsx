@@ -16,7 +16,7 @@ export function ChangePasswordModal({ onClose, onSubmit }) {
   const visibilityIcon = field => (
     <button type="button" tabIndex={-1} aria-label={show[field] ? 'Hide password' : 'Show password'}
       onClick={() => setShow(previous => ({ ...previous, [field]: !previous[field] }))}
-      className="absolute right-2.5 top-1/2 grid size-7 -translate-y-1/2 place-items-center text-[#8f958a]">
+      className="absolute right-2.5 top-1/2 grid size-7 -translate-y-1/2 place-items-center text-[#94a3b8]">
       {show[field] ? <EyeOff size={14} /> : <Eye size={14} />}
     </button>
   )
@@ -45,8 +45,8 @@ export function ChangePasswordModal({ onClose, onSubmit }) {
         <PasswordStrengthMeter password={form.next} />
       </div>
       {passwordField('Confirm new password', 'confirm', 'Repeat the new password')}
-      {error && <p className="text-[11px] text-[#b75c48]">{error}</p>}
-      <button disabled={saving} className="w-full rounded-lg bg-[#c65d1b] py-2.5 text-[11px] font-semibold text-white disabled:opacity-60">
+      {error && <p className="text-[11px] text-[#dc2626]">{error}</p>}
+      <button disabled={saving} className="w-full rounded-lg bg-[#f97316] py-2.5 text-[11px] font-semibold text-white disabled:opacity-60">
         {saving ? 'Updating…' : 'Update password'}
       </button>
     </form>
