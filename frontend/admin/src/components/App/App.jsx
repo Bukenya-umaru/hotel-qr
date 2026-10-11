@@ -135,7 +135,7 @@ export default function App() {
       const children = item.children.filter(child => child.label !== 'Expenses' || hasPermission(user, 'manage_expenses'))
       return [{ ...item, children }]
     }
-    if (item.label !== 'Sales & Expenses') return [item]
+    if (item.label !== 'Purchases') return [item]
     const children = item.children.filter(child => {
       const target = child.target || child.label
       if (target === 'Make sale') return hasPermission(user, 'manage_sales')
@@ -147,7 +147,7 @@ export default function App() {
   })
   // Single-open accordion: expanding a section hides the subsections of any
   // other section, and the section owning the current page opens itself.
-  // Children may carry their own target page (Sales & Expenses > Expenses vs the
+  // Children may carry their own target page (Purchases > Expenses vs the
   // Categories subsection with the same label).
   useEffect(() => {
     const active = currentNav.find(item => item.children?.some(child => (child.target || child.label) === page))
@@ -235,7 +235,7 @@ export default function App() {
   else if (page === 'Reports') content = <Reports analytics={analytics} currency="UGX" onRange={loadReportRange} />
   else if (page === 'Accounts' || page === 'Chefs') content = <AccountsPage users={users} role={role} passwordViewable={platformOverview.passwordViewable} onCreate={() => setModal('account')} onToggle={toggleUser} onReset={account => { setResettingUser(account); setModal('reset') }} onEdit={account => { setEditingUser(account); setModal('edit-account') }} onView={account => { setViewingUser(account); setModal('view-password') }} />
   else if (role === 'DEVELOPER') content = <DeveloperDashboard users={users} onNavigate={setPage} overview={platformOverview} />
-  else content = <Overview hotelName={hotelName} onNavigate={setPage} analytics={analytics} currency="UGX" />
+  else content = <Overview hotelName={hotelName} onNavigate={setPage} analytics={analytics} currency="UGX" onRange={loadReportRange} />
 
   return <div className="min-h-screen bg-[#fbf8f6]">
     <Sidebar role={role} page={page} setPage={setPage} user={user} onLogin={() => setModal('login')} onLogout={logout} onChangePassword={() => setModal('change-password')} hotelName={hotelName} items={currentNav} />

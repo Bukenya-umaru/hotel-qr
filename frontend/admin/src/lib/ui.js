@@ -79,7 +79,7 @@ export const navItems = {
     { label: 'Overview', icon: LayoutDashboard },
     { label: 'Categories', icon: Rows3, children: [{ label: 'Food type' }, { label: 'Expenses' }] },
     { label: 'Stock', icon: Boxes },
-    { label: 'Sales & Expenses', icon: ShoppingCart, children: [{ label: 'Record Sale', target: 'Make sale' }, { label: 'Sales' }, { label: 'Expenses', target: 'Purchase expenses' }] },
+    { label: 'Purchases', icon: ShoppingCart, children: [{ label: 'Record Sale', target: 'Make sale' }, { label: 'Sales' }, { label: 'Expenses', target: 'Purchase expenses' }] },
     { label: 'Chefs', icon: Users },
     { label: 'Reports', icon: TrendingUp },
     { label: 'Help & support', icon: CircleHelp },
@@ -88,7 +88,7 @@ export const navItems = {
     { label: 'Overview', icon: LayoutDashboard },
     { label: 'Categories', icon: Rows3, children: [{ label: 'Food type' }, { label: 'Expenses' }] },
     { label: 'Stock', icon: Boxes },
-    { label: 'Sales & Expenses', icon: ShoppingCart, children: [{ label: 'Record Sale', target: 'Make sale' }, { label: 'Sales' }, { label: 'Expenses', target: 'Purchase expenses' }] },
+    { label: 'Purchases', icon: ShoppingCart, children: [{ label: 'Record Sale', target: 'Make sale' }, { label: 'Sales' }, { label: 'Expenses', target: 'Purchase expenses' }] },
   ],
   DEVELOPER: [
     { label: 'Platform overview', icon: LayoutDashboard },

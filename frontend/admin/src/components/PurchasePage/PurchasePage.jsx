@@ -52,7 +52,7 @@ export function PurchasePage({ initialView = 'menu', canManageExpenses = true, c
   return <div className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h2 className="font-display text-lg font-bold">Sales & Expenses</h2>
+        <h2 className="font-display text-lg font-bold">Purchases</h2>
         <p className="mt-1 text-[12px] text-[#94a3b8]">{view === 'menu'
           ? 'Choose a subsection to work in.'
           : view === 'make-sale'

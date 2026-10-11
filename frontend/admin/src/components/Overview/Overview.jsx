@@ -1,6 +1,7 @@
+import { useEffect, useRef, useState } from 'react'
 import {
-  ArrowRight, CalendarDays, ChartNoAxesCombined, MoreHorizontal, Receipt,
-  ShoppingBag, TrendingUp, Wallet, UsersRound, Download,
+  ArrowRight, CalendarDays, ChartNoAxesCombined, ChevronDown, MoreHorizontal, Receipt,
+  ShoppingBag, SlidersHorizontal, TrendingUp, Wallet, UsersRound, Download,
 } from 'lucide-react'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
 import { money } from '../../lib/ui.js'
@@ -19,7 +20,28 @@ const SIDES = 7
 const point = (angle, radius) => `${100 + radius * Math.cos(angle - Math.PI / 2)},${70 + radius * Math.sin(angle - Math.PI / 2)}`
 const polygon = radius => Array.from({ length: SIDES }, (_, index) => point(index * 2 * Math.PI / SIDES, radius)).join(' ')
 
-export function Overview({ hotelName, onNavigate, analytics, currency }) {
+// Dashboard periods, matching the image's date dropdown + Filter pair.
+// 'today' narrows to the current business day; the others widen the window.
+const PERIODS = [
+  { key: 'today', label: 'Today' },
+  { key: '7', label: 'Last 7 days' },
+  { key: 'month', label: 'This month' },
+  { key: '30', label: 'Last 30 days' },
+]
+const periodDates = key => {
+  const end = new Date()
+  const start = new Date()
+  if (key === 'today') { /* start === end */ }
+  else if (key === '7') start.setDate(start.getDate() - 6)
+  else if (key === '30') start.setDate(start.getDate() - 29)
+  else if (key === 'month') start.setDate(1)
+  const day = value => new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Africa/Kampala', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(value)
+  return { from: day(start), to: day(end) }
+}
+
+export function Overview({ hotelName, onNavigate, analytics, currency, onRange }) {
   const sales = analytics.sales || []
   const expenses = analytics.expenses || []
   const canViewSales = analytics.canViewSales !== false
@@ -45,6 +67,28 @@ export function Overview({ hotelName, onNavigate, analytics, currency }) {
     : 0.7
   const reportDate = new Intl.DateTimeFormat('en-UG', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date())
 
+  // Date filter state, shared by the date button and the Filter chip (both
+  // open the same option menu, as in the reference). The first render keeps
+  // the range the dashboard already loaded; later changes re-fetch.
+  const [periodKey, setPeriodKey] = useState('7')
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef(null)
+  const onRangeRef = useRef(onRange)
+  onRangeRef.current = onRange
+  const firstRender = useRef(true)
+  useEffect(() => {
+    // Skip the initial mount: App already loaded this week's range.
+    if (firstRender.current) { firstRender.current = false; return }
+    const { from, to } = periodDates(periodKey)
+    onRangeRef.current?.(from, to)
+  }, [periodKey])
+  useEffect(() => {
+    if (!menuOpen) return undefined
+    const close = event => { if (!menuRef.current?.contains(event.target)) setMenuOpen(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [menuOpen])
+
   return <div className="space-y-4">
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div>
@@ -56,9 +100,19 @@ export function Overview({ hotelName, onNavigate, analytics, currency }) {
           <button onClick={() => onNavigate('Purchase expenses')} className="relative -mb-px border-b-2 border-transparent px-2.5 pb-1.5 text-[11px] text-[#655a54] transition hover:border-[#e8ded9] hover:text-[#d95c43]">Expenses</button>
         </div>
       </div>
-      <span className="mb-1 inline-flex items-center gap-2 rounded-md border border-[#eadfd9] bg-white px-3 py-2 text-[10px] text-[#655a54]">
-        <CalendarDays size={14} className="text-[#8d817b]" />{reportDate}
-      </span>
+      <div ref={menuRef} className="relative mb-1 flex items-center gap-2">
+        <button onClick={() => setMenuOpen(previous => !previous)} aria-haspopup="listbox" aria-expanded={menuOpen} className="inline-flex items-center gap-2 rounded-md border border-[#eadfd9] bg-white px-3 py-2 text-[10px] text-[#655a54] transition hover:border-[#e7654b]">
+          <CalendarDays size={14} className="text-[#8d817b]" />{reportDate}<ChevronDown size={13} className={menuOpen ? 'text-[#d95c43]' : 'text-[#8d817b]'} />
+        </button>
+        <button onClick={() => setMenuOpen(previous => !previous)} aria-haspopup="listbox" aria-expanded={menuOpen} className="inline-flex items-center gap-2 rounded-md border border-[#eadfd9] bg-white px-3 py-2 text-[10px] font-medium text-[#655a54] transition hover:border-[#e7654b]">
+          <SlidersHorizontal size={14} className={periodKey === 'today' ? 'text-[#d95c43]' : 'text-[#8d817b]'} />Filter
+        </button>
+        {menuOpen && <div role="listbox" className="absolute right-0 top-full z-40 mt-2 w-[190px] overflow-hidden rounded-lg border border-[#f0e8e4] bg-white py-1 shadow-[0_12px_40px_rgba(53,42,36,.14)]">
+          {PERIODS.map(item => <button key={item.key} role="option" aria-selected={item.key === periodKey} onClick={() => { setPeriodKey(item.key); setMenuOpen(false) }} className={`flex w-full items-center justify-between px-3.5 py-2 text-left text-[11px] transition hover:bg-[#fff8f5] ${item.key === periodKey ? 'font-semibold text-[#d95c43]' : 'text-[#655a54]'}`}>
+            {item.label}{item.key === periodKey && <span className="size-1.5 rounded-full bg-[#e7654b]" />}
+          </button>)}
+        </div>}
+      </div>
     </div>
 
     <div className="grid grid-cols-2 gap-2.5 xl:grid-cols-4 xl:gap-3.5">
