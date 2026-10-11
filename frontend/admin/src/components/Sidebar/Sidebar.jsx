@@ -5,7 +5,7 @@ import {
   ChevronLeft, ChevronRight, CircleHelp, Clock3, Coffee, Command, CreditCard, Download,
   Eye, EyeOff, Filter, Globe2, KeyRound, LayoutDashboard, Leaf, LogOut, Menu, MoreHorizontal,
   Package, Plus, QrCode, Search, Settings2, ShieldCheck, ShoppingBag, SlidersHorizontal,
-  Sparkles, TrendingUp, Users, Utensils, Wallet, X,
+  Sparkles, TrendingUp, Users, Utensils, Wallet, X, Crown,
 } from 'lucide-react'
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar } from 'recharts'
 import { api } from '../../lib/api.js'
@@ -31,34 +31,33 @@ export function Sidebar({ role, page, setPage, user, onLogin, onLogout, onChange
   const accountItems = items.filter(isAccountItem)
   const renderItem = item => item.children
     ? <div key={item.label}>
-      <button onClick={() => toggleGroup(item.label)} className={cx('group flex w-full items-center gap-3 rounded-[8px] px-2.5 py-2 text-left text-[12px] font-medium transition', item.children.some(child => childTarget(child) === page) ? 'bg-[#fff0ea] text-[#d95c43]' : 'text-[#786d67] hover:bg-[#fff8f5] hover:text-[#292421]')}>
-        <item.icon size={17} strokeWidth={1.8} /><span className="flex-1">{item.label}</span>
+      <button onClick={() => toggleGroup(item.label)} className={cx('group flex w-full items-center gap-3 rounded-[8px] px-2.5 py-2 text-left text-[12px] font-medium transition', item.children.some(child => childTarget(child) === page) ? 'bg-[#fde3da] text-[#d95c43]' : 'text-[#786d67] hover:bg-[#fff8f5] hover:text-[#292421]')}>
+        <span className={cx('grid size-7 shrink-0 place-items-center rounded-md', item.children.some(child => childTarget(child) === page) ? 'bg-[#e7654b] text-white' : 'bg-[#fff0ea] text-[#d95c43]')}><item.icon size={15} strokeWidth={1.8} /></span><span className="flex-1">{item.label}</span>
         <ChevronDown size={14} className={cx('shrink-0 text-[#94a3b8] transition-transform', openGroups.has(item.label) ? '' : '-rotate-90')} />
       </button>
       {openGroups.has(item.label) && <div className="ml-[26px] mt-0.5 space-y-0.5 border-l border-[#eee4df] pl-3">
         {item.children.map(child => <button key={child.label} onClick={() => setPage(childTarget(child))} className={cx('flex w-full items-center rounded-lg px-3 py-2 text-left text-[11px] transition', page === childTarget(child) ? 'bg-[#fff0ea] font-semibold text-[#d95c43]' : 'text-[#786d67] hover:bg-[#fff8f5] hover:text-[#292421]')}>{child.label}</button>)}
       </div>}
     </div>
-    : <button key={item.label} onClick={() => setPage(item.label)} className={cx('group flex w-full items-center gap-3 rounded-[8px] px-2.5 py-2 text-left text-[12px] font-medium transition', page === item.label ? 'bg-[#fff0ea] text-[#d95c43]' : 'text-[#786d67] hover:bg-[#fff8f5] hover:text-[#292421]')}>
-      <item.icon size={17} strokeWidth={1.8} /><span className="flex-1">{item.label === 'Overview' ? 'Dashboard' : item.label}</span>{item.badge && <span className={cx('rounded-md px-1.5 py-0.5 text-[10px] font-semibold', page === item.label ? 'bg-white text-[#d95c43]' : 'bg-[#f1f5f9] text-[#64748b]')}>{item.badge}</span>}
+    : <button key={item.label} onClick={() => setPage(item.label)} className={cx('group flex w-full items-center gap-3 rounded-[8px] px-2.5 py-2 text-left text-[12px] font-medium transition', page === item.label ? 'bg-[#fde3da] text-[#d95c43]' : 'text-[#786d67] hover:bg-[#fff8f5] hover:text-[#292421]')}>
+      <span className={cx('grid size-7 shrink-0 place-items-center rounded-md', page === item.label ? 'bg-[#e7654b] text-white' : 'bg-[#fff0ea] text-[#d95c43]')}><item.icon size={15} strokeWidth={1.8} /></span><span className="flex-1">{item.label === 'Overview' ? 'Dashboard' : item.label}</span>{item.badge && <span className={cx('rounded-md px-1.5 py-0.5 text-[10px] font-semibold', page === item.label ? 'bg-white text-[#d95c43]' : 'bg-[#f1f5f9] text-[#64748b]')}>{item.badge}</span>}
     </button>
-  return <aside className="fixed inset-y-0 left-0 z-20 hidden w-[210px] flex-col overflow-y-auto border-r border-[#eee4df] bg-white px-3 py-4 lg:flex">
+  return <aside className="fixed inset-y-0 left-0 z-20 hidden w-[210px] flex-col overflow-y-auto border-r border-[#efe3dd] bg-[#f9f0ec] px-3 py-4 lg:flex">
     <button onClick={() => setPage(role === 'DEVELOPER' ? 'Platform overview' : 'Overview')} aria-label="Go to dashboard home" className="rounded-lg px-2 py-1 text-left transition hover:bg-[#fff8f5]"><Brand /></button>
     <p className="mb-2 mt-7 px-2 text-[10px] font-bold uppercase tracking-[1.3px] text-[#a19690]">{labels[role]}</p>
     <nav className="space-y-0.5">{primaryItems.map(renderItem)}</nav>
-    {accountItems.length > 0 && <div className="mt-5 border-t border-[#eee4df] pt-3">
+    {accountItems.length > 0 && <div className="mt-5 border-t border-[#efe3dd] pt-3">
       <p className="mb-2 px-2 text-[10px] font-medium uppercase tracking-[1px] text-[#a19690]">Account</p>
       <nav className="space-y-0.5">{accountItems.map(renderItem)}</nav>
     </div>}
-    <div className="mt-auto">
-      <p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-[1.3px] text-[#a19690]">Account</p>
-      <div className="mb-3 rounded-lg border border-[#e7ebf0] p-2.5">
-        <div className="flex items-center gap-2.5"><div className="grid size-8 place-items-center rounded-full bg-[#fff4ec] text-[11px] font-bold text-[#ea580c]">{role === 'DEVELOPER' ? 'D' : role === 'KITCHEN' ? 'C' : 'S'}</div><div className="min-w-0 flex-1"><p className="truncate text-[11px] font-semibold">{user?.name || 'Staff portal'}</p><p className="mt-0.5 text-[10px] text-[#94a3b8]">{user?.email || 'Sign in to continue'}</p></div><MoreHorizontal size={16} className="text-[#94a3b8]" /></div>
+    <div className="mt-auto pt-5">
+      {role === 'OWNER' && <button type="button" title="Subscription plans are coming soon" className="mb-3 flex w-full items-center justify-center gap-2 rounded-lg bg-[#e7654b] px-3 py-2.5 text-[11px] font-semibold text-white transition hover:bg-[#d95c43] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f1a488]" disabled><Crown size={14} />Upgrade to Pro</button>}
+      <div className="border-t border-[#efe3dd] pt-3">
+        <div className="flex items-center gap-2.5"><div className="grid size-8 shrink-0 place-items-center rounded-full bg-[#fff4ec] text-[11px] font-bold text-[#ea580c]">{role === 'DEVELOPER' ? 'D' : role === 'KITCHEN' ? 'C' : 'S'}</div><div className="min-w-0 flex-1"><p className="truncate text-[11px] font-semibold">{user?.name || 'Staff portal'}</p><p className="mt-0.5 truncate text-[9px] text-[#938780]">{user?.email || 'Sign in to continue'}</p></div><MoreHorizontal size={16} className="shrink-0 text-[#94a3b8]" /></div>
       </div>
-      <div className="space-y-0.5">
-        {user && <button onClick={onChangePassword} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[12px] text-[#64748b] hover:bg-[#f8fafc]"><KeyRound size={15} />Change password</button>}
-        {user ? <button onClick={onLogout} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[12px] text-[#64748b] hover:bg-[#f8fafc]"><LogOut size={15} />Sign out</button> : <button onClick={onLogin} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[12px] text-[#64748b] hover:bg-[#f8fafc]"><ShieldCheck size={15} />Sign in</button>}
-        {role === 'OWNER' && <button onClick={() => setPage('Help & support')} className={cx('flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[12px]', page === 'Help & support' ? 'bg-[#fff4ec] text-[#ea580c]' : 'text-[#64748b] hover:bg-[#f8fafc]')}><CircleHelp size={15} />Help & support</button>}
+      <div className="mt-2.5 space-y-0.5">
+        {user && <button onClick={onChangePassword} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[12px] text-[#786d67] hover:bg-[#fff8f5]"><KeyRound size={15} />Change password</button>}
+        {user ? <button onClick={onLogout} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[12px] text-[#786d67] hover:bg-[#fff8f5]"><LogOut size={15} />Sign out</button> : <button onClick={onLogin} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[12px] text-[#786d67] hover:bg-[#fff8f5]"><ShieldCheck size={15} />Sign in</button>}
       </div>
     </div>
   </aside>

@@ -15,6 +15,7 @@ import authRoutes from './routes/auth.js'
 import developerRoutes from './routes/developer.js'
 import ownerRoutes from './routes/owner.js'
 import stockRoutes from './routes/stock.js'
+import notificationRoutes from './routes/notifications.js'
 
 const app = express()
 const server = http.createServer(app)
@@ -41,6 +42,7 @@ app.get('/api/health', (_req, res) => res.json({
 app.use('/api/auth', authRoutes)
 app.use('/api/owner', ownerRoutes)
 app.use('/api/stock', stockRoutes)
+app.use('/api/notifications', notificationRoutes)
 app.use('/api/developer', developerRoutes)
 
 app.use('/api', (_req, res) => res.status(404).json({ message: 'API endpoint not found.' }))

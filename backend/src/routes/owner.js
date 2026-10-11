@@ -13,6 +13,7 @@ import { StockItem } from '../models/StockItem.js'
 import { Hotel } from '../models/Hotel.js'
 import { removeUploadedImage, uploadMenuImage } from '../middleware/upload.js'
 import { asyncRoute, idIsValid, safeMenuItem, safeSupport } from '../utils/http.js'
+import { notifyHotel, checkLowStock } from '../utils/notify.js'
 import { storePassword } from '../utils/passwordVault.js'
 import { isStrongPassword, PASSWORD_RULE_MESSAGE } from '../utils/passwordPolicy.js'
 import { ALL_PERMISSIONS } from '../utils/permissions.js'
@@ -295,6 +296,12 @@ router.post('/expenses/:expenseId/approve', authenticate, authorize('OWNER', 'KI
     { new: true },
   )
   if (!expense) return res.status(404).json({ message: 'Expense not found.' })
+  await notifyHotel(req.app.get('io'), String(hotelScope(req)), {
+    type: 'expense_approved',
+    title: `Expense approved — ${expense.categoryName}`,
+    body: `Signed off by ${req.user.name}`,
+    refId: expense._id,
+  })
   res.json({ expense: { ...expense.toObject(), approvedByName: req.user.name } })
 }))
 
@@ -530,7 +537,13 @@ router.post('/sales', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(as
       { $inc: { plates: -qty, totalUsed: qty } },
     ).catch(() => {})
   }
-  if (stockUsage.size) req.app.get('io').to(`hotel:${scope}`).emit('stock_updated')
+  await notifyHotel(req.app.get('io'), scope, {
+    type: 'new_sale',
+    title: `New sale #${displaySaleId(sale)} recorded`,
+    body: `${items[0].name} — ${sale.amount} · by ${req.user.name}${sale.approved ? '' : ' · awaiting approval'}`,
+    refId: sale._id,
+  })
+  await checkLowStock(req.app.get('io'), scope, [...stockUsage.keys()])
   res.status(201).json({ sale: { ...sale.toObject(), saleId: displaySaleId(sale), items: saleItems(sale), recordedBy: req.user.name } })
 }))
 
@@ -644,6 +657,12 @@ router.post('/sales/:saleId/approve', authenticate, authorize('OWNER', 'KITCHEN'
     { new: true },
   )
   if (!sale) return res.status(404).json({ message: 'Sale not found.' })
+  await notifyHotel(req.app.get('io'), String(hotelScope(req)), {
+    type: 'sale_approved',
+    title: `Sale #${displaySaleId(sale)} approved`,
+    body: `Signed off by ${req.user.name}`,
+    refId: sale._id,
+  })
   res.json({ sale: { ...sale.toObject(), saleId: displaySaleId(sale), items: saleItems(sale), approvedByName: req.user.name } })
 }))
 

@@ -5,6 +5,7 @@ import { StockItem } from '../models/StockItem.js'
 import { MenuItem } from '../models/MenuItem.js'
 import { removeUploadedImage, uploadMenuImage } from '../middleware/upload.js'
 import { asyncRoute, idIsValid, safeNumber } from '../utils/http.js'
+import { notifyHotel, checkLowStock, LOW_STOCK_LIMIT } from '../utils/notify.js'
 import { hasPerm } from './owner.js'
 
 const router = express.Router()
@@ -107,6 +108,14 @@ router.post('/', authenticate, authorize('OWNER', 'KITCHEN'), uploadMenuImage, a
     approvedBy: hasPerm(req.user, 'approve_records') ? req.user._id : null,
     approvedAt: hasPerm(req.user, 'approve_records') ? new Date() : null,
   })
+  if (!stock.approved) {
+    await notifyHotel(req.app.get('io'), String(scope), {
+      type: 'stock_pending',
+      title: `Stock awaits confirmation — ${stock.name}`,
+      body: `${quantity} ${noun(stock)} added by ${req.user.name}`,
+      refId: stock._id,
+    })
+  }
   req.app.get('io').to(`hotel:${scope}`).emit('stock_updated')
   res.status(201).json({ item: stock })
 }))
@@ -143,6 +152,7 @@ router.patch('/:id/adjust', authenticate, authorize('OWNER', 'KITCHEN'), asyncRo
   // `price` is the rate for one plate/item/kg, so it never changes with the
   // count — the money value of the entry moves on its own (price × count).
   await stock.save()
+  if (delta < 0) await checkLowStock(req.app.get('io'), String(scope), [stock._id])
   req.app.get('io').to(`hotel:${scope}`).emit('stock_updated')
   res.json({ item: stock })
 }))
@@ -235,6 +245,12 @@ router.post('/:id/approve', authenticate, authorize('OWNER', 'KITCHEN'), asyncRo
     { new: true },
   ).populate('approvedBy', 'name')
   if (!stock) return res.status(404).json({ message: 'Stock not found.' })
+  await notifyHotel(req.app.get('io'), String(scope), {
+    type: 'stock_confirmed',
+    title: `Stock confirmed — ${stock.name}`,
+    body: `${stock.plates} ${noun(stock)} signed off by ${req.user.name}`,
+    refId: stock._id,
+  })
   req.app.get('io').to(`hotel:${scope}`).emit('stock_updated')
   res.json({ item: stock })
 }))

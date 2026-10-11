@@ -2,25 +2,28 @@
 
 @theme {
   --font-sans: "DM Sans", sans-serif;
-  --font-display: "Manrope", sans-serif;
+  --font-display: "Poppins", sans-serif;
   --color-ink: #292421;
   --color-orange: #e7654b;
-  --color-cream: #fbf8f6;
+  --color-cream: #faf3f0;
 }
 
 * { box-sizing: border-box; }
 #root { min-height: 100vh; min-height: 100dvh; }
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
-body { margin: 0; background: #fbf8f6; color: #292421; font-family: "DM Sans", sans-serif; }
+body { margin: 0; background: #faf3f0; color: #292421; font-family: "DM Sans", sans-serif; }
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
-::selection { background: #fce5dd; color: #292421; }
-.font-display { font-family: "Manrope", sans-serif; }
+::selection { background: #fcd9c9; color: #292421; }
+.font-display { font-family: "Poppins", sans-serif; }
 .soft-shadow { box-shadow: 0 8px 32px rgba(53, 42, 36, .06); }
-/* Platform look: white cards on a light gray canvas get a soft two-layer
-   shadow so sections lift gently off the page without heavy borders. */
-.rounded-2xl.border,
-.rounded-xl.border { box-shadow: 0 1px 2px rgba(53, 42, 36, .035), 0 4px 16px rgba(53, 42, 36, .035); }
+/* Image-style cards: white, square corners, flat — only the faintest hairline shadow. */
+.border,
+.border-t,
+.border-b,
+.border-l,
+.border-r { border-color: #f0e8e4; }
+.card { border: 1px solid #efe7e3; background: #fff; }
 /* Elevated interactive cards (subsection tiles) lift on hover. */
 button.rounded-2xl.border.transition:hover { box-shadow: 0 2px 4px rgba(53, 42, 36, .05), 0 10px 24px rgba(53, 42, 36, .08); transform: translateY(-1px); }
 /* Slim, unobtrusive scrollbars for panels and lists. */
