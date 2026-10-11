@@ -5,7 +5,7 @@ import {
   ChevronLeft, ChevronRight, CircleHelp, Clock3, Coffee, Command, CreditCard, Download,
   Eye, EyeOff, Filter, Globe2, KeyRound, LayoutDashboard, Leaf, LogOut, Menu, MoreHorizontal,
   Package, Plus, QrCode, Search, Settings2, ShieldCheck, ShoppingBag, SlidersHorizontal,
-  Sparkles, TrendingUp, Users, Utensils, Wallet, X, Crown,
+  Sparkles, TrendingUp, Users, Utensils, Wallet, X,
 } from 'lucide-react'
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar } from 'recharts'
 import { api } from '../../lib/api.js'
@@ -51,7 +51,6 @@ export function Sidebar({ role, page, setPage, user, onLogin, onLogout, onChange
       <nav className="space-y-0.5">{accountItems.map(renderItem)}</nav>
     </div>}
     <div className="mt-auto pt-5">
-      {role === 'OWNER' && <button type="button" title="Subscription plans are coming soon" className="mb-3 flex w-full items-center justify-center gap-2 rounded-lg bg-[#e7654b] px-3 py-2.5 text-[11px] font-semibold text-white transition hover:bg-[#d95c43] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f1a488]" disabled><Crown size={14} />Upgrade to Pro</button>}
       <div className="border-t border-[#efe3dd] pt-3">
         <div className="flex items-center gap-2.5"><div className="grid size-8 shrink-0 place-items-center rounded-full bg-[#fff4ec] text-[11px] font-bold text-[#ea580c]">{role === 'DEVELOPER' ? 'D' : role === 'KITCHEN' ? 'C' : 'S'}</div><div className="min-w-0 flex-1"><p className="truncate text-[11px] font-semibold">{user?.name || 'Staff portal'}</p><p className="mt-0.5 truncate text-[9px] text-[#938780]">{user?.email || 'Sign in to continue'}</p></div><MoreHorizontal size={16} className="shrink-0 text-[#94a3b8]" /></div>
       </div>
