@@ -1,6 +1,14 @@
 import { Notification } from '../models/Notification.js'
 import { StockItem } from '../models/StockItem.js'
 
+// Broadcasts a data-changed event to the whole business room. Screens that
+// graph sales or expenses listen to these and re-fetch instantly, so a new
+// record appears on the dashboard without a page refresh.
+export function broadcastChange(io, hotelId, event) {
+  if (!io || !hotelId) return
+  io.to(`hotel:${hotelId}`).emit(event)
+}
+
 // Creates a notification and pushes it live to every signed-in device of the
 // business's staff watching the hotel room. Never throws into the route — a
 // notification failure must not fail the record being saved.

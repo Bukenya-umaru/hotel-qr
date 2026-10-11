@@ -56,6 +56,14 @@ export default function App() {
   // bell-listeners attach to. A toast pops while the dropdown is closed.
   const [live, setLive] = useState(null)
   const [notificationToast, setNotificationToast] = useState(null)
+  // The dashboard's selected range, kept in App so the live re-fetch below
+  // and the Overview's filter stay in sync. Defaults to the loaded week.
+  const [reportRange, setReportRange] = useState(() => {
+    const end = new Date()
+    const start = new Date()
+    start.setDate(start.getDate() - 6)
+    return { from: dateKey(start), to: dateKey(end) }
+  })
   // Mobile drawer accordion state: sections with children collapse, and at
   // most one of them is expanded at a time.
   const [openMobileGroups, setOpenMobileGroups] = useState(() => new Set())
@@ -112,6 +120,16 @@ export default function App() {
 
   // Toast on new pushes — the dropdown itself re-fetches via its own listener.
   // socket.io-client sockets use .on/.off, not DOM addEventListener.
+  useEffect(() => {
+    if (!live || !user) return undefined
+
+    // Any record that shapes the dashboard graphs (sales or expenses) triggers
+    // an instant re-fetch of the visible date range.
+    const evts = ['sales_changed', 'expenses_changed']
+    for (const evt of evts) live.on(evt, refreshLiveRange)
+    return () => { for (const evt of evts) live.off(evt, refreshLiveRange) }
+  }, [live, user, reportRange])
+
   useEffect(() => {
     if (!live || !user) return undefined
     const onNotification = payload => {
@@ -182,7 +200,16 @@ export default function App() {
     try {
       const report = await api(`/api/owner/analytics/reports?from=${from}&to=${to}`)
       setAnalytics({ ...report, isActual: true })
+      setReportRange({ from, to })
     } catch (err) { setToast(err.message) }
+  }
+  // Live dashboards: sales/expense mutations broadcast these events, so the
+  // visible period re-fetches instantly — no page refresh needed.
+  const refreshLiveRange = () => {
+    if (!user || !['OWNER', 'KITCHEN'].includes(user.role)) return
+    api(`/api/owner/analytics/reports?from=${reportRange.from}&to=${reportRange.to}`)
+      .then(data => setAnalytics({ ...data, isActual: true }))
+      .catch(() => { /* transient; next event or navigation retries */ })
   }
   const resetUserPassword = async password => {
     if (!user || user.role !== 'DEVELOPER') throw new Error('Sign in as a developer to manage accounts.')

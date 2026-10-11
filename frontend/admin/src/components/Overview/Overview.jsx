@@ -6,12 +6,9 @@ import {
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
 import { money } from '../../lib/ui.js'
 import { MetricCard } from '../MetricCard/MetricCard.jsx'
+import { DateCalendar } from '../DateCalendar/DateCalendar.jsx'
 
 const formatDay = value => new Date(`${value}T12:00:00`).toLocaleDateString('en-UG', { weekday: 'short' })
-const businessDay = value => new Intl.DateTimeFormat('en-CA', {
-  timeZone: 'Africa/Kampala', year: 'numeric', month: '2-digit', day: '2-digit',
-}).format(new Date(value))
-const isToday = value => businessDay(value) === businessDay(new Date())
 const formatTime = value => new Date(value).toLocaleTimeString('en-UG', { hour: 'numeric', minute: '2-digit' })
 
 // Heptagon gauge: axes from the centre to each of the 7 corners, a full
@@ -46,31 +43,14 @@ export function Overview({ hotelName, onNavigate, analytics, currency, onRange }
   const expenses = analytics.expenses || []
   const canViewSales = analytics.canViewSales !== false
   const canViewExpenses = analytics.canViewExpenses !== false
-  const todaySales = sales.filter(sale => isToday(sale.createdAt))
-  const todayExpenses = expenses.filter(expense => isToday(expense.createdAt))
-  const salesToday = todaySales.reduce((sum, sale) => sum + Number(sale.amount || 0), 0)
-  const expensesToday = todayExpenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0)
-  const balanceToday = canViewSales && canViewExpenses ? salesToday - expensesToday : null
-  const salesThisWeek = Number(analytics.totalSalesCount || 0)
-  const series = (analytics.series || []).map(day => ({
-    day: formatDay(day.date),
-    sales: day.revenue || 0,
-    expenses: day.expenses || 0,
-  }))
-  const recentSales = sales.slice(0, 3)
-  const recentExpenses = expenses.slice(0, 3)
-  // Share of each recorded sales day that covered its expenses. The demo
-  // image's heptagon is mostly filled, so real data maps naturally here.
-  const positiveDays = (analytics.series || []).filter(day => (day.revenue || 0) >= (day.expenses || 0)).length
-  const coverage = (analytics.series || []).length
-    ? Math.max(0, Math.min(1, positiveDays / (analytics.series || []).length))
-    : 0.7
-  const reportDate = new Intl.DateTimeFormat('en-UG', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date())
 
   // Date filter state, shared by the date button and the Filter chip (both
   // open the same option menu, as in the reference). The first render keeps
   // the range the dashboard already loaded; later changes re-fetch.
   const [periodKey, setPeriodKey] = useState('7')
+  // Custom from/to range picked from the calendar; null while a preset
+  // period is active.
+  const [customRange, setCustomRange] = useState(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef(null)
   const onRangeRef = useRef(onRange)
@@ -82,12 +62,53 @@ export function Overview({ hotelName, onNavigate, analytics, currency, onRange }
     const { from, to } = periodDates(periodKey)
     onRangeRef.current?.(from, to)
   }, [periodKey])
+  // Calendar picking: one click applies that exact date; two clicks apply
+  // the from→to span. Both go through the same fetch as the preset periods.
+  const applyRange = (from, to) => {
+    setCustomRange({ from, to })
+    onRangeRef.current?.(from, to)
+  }
   useEffect(() => {
     if (!menuOpen) return undefined
     const close = event => { if (!menuRef.current?.contains(event.target)) setMenuOpen(false) }
     document.addEventListener('mousedown', close)
     return () => document.removeEventListener('mousedown', close)
   }, [menuOpen])
+  const period = customRange
+    ? { label: `${customRange.from === customRange.to ? 'that day' : 'that range'}` }
+    : PERIODS.find(item => item.key === periodKey) || PERIODS[1]
+  // Calendar preview range (fall back to the preset's dates for highlighting).
+  const { from: periodFrom, to: periodTo } = customRange || periodDates(periodKey)
+  // 'today'/'in period' wording keys off whether a single day is selected.
+  const dayWording = customRange?.from === customRange?.to || (!customRange && periodKey === 'today') ? 'today' : 'in period'
+
+  // Every figure below comes from the analytics payload the selected period
+  // fetched — the dashboard shows exactly the chosen date's or range's data.
+  const salesTotal = canViewSales ? Number(analytics.totalRevenue || 0) : null
+  const expensesTotal = canViewExpenses ? Number(analytics.totalExpenses || 0) : null
+  const profit = canViewSales && canViewExpenses
+    ? Number(analytics.totalRevenue || 0) - Number(analytics.totalExpenses || 0)
+    : null
+  const series = (analytics.series || []).map(day => ({
+    day: formatDay(day.date),
+    sales: day.revenue || 0,
+    expenses: day.expenses || 0,
+  }))
+  const recentSales = sales.slice(0, 3)
+  const recentExpenses = expenses.slice(0, 3)
+  let approvedCount = 0
+  let pendingCount = 0
+  for (const sale of sales) {
+    if (sale.approved === false) pendingCount += 1
+    else approvedCount += 1
+  }
+  const periodSales = sales.length
+  const uniqueCustomers = new Set(sales.map(sale => sale.customerContact || sale.customerName).filter(Boolean)).size
+  // Share of each recorded day in the period whose sales covered expenses.
+  const seriesRaw = analytics.series || []
+  const positiveDays = seriesRaw.filter(day => (day.revenue || 0) >= (day.expenses || 0)).length
+  const coverage = seriesRaw.length ? Math.max(0, Math.min(1, positiveDays / seriesRaw.length)) : 0.7
+  const reportDate = new Intl.DateTimeFormat('en-UG', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date())
 
   return <div className="space-y-4">
     <div className="flex flex-wrap items-end justify-between gap-3">
@@ -96,8 +117,6 @@ export function Overview({ hotelName, onNavigate, analytics, currency, onRange }
         <p className="mt-0.5 text-[10px] text-[#938780]">Sales, expenses, and stock activity at {hotelName}.</p>
         <div className="mt-3 flex items-center gap-4 border-b border-[#e8ded9]">
           <span className="relative -mb-px border-b-2 border-[#e7654b] px-2.5 pb-1.5 text-[11px] font-semibold text-[#d95c43]">Overview</span>
-          <button onClick={() => onNavigate('Sales')} className="relative -mb-px border-b-2 border-transparent px-2.5 pb-1.5 text-[11px] text-[#655a54] transition hover:border-[#e8ded9] hover:text-[#d95c43]">Sales</button>
-          <button onClick={() => onNavigate('Purchase expenses')} className="relative -mb-px border-b-2 border-transparent px-2.5 pb-1.5 text-[11px] text-[#655a54] transition hover:border-[#e8ded9] hover:text-[#d95c43]">Expenses</button>
         </div>
       </div>
       <div ref={menuRef} className="relative mb-1 flex items-center gap-2">
@@ -107,29 +126,33 @@ export function Overview({ hotelName, onNavigate, analytics, currency, onRange }
         <button onClick={() => setMenuOpen(previous => !previous)} aria-haspopup="listbox" aria-expanded={menuOpen} className="inline-flex items-center gap-2 rounded-md border border-[#eadfd9] bg-white px-3 py-2 text-[10px] font-medium text-[#655a54] transition hover:border-[#e7654b]">
           <SlidersHorizontal size={14} className={periodKey === 'today' ? 'text-[#d95c43]' : 'text-[#8d817b]'} />Filter
         </button>
-        {menuOpen && <div role="listbox" className="absolute right-0 top-full z-40 mt-2 w-[190px] overflow-hidden rounded-lg border border-[#f0e8e4] bg-white py-1 shadow-[0_12px_40px_rgba(53,42,36,.14)]">
-          {PERIODS.map(item => <button key={item.key} role="option" aria-selected={item.key === periodKey} onClick={() => { setPeriodKey(item.key); setMenuOpen(false) }} className={`flex w-full items-center justify-between px-3.5 py-2 text-left text-[11px] transition hover:bg-[#fff8f5] ${item.key === periodKey ? 'font-semibold text-[#d95c43]' : 'text-[#655a54]'}`}>
-            {item.label}{item.key === periodKey && <span className="size-1.5 rounded-full bg-[#e7654b]" />}
-          </button>)}
+        {menuOpen && <div className="absolute right-0 top-full z-40 mt-2 w-[280px] space-y-1 overflow-hidden rounded-lg border border-[#f0e8e4] bg-white py-2 shadow-[0_12px_40px_rgba(53,42,36,.14)]">
+          <div className="flex gap-1 px-2">
+            {PERIODS.map(item => <button key={item.key} onClick={() => { setCustomRange(null); setPeriodKey(item.key) }} className={`flex-1 rounded-md px-1 py-1.5 text-[9px] font-medium transition ${item.key === periodKey && !customRange ? 'bg-[#fde3da] font-semibold text-[#d95c43]' : 'text-[#655a54] hover:bg-[#fff8f5]'}`}>{item.label}</button>)}
+          </div>
+          <div className="border-t border-[#f1eae6] pt-1">
+            <DateCalendar from={customRange?.from || periodFrom} to={customRange?.to || periodTo} onApply={applyRange} onClose={() => setMenuOpen(false)} />
+          </div>
         </div>}
       </div>
     </div>
+    <p className="-mt-2 text-[10px] text-[#a19690]">Showing <span className="font-semibold text-[#d95c43]">{period.label.toLowerCase()}</span> · pick a period with the date or filter button</p>
 
     <div className="grid grid-cols-2 gap-2.5 xl:grid-cols-4 xl:gap-3.5">
-      <MetricCard title="Available Dish" value={canViewSales ? salesThisWeek : '—'} icon={ShoppingBag} detail={canViewSales ? `${todaySales.length} recorded today` : 'Access not granted'} />
-      <MetricCard title="Total Order" value={canViewSales ? todaySales.length : '—'} icon={ChartNoAxesCombined} detail={canViewSales ? `${money(salesToday, currency)} today` : 'Access not granted'} />
-      <MetricCard title="Total Sale" value={canViewSales ? money(salesToday, currency) : '—'} icon={TrendingUp} detail={canViewSales ? 'Recorded today' : 'Access not granted'} />
-      <MetricCard title="Total Profit" value={balanceToday === null ? '—' : money(balanceToday, currency)} icon={Wallet} detail={canViewExpenses ? `${money(expensesToday, currency)} spent today` : 'Access not granted'} inverse />
+      <MetricCard title="Available Dish" value={canViewSales ? periodSales : '—'} icon={ShoppingBag} detail={canViewSales ? 'sales recorded in period' : 'Access not granted'} />
+      <MetricCard title="Total Order" value={canViewSales ? periodSales : '—'} icon={ChartNoAxesCombined} detail={canViewSales ? `${period.label} orders` : 'Access not granted'} />
+      <MetricCard title="Total Sale" value={salesTotal === null ? '—' : money(salesTotal, currency)} icon={TrendingUp} detail={canViewSales ? `${period.label} revenue` : 'Access not granted'} />
+      <MetricCard title="Total Profit" value={profit === null ? '—' : money(profit, currency)} icon={Wallet} detail={canViewExpenses ? `${money(expensesTotal || 0, currency)} spent ${dayWording}` : 'Access not granted'} inverse />
     </div>
 
     <div className="flex flex-col gap-3.5 xl:flex-row">
       <div className="grid min-w-0 flex-1 gap-3.5 lg:grid-cols-5">
         <section className="border border-[#f0e8e4] bg-white p-3.5 sm:p-4 lg:col-span-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div><h3 className="font-display text-[16px] font-bold text-[#292421]">Total Revenue</h3><p className="mt-1 text-[10px] text-[#a19690]">Recorded activity over the last 7 days</p></div>
+            <div><h3 className="font-display text-[16px] font-bold text-[#292421]">Total Revenue</h3><p className="mt-1 text-[10px] text-[#a19690]">Recorded activity, {period.label.toLowerCase()}</p></div>
             <span className="mt-0.5 inline-flex items-center gap-1.5 text-[10px] font-medium text-[#786d67]"><i className="size-2 rounded-sm bg-[#e7654b]" />Sales <i className="ml-2 size-2 rounded-sm bg-[#f2c7bb]" />Expenses</span>
           </div>
-          <div className="mt-4 flex items-baseline gap-2"><strong className="font-display text-[18px] font-bold text-[#292421]">{canViewSales ? money(analytics.totalRevenue || 0, currency) : '—'}</strong><span className="text-[10px] text-[#a19690]">sales this week</span></div>
+          <div className="mt-4 flex items-baseline gap-2"><strong className="font-display text-[18px] font-bold text-[#292421]">{salesTotal === null ? '—' : money(salesTotal, currency)}</strong><span className="text-[10px] text-[#a19690]">sales {dayWording}</span></div>
           <div className="mt-2 h-[184px] w-full sm:h-[205px]">
             {series.length ? <ResponsiveContainer width="100%" height="100%">
               <BarChart data={series} margin={{ top: 8, right: 4, left: -20, bottom: 0 }} barGap={-15}>
@@ -161,11 +184,11 @@ export function Overview({ hotelName, onNavigate, analytics, currency, onRange }
           </div>
           <div className="mt-2 flex justify-between text-[9px] text-[#8d817b]">
             <span><i className="mr-1 inline-block size-1.5 rounded-full bg-[#e7654b]" />Covered</span>
-            <span>{positiveDays}/{(analytics.series || []).length} days</span>
+            <span>{positiveDays}/{seriesRaw.length} days</span>
           </div>
           <div className="mt-3 border-t border-[#f1eae6] pt-3">
-            <div className="flex items-center justify-between"><span className="text-[10px] text-[#8d817b]">Expenses today</span><strong className="text-[12px] font-bold text-[#292421]">{canViewExpenses ? money(expensesToday, currency) : '—'}</strong></div>
-            <div className="mt-2 flex items-center justify-between"><span className="text-[10px] text-[#8d817b]">Sales today</span><strong className="text-[12px] font-bold text-[#292421]">{canViewSales ? money(salesToday, currency) : '—'}</strong></div>
+            <div className="flex items-center justify-between"><span className="text-[10px] text-[#8d817b]">Expenses {dayWording}</span><strong className="text-[12px] font-bold text-[#292421]">{expensesTotal === null ? '—' : money(expensesTotal, currency)}</strong></div>
+            <div className="mt-2 flex items-center justify-between"><span className="text-[10px] text-[#8d817b]">Sales {dayWording}</span><strong className="text-[12px] font-bold text-[#292421]">{salesTotal === null ? '—' : money(salesTotal, currency)}</strong></div>
           </div>
         </section>
 
@@ -181,7 +204,7 @@ export function Overview({ hotelName, onNavigate, analytics, currency, onRange }
 
         <section className="border border-[#f0e8e4] bg-white p-3.5 sm:p-4 lg:col-span-3">
           <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-2"><span className="grid size-7 place-items-center rounded-full bg-[#fff0ea] text-[#d95c43]"><Receipt size={15} /></span><div><h3 className="font-display text-[16px] font-bold text-[#292421]">Last Reports</h3><p className="mt-1 text-[10px] text-[#a19690]">Latest recorded costs</p></div></div>
+            <div className="flex items-center gap-2"><span className="grid size-7 place-items-center rounded-full bg-[#fff0ea] text-[#d95c43]"><Receipt size={15} /></span><div><h3 className="font-display text-[16px] font-bold text-[#292421]">Last Reports</h3><p className="mt-1 text-[10px] text-[#a19690]">Latest costs, {period.label.toLowerCase()}</p></div></div>
             <button onClick={() => onNavigate('Reports')} className="text-[10px] font-medium text-[#d95c43] hover:underline">See all</button>
           </div>
           <div className="mt-4 space-y-2">
@@ -189,21 +212,21 @@ export function Overview({ hotelName, onNavigate, analytics, currency, onRange }
               <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#fff3ee] text-[#d95c43]"><Receipt size={14} /></span>
               <div className="min-w-0 flex-1"><p className="truncate text-[10px] font-semibold text-[#292421]">{expense.categoryName || 'Expense'}</p><p className="mt-1 truncate text-[9px] text-[#8d817b]">{expense.note || formatTime(expense.createdAt)}</p></div>
               <strong className="shrink-0 text-[10px] font-semibold text-[#292421]">{canViewExpenses ? money(expense.amount, currency) : '—'}</strong>
-            </div>) : <p className="py-6 text-center text-[10px] text-[#8d817b]">No expenses have been recorded yet.</p>}
+            </div>) : <p className="py-6 text-center text-[10px] text-[#8d817b]">No expenses {dayWording}.</p>}
           </div>
           <button onClick={() => onNavigate('Reports')} className="mt-3 flex w-full items-center justify-center gap-2 bg-[#e7654b] px-3 py-2.5 text-[10px] font-semibold text-white transition hover:bg-[#d95c43]">Download PDF <Download size={13} /></button>
         </section>
 
         <section className="border border-[#f0e8e4] bg-white p-3.5 sm:p-4 lg:col-span-2">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2"><span className="grid size-7 place-items-center rounded-full bg-[#fff0ea] text-[#d95c43]"><UsersRound size={15} /></span><div><h3 className="font-display text-[16px] font-bold text-[#292421]">Your Customer</h3><p className="mt-1 text-[10px] text-[#a19690]">Today&apos;s customers served</p></div></div>
+            <div className="flex items-center gap-2"><span className="grid size-7 place-items-center rounded-full bg-[#fff0ea] text-[#d95c43]"><UsersRound size={15} /></span><div><h3 className="font-display text-[16px] font-bold text-[#292421]">Your Customer</h3><p className="mt-1 text-[10px] text-[#a19690]">Customers served {period.label.toLowerCase()}</p></div></div>
             <MoreHorizontal size={18} className="text-[#8d817b]" />
           </div>
           <div className="mt-4 flex items-center justify-around gap-3 text-center">
-            <div><strong className="font-display text-[20px] font-bold text-[#292421]">{todaySales.length}</strong><p className="mt-1 text-[9px] text-[#8d817b]">Today</p></div>
-            <div className="h-9 w-px bg-[#eee4df]" /><div><strong className="font-display text-[20px] font-bold text-[#292421]">{salesThisWeek}</strong><p className="mt-1 text-[9px] text-[#8d817b]">This week</p></div>
+            <div><strong className="font-display text-[20px] font-bold text-[#292421]">{periodSales}</strong><p className="mt-1 text-[9px] text-[#8d817b]">Orders</p></div>
+            <div className="h-9 w-px bg-[#eee4df]" /><div><strong className="font-display text-[20px] font-bold text-[#292421]">{uniqueCustomers}</strong><p className="mt-1 text-[9px] text-[#8d817b]">Unique customers</p></div>
           </div>
-          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-[#fdece5]"><div className="h-full rounded-full bg-[#e7654b] transition-all" style={{ width: `${Math.max(4, Math.min(100, salesThisWeek ? (todaySales.length / salesThisWeek) * 100 : 0))}%` }} /></div>
+          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-[#fdece5]"><div className="h-full rounded-full bg-[#e7654b] transition-all" style={{ width: `${Math.max(4, Math.min(100, periodSales ? 100 : 4))}%` }} /></div>
           <button onClick={() => onNavigate('Sales')} className="mt-3 flex w-full items-center justify-center gap-1 text-[10px] font-semibold text-[#d95c43] hover:underline">View More</button>
         </section>
       </div>
@@ -216,19 +239,19 @@ export function Overview({ hotelName, onNavigate, analytics, currency, onRange }
           </div>
           <div className="mt-4 grid grid-cols-3 gap-1.5">
             {[
-              { label: 'Today Orders', count: todaySales.length },
-              { label: 'Completed', count: todaySales.filter(sale => sale.approved !== false).length },
-              { label: 'Pending', count: todaySales.filter(sale => sale.approved === false).length },
+              { label: 'Orders', count: periodSales },
+              { label: 'Completed', count: approvedCount },
+              { label: 'Pending', count: pendingCount },
             ].map((item, index) => <div key={item.label} className={`flex min-h-[84px] flex-col items-center justify-center text-white ${index === 1 ? 'bg-[#df634b]' : index === 2 ? 'bg-[#e97158]' : 'bg-[#e7654b]'}`}>
               <strong className="font-display text-[22px] font-bold leading-none">{item.count}</strong><span className="mt-2 text-center text-[9px]">{item.label}</span>
             </div>)}
           </div>
-          <div className="mt-3 flex items-center justify-between text-[9px] text-[#8d817b]"><span>{balanceToday === null ? 'Financial summary access is limited' : `${money(balanceToday, currency)} remaining today`}</span><button onClick={() => onNavigate('Make sale')} className="font-semibold text-[#d95c43] hover:underline">Record sale</button></div>
+          <div className="mt-3 flex items-center justify-between text-[9px] text-[#8d817b]"><span>{profit === null ? 'Financial summary access is limited' : `${expensesTotal ? 'Expenses' : 'No expenses'} ${dayWording}`}</span><button onClick={() => onNavigate('Make sale')} className="font-semibold text-[#d95c43] hover:underline">Record sale</button></div>
         </section>
 
         <section className="border border-[#f0e8e4] bg-white">
           <div className="flex items-center justify-between border-b border-[#f1eae6] px-4 py-3.5 sm:px-5">
-            <div><h3 className="font-display text-[16px] font-bold text-[#292421]">Recent Order</h3><p className="mt-1 text-[10px] text-[#a19690]">Latest recorded food sales</p></div>
+            <div><h3 className="font-display text-[16px] font-bold text-[#292421]">Recent Order</h3><p className="mt-1 text-[10px] text-[#a19690]">Latest recorded food sales, {period.label.toLowerCase()}</p></div>
             <button onClick={() => onNavigate('Sales')} className="grid size-7 place-items-center rounded-full bg-[#fbf5f2] text-[#8d817b] transition hover:text-[#d95c43]" aria-label="View all sales"><ArrowRight size={14} /></button>
           </div>
           <div className="space-y-2.5 p-3 sm:p-4">
@@ -236,7 +259,7 @@ export function Overview({ hotelName, onNavigate, analytics, currency, onRange }
               <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#fff0ea] text-[#d95c43]"><ShoppingBag size={16} /></span>
               <span className="min-w-0 flex-1"><span className="block truncate text-[10px] font-semibold text-[#292421]">{sale.name || sale.items?.[0]?.name || 'Food sale'}</span><span className="mt-1 block truncate text-[9px] text-[#8d817b]">{sale.saleId || formatTime(sale.createdAt)}{sale.customerName ? ` · ${sale.customerName}` : ''}</span></span>
               <div className="shrink-0 text-right"><strong className="block text-[10px] font-semibold text-[#292421]">{canViewSales ? money(sale.amount, currency) : '—'}</strong><span className={`mt-1 inline-block rounded px-1.5 py-0.5 text-[8px] font-semibold ${sale.approved === false ? 'bg-[#fdf1cf] text-[#c4901c]' : 'bg-[#eaf7ef] text-[#55a978]'}`}>{sale.approved === false ? 'Pending' : 'Complete'}</span></div>
-            </div>) : <div className="py-8 text-center"><span className="mx-auto grid size-9 place-items-center rounded-full bg-[#fbf5f2] text-[#a19690]"><ShoppingBag size={16} /></span><p className="mt-2 text-[10px] text-[#8d817b]">Record your first food sale to see it here.</p></div>}
+            </div>) : <div className="py-8 text-center"><span className="mx-auto grid size-9 place-items-center rounded-full bg-[#fbf5f2] text-[#a19690]"><ShoppingBag size={16} /></span><p className="mt-2 text-[10px] text-[#8d817b]">No sales {dayWording}.</p></div>}
           </div>
           <button onClick={() => onNavigate('Sales')} className="flex w-full items-center justify-center gap-1 border-t border-[#f1eae6] px-4 py-3 text-[10px] font-semibold text-[#d95c43] hover:bg-[#fffbf9]">View sales ledger <ArrowRight size={12} /></button>
         </section>

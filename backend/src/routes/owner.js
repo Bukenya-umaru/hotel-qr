@@ -13,7 +13,7 @@ import { StockItem } from '../models/StockItem.js'
 import { Hotel } from '../models/Hotel.js'
 import { removeUploadedImage, uploadMenuImage } from '../middleware/upload.js'
 import { asyncRoute, idIsValid, safeMenuItem, safeSupport } from '../utils/http.js'
-import { notifyHotel, checkLowStock } from '../utils/notify.js'
+import { notifyHotel, checkLowStock, broadcastChange } from '../utils/notify.js'
 import { storePassword } from '../utils/passwordVault.js'
 import { isStrongPassword, PASSWORD_RULE_MESSAGE } from '../utils/passwordPolicy.js'
 import { ALL_PERMISSIONS } from '../utils/permissions.js'
@@ -271,6 +271,13 @@ router.post('/expenses', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute
     approvedBy: autoApproved ? req.user._id : null,
     approvedAt: autoApproved ? new Date() : null,
   })
+  await notifyHotel(req.app.get('io'), scope, {
+    type: 'new_expense',
+    title: `New expense recorded — ${category.name}`,
+    body: `${expense.amount} · ${note || 'no note'} · by ${req.user.name}${autoApproved ? '' : ' · awaiting approval'}`,
+    refId: expense._id,
+  })
+  broadcastChange(req.app.get('io'), scope, 'expenses_changed')
   res.status(201).json({ expense: { ...expense.toObject(), recordedBy: req.user.name } })
 }))
 
@@ -282,6 +289,7 @@ router.delete('/expenses/:expenseId', authenticate, authorize('OWNER', 'KITCHEN'
   // Approved expenses are the books of record — they can no longer be changed.
   if (expense.approved) return res.status(403).json({ message: 'This expense has been approved and can no longer be changed.' })
   await HotelExpense.deleteOne({ _id: expense._id })
+  broadcastChange(req.app.get('io'), String(hotelScope(req)), 'expenses_changed')
   res.status(204).end()
 }))
 
@@ -302,6 +310,7 @@ router.post('/expenses/:expenseId/approve', authenticate, authorize('OWNER', 'KI
     body: `Signed off by ${req.user.name}`,
     refId: expense._id,
   })
+  broadcastChange(req.app.get('io'), String(hotelScope(req)), 'expenses_changed')
   res.json({ expense: { ...expense.toObject(), approvedByName: req.user.name } })
 }))
 
@@ -544,6 +553,7 @@ router.post('/sales', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(as
     refId: sale._id,
   })
   await checkLowStock(req.app.get('io'), scope, [...stockUsage.keys()])
+  broadcastChange(req.app.get('io'), scope, 'sales_changed')
   res.status(201).json({ sale: { ...sale.toObject(), saleId: displaySaleId(sale), items: saleItems(sale), recordedBy: req.user.name } })
 }))
 
@@ -555,6 +565,7 @@ router.delete('/sales/:saleId', authenticate, authorize('OWNER', 'KITCHEN'), asy
   // Approved sales are the books of record — they can no longer be changed.
   if (sale.approved) return res.status(403).json({ message: 'This sale has been approved and can no longer be changed.' })
   await Sale.deleteOne({ _id: sale._id })
+  broadcastChange(req.app.get('io'), String(hotelScope(req)), 'sales_changed')
   res.status(204).end()
 }))
 
@@ -663,6 +674,7 @@ router.post('/sales/:saleId/approve', authenticate, authorize('OWNER', 'KITCHEN'
     body: `Signed off by ${req.user.name}`,
     refId: sale._id,
   })
+  broadcastChange(req.app.get('io'), String(hotelScope(req)), 'sales_changed')
   res.json({ sale: { ...sale.toObject(), saleId: displaySaleId(sale), items: saleItems(sale), approvedByName: req.user.name } })
 }))
 
