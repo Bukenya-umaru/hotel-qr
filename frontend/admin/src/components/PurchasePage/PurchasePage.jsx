@@ -1,14 +1,15 @@
 import { Fragment, useEffect, useState } from 'react'
+import { io } from 'socket.io-client'
 import {
   ArrowDown, BadgePlus, Banknote, CalendarDays, Check, ChevronRight, History, Minus, Pencil, Plus, Receipt, Trash2,
 } from 'lucide-react'
-import { api } from '../../lib/api.js'
+import { api, API_BASE_URL } from '../../lib/api.js'
 import { money, cx, UNIT_OPTIONS, unitDisplay } from '../../lib/ui.js'
 import { Modal } from '../Modal/Modal.jsx'
 
 // Sales and expense records each open their own workspace, like the
 // Food type and expense-category sections in Categories.
-export function PurchasePage({ initialView = 'menu', canManageExpenses = true, canApprove = false }) {
+export function PurchasePage({ hotelId, initialView = 'menu', canManageExpenses = true, canApprove = false }) {
   const [view, setView] = useState(initialView) // 'menu' | 'make-sale' | 'sales' | 'expenses'
   const [saleCount, setSaleCount] = useState(null)
   const [expenseCount, setExpenseCount] = useState(null)
@@ -74,8 +75,8 @@ export function PurchasePage({ initialView = 'menu', canManageExpenses = true, c
     </div>}
 
     {view === 'make-sale' && <MakeSaleView onError={setError} onViewSales={() => setView('sales')} />}
-    {view === 'sales' && <SalesView onError={setError} canApprove={canApprove} />}
-    {view === 'expenses' && <ExpensesView onError={setError} canApprove={canApprove} />}
+    {view === 'sales' && <SalesView onError={setError} canApprove={canApprove} hotelId={hotelId} />}
+    {view === 'expenses' && <ExpensesView onError={setError} canApprove={canApprove} hotelId={hotelId} />}
   </div>
 }
 
@@ -110,23 +111,27 @@ const presetRange = preset => {
 const inDayRange = (time, fromBound, toBound) => (fromBound == null || time >= fromBound) && (toBound == null || time <= toBound)
 
 // The From/To date inputs and preset chips shared by the Sales and
-// Expenses filters.
+// Expenses filters — styled to match the dashboard's date + Filter chips.
 function DateFilterRow({ range, setRange }) {
-  return <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-    <label className="flex items-center gap-1 rounded-lg border border-[#e7ebf0] bg-[#f8fafc] px-2 py-1">
-      <CalendarDays size={12} className="shrink-0 text-[#f97316]" />
-      <span className="text-[9px] font-semibold text-[#64748b]">From</span>
-      <input type="date" aria-label="Filter from date" value={range.from} max={range.to || undefined} onChange={event => setRange({ ...range, from: event.target.value })} className="bg-transparent text-[10px] font-medium text-[#0f172a] outline-none" />
+  const inputClass = 'bg-white text-[10px] font-medium text-[#292421] outline-none '
+    + '[color-scheme:light] [&::-webkit-calendar-picker-indicator]:opacity-60'
+  const chipClass = 'flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-[#eadfd9] bg-white px-2.5 py-2 '
+    + 'transition focus-within:border-[#e7654b] hover:border-[#e7654b]'
+  return <div className="mt-2.5 flex w-full flex-nowrap items-center gap-1.5 overflow-x-auto overscroll-x-contain sm:flex-wrap sm:overflow-visible">
+    <label className={chipClass}>
+      <CalendarDays size={13} className="shrink-0 text-[#8d817b]" />
+      <span className="text-[9px] font-semibold text-[#655a54]">From</span>
+      <input type="date" aria-label="Filter from date" value={range.from} max={range.to || undefined} onChange={event => setRange({ ...range, from: event.target.value })} className={inputClass} />
     </label>
-    <label className="flex items-center gap-1 rounded-lg border border-[#e7ebf0] bg-[#f8fafc] px-2 py-1">
-      <CalendarDays size={12} className="shrink-0 text-[#f97316]" />
-      <span className="text-[9px] font-semibold text-[#64748b]">To</span>
-      <input type="date" aria-label="Filter to date" value={range.to} min={range.from || undefined} max={isoDay(new Date())} onChange={event => setRange({ ...range, to: event.target.value })} className="bg-transparent text-[10px] font-medium text-[#0f172a] outline-none" />
+    <label className={chipClass}>
+      <CalendarDays size={13} className="shrink-0 text-[#8d817b]" />
+      <span className="text-[9px] font-semibold text-[#655a54]">To</span>
+      <input type="date" aria-label="Filter to date" value={range.to} min={range.from || undefined} max={isoDay(new Date())} onChange={event => setRange({ ...range, to: event.target.value })} className={inputClass} />
     </label>
     {DATE_PRESETS.map(([key, label]) => {
       const target = presetRange(key)
       const active = range.from === target.from && range.to === target.to
-      return <button key={key} type="button" onClick={() => setRange(target)} className={cx('rounded-full px-2.5 py-1 text-[9px] font-semibold transition', active ? 'bg-[#f1f4f9] text-[#0f172a]' : 'text-[#64748b] hover:bg-[#f1f4f9] hover:text-[#0f172a]')}>{label}</button>
+      return <button key={key} type="button" onClick={() => setRange(target)} className={cx('shrink-0 whitespace-nowrap rounded-md border px-2.5 py-2 text-[9px] font-semibold transition', active ? 'border-[#e7654b] bg-[#fde3da] text-[#d95c43]' : 'border-[#eadfd9] bg-white text-[#655a54] hover:border-[#e7654b] hover:text-[#d95c43]')}>{label}</button>
     })}
   </div>
 }
@@ -134,7 +139,7 @@ function DateFilterRow({ range, setRange }) {
 // ---- Subsection: Sales — every sale made by the hotel, newest first,   ----
 // ---- each shown with its own ID. Recording lives in the Make sale tab. ----
 
-function SalesView({ onError, canApprove = false }) {
+function SalesView({ onError, canApprove = false, hotelId }) {
   const [sales, setSales] = useState([])
   const [stats, setStats] = useState({ total: 0, count: 0, todayTotal: 0, todayCount: 0 })
   const [busy, setBusy] = useState(false)
@@ -153,6 +158,17 @@ function SalesView({ onError, canApprove = false }) {
     }
   }
   useEffect(() => { load() }, [])
+
+  // Live list: the backend broadcasts sales_changed on every record,
+  // approve, edit or delete — the list refreshes instantly, no page reload.
+  useEffect(() => {
+    const socket = io(API_BASE_URL || undefined, { withCredentials: true })
+    socket.on('connect', () => {
+      socket.emit('join_hotel', hotelId)
+    })
+    socket.on('sales_changed', load)
+    return () => socket.disconnect()
+  }, [])
 
   const removeSale = async sale => {
     if (!window.confirm(`Remove the sale "${sale.name}" (${money(sale.amount)})?`)) return
@@ -195,7 +211,7 @@ function SalesView({ onError, canApprove = false }) {
 
   return <div className="rounded-xl border border-[#e7ebf0] bg-white p-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <p className="flex items-center gap-2 text-[11px] font-bold text-[#0f172a]">Recorded sales
+      <p className="flex items-center gap-2 font-display text-[15px] font-bold text-[#292421]">Recorded sales
         <span className="rounded-full bg-[#f1f4f9] px-2 py-0.5 text-[9px] font-semibold text-[#64748b]">{stats.count}</span>
       </p>
       <div className="flex flex-wrap items-center gap-1.5">
@@ -646,7 +662,7 @@ function MakeSaleView({ onError, onViewSales }) {
 // ---- Subsection: Expenses — everything the hotel spends, filed under the ----
 // ---- expense categories managed in Categories > Expenses in the sidebar. ----
 
-function ExpensesView({ onError, canApprove = false }) {
+function ExpensesView({ onError, canApprove = false, hotelId }) {
   const [expenses, setExpenses] = useState([])
   const [byCategory, setByCategory] = useState([])
   const [stats, setStats] = useState({ total: 0, count: 0, todayTotal: 0, todayCount: 0 })
@@ -666,6 +682,17 @@ function ExpensesView({ onError, canApprove = false }) {
     }
   }
   useEffect(() => { load() }, [])
+
+  // Live list: expenses broadcast expenses_changed on record, approve or
+  // delete — the list refreshes instantly, no page reload.
+  useEffect(() => {
+    const socket = io(API_BASE_URL || undefined, { withCredentials: true })
+    socket.on('connect', () => {
+      socket.emit('join_hotel', hotelId)
+    })
+    socket.on('expenses_changed', load)
+    return () => socket.disconnect()
+  }, [])
 
   const removeExpense = async expense => {
     const label = expense.note ? `${expense.categoryName} — ${expense.note}` : expense.categoryName
@@ -708,7 +735,7 @@ function ExpensesView({ onError, canApprove = false }) {
 
   return <div className="rounded-xl border border-[#e7ebf0] bg-white p-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <p className="flex items-center gap-2 text-[11px] font-bold text-[#0f172a]">Recorded expenses
+      <p className="flex items-center gap-2 font-display text-[15px] font-bold text-[#292421]">Recorded expenses
         <span className="rounded-full bg-[#f1f4f9] px-2 py-0.5 text-[9px] font-semibold text-[#64748b]">{stats.count}</span>
       </p>
       <div className="flex flex-wrap items-center gap-1.5">
