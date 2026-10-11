@@ -2,7 +2,7 @@ import { ChevronDown } from 'lucide-react'
 import { cx } from '../../lib/ui.js'
 
 export function MetricCard({ title, value, change, icon: Icon, detail, inverse = false }) {
-  return <div className={cx('flex h-full min-h-[104px] min-w-0 flex-col justify-between border p-3.5 sm:min-h-[108px]', inverse ? 'border-[#f2ddd4] bg-[#fffbf9]' : 'border-[#f0e8e4] bg-white')}>
+  return <div className={cx('flex h-full min-h-[104px] min-w-0 flex-col justify-between border p-3.5 sm:min-h-[108px]', inverse ? 'border-[#f2ddd4] bg-[#fffbf9] dark-surface-inverse' : 'border-[#f0e8e4] bg-white')}>
     <div className="flex items-center justify-between gap-2">
       <span className="min-w-0 truncate text-[12px] font-medium text-[#655a54]">{title}</span>
       <span className="grid size-5 shrink-0 place-items-center rounded-full border border-[#eee4df] text-[#8d817b]"><ChevronDown size={12} /></span>

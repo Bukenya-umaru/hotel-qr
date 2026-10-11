@@ -3,6 +3,7 @@ import { io } from 'socket.io-client'
 import { Check, ChevronDown, LogOut, Menu, ShieldCheck, X } from 'lucide-react'
 import { api, API_BASE_URL } from '../../lib/api.js'
 import { cx, navItems, hasPermission } from '../../lib/ui.js'
+import { applyTheme, readTheme, toggleTheme } from '../../lib/theme.js'
 import { Reports } from '../Reports/Reports.jsx'
 import { AccountsPage } from '../AccountsPage/AccountsPage.jsx'
 import { DeveloperDashboard } from '../DeveloperDashboard/DeveloperDashboard.jsx'
@@ -51,6 +52,8 @@ export default function App() {
   const [toast, setToast] = useState('')
   const [apiError, setApiError] = useState('')
   const [mobileNav, setMobileNav] = useState(false)
+  const [theme, setTheme] = useState(readTheme)
+  const flipTheme = () => setTheme(toggleTheme(theme))
   // One shared live socket for real-time notifications; 'live' is the node the
   // bell-listeners attach to. A toast pops while the dropdown is closed.
   const [live, setLive] = useState(null)
@@ -68,6 +71,7 @@ export default function App() {
   const [openMobileGroups, setOpenMobileGroups] = useState(() => new Set())
   const hotelName = user?.hotel?.name || (role === 'DEVELOPER' ? 'WAGA BITES support' : 'Your business')
 
+  useEffect(() => { applyTheme(theme) }, [])
   useEffect(() => {
     api('/api/auth/me').then(data => { setUser(data.user); if (data.user.role) setPage(data.user.role === 'DEVELOPER' ? 'Platform overview' : 'Overview') }).catch(() => {})
   }, [])
@@ -269,7 +273,7 @@ export default function App() {
     {mobileNav && <div className="fixed inset-0 z-30 bg-[#0f172a]/30 lg:hidden" onMouseDown={e => { if (e.target === e.currentTarget) setMobileNav(false) }}><div className="flex h-full max-h-[100dvh] w-[min(270px,85vw)] flex-col overflow-y-auto bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" onClick={e => e.stopPropagation()}><div className="flex items-center justify-between px-2 py-2"><Brand /><button onClick={() => setMobileNav(false)} aria-label="Close navigation" className="grid size-9 place-items-center rounded-lg hover:bg-[#f8fafc]"><X size={18} /></button></div><div className="mt-5 rounded-xl border border-[#e7ebf0] p-3"><p className="truncate text-[11px] font-semibold">{hotelName}</p><p className="mt-1 text-[10px] text-[#94a3b8]">{user?.name || 'WAGA BITES'}</p></div><p className="mb-2 mt-6 px-2 text-[10px] font-bold uppercase tracking-[1.3px] text-[#94a3b8]">{role === 'DEVELOPER' ? 'Developer support' : role === 'KITCHEN' ? 'Chef portal' : 'Owner portal'}</p><nav className="space-y-1">{currentNav.map(item => item.children
               ? <div key={item.label}><button onClick={() => toggleMobileGroup(item.label)} className={cx('flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-[12px] font-semibold transition', item.children.some(child => (child.target || child.label) === page) ? 'bg-[#fff4ec] text-[#ea580c]' : 'text-[#64748b] hover:bg-[#f8fafc] hover:text-[#1e293b]')}><item.icon size={17} /><span className="flex-1">{item.label}</span><ChevronDown size={14} className={cx('shrink-0 text-[#94a3b8] transition-transform', openMobileGroups.has(item.label) ? '' : '-rotate-90')} /></button>{openMobileGroups.has(item.label) && <div className="ml-[26px] border-l border-[#e7ebf0] pl-3">{item.children.map(child => <button key={child.label} onClick={() => { setPage(child.target || child.label); setMobileNav(false) }} className={cx('flex w-full items-center rounded-lg px-3 py-2.5 text-left text-[12px]', page === (child.target || child.label) ? 'bg-[#fff4ec] text-[#ea580c]' : 'text-[#64748b]')}>{child.label}</button>)}</div>}</div>
               : <button key={item.label} onClick={() => { setPage(item.label); setMobileNav(false) }} className={cx('flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-[12px]', page === item.label ? 'bg-[#fff4ec] text-[#ea580c]' : 'text-[#64748b]')}><item.icon size={17} />{item.label === 'Overview' ? 'Dashboard' : item.label}</button>)}</nav><div className="mt-auto space-y-1 pt-5">{user ? <button onClick={() => { setMobileNav(false); logout() }} className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-[12px] text-[#64748b] hover:bg-[#f8fafc]"><LogOut size={16} />Sign out</button> : <button onClick={() => { setMobileNav(false); setModal('login') }} className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-[12px] text-[#64748b] hover:bg-[#f8fafc]"><ShieldCheck size={16} />Sign in</button>}</div></div></div>}
-    <div className="min-h-screen min-w-0 lg:pl-[210px]"><div className="flex items-center border-b border-[#eee4df] bg-white px-3 sm:px-4 lg:hidden"><button onClick={() => setMobileNav(true)} className="mr-2 grid size-10 shrink-0 place-items-center text-[#786d67]" aria-label="Open navigation"><Menu size={19} /></button><Brand /></div>    <Header role={role} page={page} onLogin={() => setModal('login')} user={user} hotelName={hotelName} titleOverride={page === 'Purchase expenses' ? 'Expenses' : undefined} onNavigate={setPage} live={live} />
+    <div className="min-h-screen min-w-0 lg:pl-[210px]"><div className="flex items-center border-b border-[#eee4df] bg-white px-3 sm:px-4 lg:hidden"><button onClick={() => setMobileNav(true)} className="mr-2 grid size-10 shrink-0 place-items-center text-[#786d67]" aria-label="Open navigation"><Menu size={19} /></button><Brand /></div>    <Header role={role} page={page} onLogin={() => setModal('login')} user={user} hotelName={hotelName} titleOverride={page === 'Purchase expenses' ? 'Expenses' : undefined} onNavigate={setPage} live={live} theme={theme} onToggleTheme={flipTheme} />
     <main className="mx-auto min-w-0 max-w-[1200px] px-3 py-3 sm:px-5 sm:py-4 lg:px-6 lg:py-5">{apiError && user && <div className="mb-4 flex items-center justify-between rounded-lg bg-[#fff7e8] px-3 py-2.5 text-[10px] text-[#a85f18]"><span className="min-w-0 break-words">{apiError}</span><button onClick={() => setApiError('')} className="ml-2 shrink-0"><X size={14} /></button></div>}{content}</main></div>
     {modal === 'account' && role === 'OWNER' && <AccountModal onClose={() => setModal('')} onSubmit={createAccount} />}
     {modal === 'reset' && resettingUser && <ResetPasswordModal account={resettingUser} onClose={() => { setModal(''); setResettingUser(null) }} onSubmit={resetUserPassword} />}

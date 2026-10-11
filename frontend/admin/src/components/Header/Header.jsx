@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { Plus, Receipt, Search } from 'lucide-react'
+import { Moon, Plus, Receipt, Search, Sun } from 'lucide-react'
 import { hasPermission, today } from '../../lib/ui.js'
 import { SearchModal } from '../SearchModal/SearchModal.jsx'
 import { NotificationsMenu } from '../NotificationsMenu/NotificationsMenu.jsx'
 
-export function Header({ role, page, onLogin, user, titleOverride, hotelName, onNavigate, live }) {
+export function Header({ role, page, onLogin, user, titleOverride, hotelName, onNavigate, live, theme = 'light', onToggleTheme }) {
   const [searchOpen, setSearchOpen] = useState(false)
   const title = titleOverride || (page === 'Overview' ? 'Business overview' : page)
   const initials = user?.name?.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || 'S'
@@ -17,6 +17,7 @@ export function Header({ role, page, onLogin, user, titleOverride, hotelName, on
       </div>
       : <div className="min-w-0 flex-1"><div className="flex min-w-0 items-center gap-2 text-[10px] text-[#a19690]"><span className="truncate">{hotelName}</span><span>/</span><span className="shrink-0">{page}</span></div><h1 className="font-display mt-0.5 truncate text-[16px] font-bold tracking-[-.6px] text-[#292421] sm:text-[20px]">{title}</h1></div>}
     <button onClick={() => setSearchOpen(true)} aria-label="Search" className="hidden size-9 place-items-center rounded-[8px] border border-[#eee4df] bg-white text-[#786d67] transition hover:bg-[#fff7f4] sm:grid"><Search size={16} /></button>
+    <button onClick={onToggleTheme} aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} className="grid size-9 shrink-0 place-items-center rounded-[8px] border border-[#eee4df] bg-white text-[#786d67] transition hover:bg-[#fff7f4]">{theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}</button>
     <div className="flex items-center gap-2.5">
       {user && <NotificationsMenu hotelId={user?.hotelId} live={live} />}
       {user && ['OWNER', 'KITCHEN'].includes(role) && <div className="hidden items-center gap-2 md:flex">
