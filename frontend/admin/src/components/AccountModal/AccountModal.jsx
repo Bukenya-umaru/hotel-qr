@@ -16,7 +16,7 @@ export function AccountModal({ onClose, onSubmit }) {
       : [...previous.permissions, key],
   }))
   return <Modal title="Create a chef account" onClose={onClose}><form className="space-y-3.5" onSubmit={async event => { event.preventDefault(); if (!isStrongPassword(form.password)) { setError(`Temporary password: ${PASSWORD_RULE}.`); return } try { await onSubmit(form) } catch (err) { setError(err.message) } }}>
-    <p className="text-[11px] leading-5 text-[#94a3b8]">Pick what this chef may do. They always receive incoming kitchen orders; anything else you grant below can be changed later.</p>
+    <p className="text-[11px] leading-5 text-[#94a3b8]">Choose whether this chef can manage food items, sales, expenses, and stock. You can change these permissions later.</p>
     <TextField label="Full name" placeholder="Full name" value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} />
     <TextField label="Email address" type="email" placeholder="name@business.com" value={form.email} onChange={event => setForm({ ...form, email: event.target.value })} />
     <div><TextField label="Temporary password" type="password" placeholder={PASSWORD_RULE} value={form.password} onChange={event => setForm({ ...form, password: event.target.value })} /><PasswordStrengthMeter password={form.password} /></div>

@@ -2,7 +2,6 @@ import bcrypt from 'bcryptjs'
 import express from 'express'
 import mongoose from 'mongoose'
 import { authenticate, authorize, hotelScope } from '../middleware/auth.js'
-import { DiningTable } from '../models/DiningTable.js'
 import { User } from '../models/User.js'
 import { MenuItem } from '../models/MenuItem.js'
 import { MenuCategory } from '../models/MenuCategory.js'
@@ -11,7 +10,6 @@ import { ExpenseCategory } from '../models/ExpenseCategory.js'
 import { HotelExpense } from '../models/HotelExpense.js'
 import { Sale, formatSaleId } from '../models/Sale.js'
 import { StockItem } from '../models/StockItem.js'
-import { Order } from '../models/Order.js'
 import { Hotel } from '../models/Hotel.js'
 import { removeUploadedImage, uploadMenuImage } from '../middleware/upload.js'
 import { asyncRoute, idIsValid, safeMenuItem, safeSupport } from '../utils/http.js'
@@ -33,7 +31,7 @@ const staffUser = user => ({
   permissions: user.permissions,
 })
 
-// Help & support details shown on the customer menu page.
+// Business contact details shown on the information page.
 const SUPPORT_FIELDS = ['phone', 'whatsapp', 'email', 'hours', 'message']
 const SUPPORT_LIMITS = { phone: 40, whatsapp: 40, email: 120, hours: 200, message: 400 }
 
@@ -62,7 +60,6 @@ router.patch('/support', authenticate, authorize('OWNER'), asyncRoute(async (req
     { new: true, runValidators: true },
   ).select('support')
   if (!hotel) return res.status(404).json({ message: 'This business could not be found.' })
-  req.app.get('io').to(`menu:${req.user.hotelId._id}`).emit('support_updated', safeSupport(hotel.support))
   res.json({ support: safeSupport(hotel.support) })
 }))
 
@@ -72,80 +69,6 @@ router.get('/menu', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(asyn
   const query = MenuItem.find({ hotelId: scope }).sort({ category: 1, name: 1 })
   if (req.user.role === 'OWNER') query.select('+costPrice')
   res.json({ items: await query })
-}))
-
-router.get('/tables', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
-  const tables = await DiningTable.find({ hotelId: hotelScope(req) }).sort({ tableNumber: 1 })
-  res.json({ tables })
-}))
-
-router.post('/tables', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
-  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_tables')) return res.status(403).json({ message: 'You do not have permission to manage tables.' })
-  const tableNumber = String(req.body.tableNumber || '').trim()
-  const capacity = Number(req.body.capacity)
-  if (!tableNumber || tableNumber.length > 32 || !Number.isInteger(capacity) || capacity < 1 || capacity > 100) {
-    return res.status(400).json({ message: 'Provide a table number and a capacity from 1 to 100 people.' })
-  }
-  const table = await DiningTable.create({
-    hotelId: hotelScope(req),
-    tableNumber,
-    capacity,
-  })
-  req.app.get('io').to(`menu:${req.user.hotelId._id}`).emit('tables_updated')
-  res.status(201).json({ table })
-}))
-
-router.patch('/tables/:id', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
-  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_tables')) return res.status(403).json({ message: 'You do not have permission to manage tables.' })
-  if (!idIsValid(req.params.id) || !Number.isInteger(Number(req.body.capacity))) {
-    return res.status(400).json({ message: 'Provide a valid table and seating capacity.' })
-  }
-  const capacity = Number(req.body.capacity)
-  if (capacity < 1 || capacity > 100) {
-    return res.status(400).json({ message: 'Table capacity must be from 1 to 100 people.' })
-  }
-  const table = await DiningTable.findOneAndUpdate(
-    { _id: req.params.id, hotelId: hotelScope(req), occupiedSeats: { $lte: capacity } },
-    { $set: { capacity } },
-    { new: true, runValidators: true },
-  )
-  if (!table) {
-    const existing = await DiningTable.findOne({ _id: req.params.id, hotelId: hotelScope(req) }).select('occupiedSeats')
-    if (!existing) return res.status(404).json({ message: 'Table not found.' })
-    return res.status(409).json({ message: `This table currently has ${existing.occupiedSeats} occupied seats. Clear the table before lowering its capacity.` })
-  }
-  req.app.get('io').to(`menu:${table.hotelId}`).emit('tables_updated')
-  res.json({ table })
-}))
-
-router.patch('/tables/:id/clear', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
-  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_tables')) return res.status(403).json({ message: 'You do not have permission to manage tables.' })
-  if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Table not found.' })
-  const table = await DiningTable.findOneAndUpdate(
-    { _id: req.params.id, hotelId: hotelScope(req) },
-    { $set: { occupiedSeats: 0, reservations: [] } },
-    { new: true },
-  )
-  if (!table) return res.status(404).json({ message: 'Table not found.' })
-  req.app.get('io').to(`menu:${table.hotelId}`).emit('tables_updated')
-  res.json({ table })
-}))
-
-router.delete('/tables/:id', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
-  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_tables')) return res.status(403).json({ message: 'You do not have permission to manage tables.' })
-  if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Table not found.' })
-  const table = await DiningTable.findOneAndDelete({
-    _id: req.params.id,
-    hotelId: hotelScope(req),
-    occupiedSeats: 0,
-  })
-  if (!table) {
-    const existing = await DiningTable.exists({ _id: req.params.id, hotelId: hotelScope(req) })
-    if (!existing) return res.status(404).json({ message: 'Table not found.' })
-    return res.status(409).json({ message: 'Clear this table before removing it.' })
-  }
-  req.app.get('io').to(`menu:${table.hotelId}`).emit('tables_updated')
-  res.status(204).end()
 }))
 
 router.get('/categories', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
@@ -167,7 +90,6 @@ router.post('/categories', authenticate, authorize('OWNER', 'KITCHEN'), asyncRou
     { $setOnInsert: { hotelId: scope, name, foodType } },
     { new: true, upsert: true },
   )
-  req.app.get('io').to(`menu:${scope}`).emit('menu_updated', { categoriesChanged: true })
   res.status(201).json({ category: { _id: category._id, name: category.name, foodType: category.foodType } })
 }))
 
@@ -192,7 +114,6 @@ router.patch('/categories/:id', authenticate, authorize('OWNER', 'KITCHEN'), asy
         if (!merged) throw error
         await MenuItem.updateMany({ hotelId: scope, category: previousName }, { $set: { category: name } })
         await category.deleteOne()
-        req.app.get('io').to(`menu:${scope}`).emit('menu_updated', { categoriesChanged: true })
         return res.json({ category: { _id: merged._id, name: merged.name }, merged: true })
       }
       throw error
@@ -200,7 +121,6 @@ router.patch('/categories/:id', authenticate, authorize('OWNER', 'KITCHEN'), asy
     if (res.headersSent) return
     await MenuItem.updateMany({ hotelId: scope, category: previousName }, { $set: { category: name } })
   }
-  req.app.get('io').to(`menu:${scope}`).emit('menu_updated', { categoriesChanged: true })
   res.json({ category: { _id: category._id, name: category.name, foodType: category.foodType || '' } })
 }))
 
@@ -211,7 +131,6 @@ router.delete('/categories/:id', authenticate, authorize('OWNER', 'KITCHEN'), as
   const category = await MenuCategory.findOneAndDelete({ _id: req.params.id, hotelId: scope })
   if (!category) return res.status(404).json({ message: 'Category not found.' })
   await Expense.deleteMany({ hotelId: scope, category: category._id })
-  req.app.get('io').to(`menu:${scope}`).emit('menu_updated', { categoriesChanged: true })
   res.status(204).end()
 }))
 
@@ -596,7 +515,7 @@ router.post('/sales', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(as
     }
   }
   if (!sale) return res.status(409).json({ message: 'Could not assign the sale an ID, please try again.' })
-  // Best-effort stock deduction, exactly like customer orders: a missing or
+  // Best-effort stock deduction: a missing or
   // already-empty stock never blocks a recorded sale, and the $gte guard
   // keeps the count from dipping below zero when records race.
   const stockUsage = new Map()
@@ -807,7 +726,6 @@ router.post('/menu', authenticate, authorize('OWNER', 'KITCHEN'), uploadMenuImag
     { $setOnInsert: { hotelId: scope, name: String(category).trim() } },
     { upsert: true },
   )
-  req.app.get('io').to(`menu:${item.hotelId}`).emit('menu_updated', safeMenuItem(item))
   res.status(201).json({ item: req.user.role === 'OWNER' ? item : safeMenuItem(item) })
 }))
 
@@ -842,7 +760,6 @@ router.patch('/menu/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadMen
     )
   }
   if (req.file && previousImage) await removeUploadedImage(previousImage)
-  req.app.get('io').to(`menu:${item.hotelId}`).emit('menu_updated', safeMenuItem(item))
   res.json({ item: req.user.role === 'OWNER' ? item : safeMenuItem(item) })
 }))
 
@@ -854,13 +771,14 @@ router.delete('/menu/:id', authenticate, authorize('OWNER', 'KITCHEN'), asyncRou
   const item = await MenuItem.findOneAndDelete({ _id: req.params.id, hotelId: scope })
   if (!item) return res.status(404).json({ message: 'Menu item not found.' })
   await removeUploadedImage(item.imageUrl)
-  req.app.get('io').to(`menu:${item.hotelId}`).emit('menu_updated', { _id: item._id, deleted: true })
   res.status(204).end()
 }))
 
 router.get('/analytics/daily', authenticate, authorize('OWNER'), asyncRoute(async (req, res) => report(req, res)))
 router.get('/analytics/reports', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
-  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'view_sales')) return res.status(403).json({ message: 'The owner has not granted you permission to view sales.' })
+  if (req.user.role === 'KITCHEN' && !['view_sales', 'manage_sales', 'manage_expenses'].some(permission => hasPerm(req.user, permission))) {
+    return res.status(403).json({ message: 'The owner has not granted you access to sales or expense records.' })
+  }
   return report(req, res)
 }))
 
@@ -887,27 +805,63 @@ async function report(req, res) {
     return res.status(400).json({ message: 'Provide a valid date range.' })
   }
   const scope = hotelScope(req)
-  const filter = { createdAt: { $gte: from, $lte: to }, status: { $ne: 'Cancelled' } }
+  const canViewSales = req.user.role !== 'KITCHEN' || hasPerm(req.user, 'view_sales') || hasPerm(req.user, 'manage_sales')
+  const canViewExpenses = req.user.role !== 'KITCHEN' || hasPerm(req.user, 'manage_expenses')
+  const filter = { createdAt: { $gte: from, $lte: to } }
   if (scope) filter.hotelId = scope
   const match = scope ? { ...filter, hotelId: new mongoose.Types.ObjectId(scope) } : { ...filter, hotelId: { $exists: true } }
-  const [orders, totals, series] = await Promise.all([
-    Order.find(filter).sort({ createdAt: -1 }).limit(1000),
-    Order.aggregate([
+  const [sales, expenses, salesTotals, expenseTotals, salesSeries, expenseSeries] = await Promise.all([
+    canViewSales ? Sale.find(filter).sort({ createdAt: -1 }).limit(1000).lean() : Promise.resolve([]),
+    canViewExpenses ? HotelExpense.find(filter).sort({ createdAt: -1 }).limit(1000).lean() : Promise.resolve([]),
+    canViewSales ? Sale.aggregate([
       { $match: match },
-      { $group: { _id: null, totalOrdersCount: { $sum: 1 }, totalRevenue: { $sum: '$totalAmount' }, totalCost: { $sum: '$totalCost' }, netProfit: { $sum: '$totalProfit' } } },
-    ]),
-    Order.aggregate([
+      { $group: { _id: null, totalSalesCount: { $sum: 1 }, totalRevenue: { $sum: '$amount' } } },
+    ]) : Promise.resolve([]),
+    canViewExpenses ? HotelExpense.aggregate([
       { $match: match },
-      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: 'Africa/Kampala' } }, revenue: { $sum: '$totalAmount' }, profit: { $sum: '$totalProfit' }, orderCount: { $sum: 1 } } },
+      { $group: { _id: null, totalExpensesCount: { $sum: 1 }, totalExpenses: { $sum: '$amount' } } },
+    ]) : Promise.resolve([]),
+    canViewSales ? Sale.aggregate([
+      { $match: match },
+      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: 'Africa/Kampala' } }, revenue: { $sum: '$amount' } } },
       { $sort: { _id: 1 } },
-    ]),
+    ]) : Promise.resolve([]),
+    canViewExpenses ? HotelExpense.aggregate([
+      { $match: match },
+      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: 'Africa/Kampala' } }, expenses: { $sum: '$amount' } } },
+      { $sort: { _id: 1 } },
+    ]) : Promise.resolve([]),
   ])
+  const dailyTotals = new Map()
+  for (const day of salesSeries) dailyTotals.set(day._id, { date: day._id, revenue: day.revenue, expenses: 0 })
+  for (const day of expenseSeries) {
+    const current = dailyTotals.get(day._id) || { date: day._id, revenue: 0, expenses: 0 }
+    current.expenses = day.expenses
+    dailyTotals.set(day._id, current)
+  }
+  const series = [...dailyTotals.values()].sort((a, b) => a.date.localeCompare(b.date)).map(day => ({
+    ...day,
+    balance: day.revenue - day.expenses,
+  }))
+  const totalRevenue = salesTotals[0]?.totalRevenue || 0
+  const totalExpenses = expenseTotals[0]?.totalExpenses || 0
+  const saleRecords = sales.map(sale => ({
+    ...sale,
+    saleId: displaySaleId(sale),
+  }))
   res.json({
     from: from.toISOString(),
     to: to.toISOString(),
-    ...(totals[0] || { totalOrdersCount: 0, totalRevenue: 0, totalCost: 0, netProfit: 0 }),
-    series: series.map(day => ({ date: day._id, revenue: day.revenue, profit: day.profit, orderCount: day.orderCount })),
-    orders,
+    totalSalesCount: salesTotals[0]?.totalSalesCount || 0,
+    totalRevenue,
+    totalExpensesCount: expenseTotals[0]?.totalExpensesCount || 0,
+    totalExpenses,
+    netBalance: canViewSales && canViewExpenses ? totalRevenue - totalExpenses : null,
+    canViewSales,
+    canViewExpenses,
+    series,
+    sales: saleRecords,
+    expenses,
   })
 }
 

@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar } from 'recharts'
 import { api } from '../../lib/api.js'
-import { money, today, cx, orderCode, orderTime, navItems } from '../../lib/ui.js'
+import { money, today, cx, navItems } from '../../lib/ui.js'
 
 export function Badge({ children, tone = 'green', className = '' }) {
   const tones = {

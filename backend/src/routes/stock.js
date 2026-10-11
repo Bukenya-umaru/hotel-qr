@@ -37,8 +37,8 @@ const safeAmount = value => {
   return Number.isFinite(number) && number >= 0 ? Math.round(number * 100) / 100 : null
 }
 
-// Every stock entry plus the dish names that deduct from it, so the chef
-// sees which dishes pull from which plates without extra requests.
+// Every stock entry plus linked food names, so the chef sees which sale items
+// deduct from each stock item without extra requests.
 router.get('/', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
   const scope = hotelScope(req)
   if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
@@ -215,7 +215,7 @@ router.delete('/:id', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(as
   // Approved stock is the signed-off record — it can no longer be removed.
   if (stock.approved) return res.status(403).json({ message: 'This stock has been approved and can no longer be changed.' })
   await StockItem.deleteOne({ _id: stock._id })
-  // Detach dishes that were linked so their next orders stop deducting.
+  // Detach linked food items so future sales no longer deduct this stock.
   await MenuItem.updateMany({ hotelId: scope, stockItemId: stock._id }, { $unset: { stockItemId: '' } })
   await removeUploadedImage(stock.imageUrl)
   req.app.get('io').to(`hotel:${scope}`).emit('stock_updated')

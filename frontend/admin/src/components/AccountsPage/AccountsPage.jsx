@@ -2,19 +2,19 @@ import { Plus } from 'lucide-react'
 import { Badge } from '../Badge/Badge.jsx'
 import { PERMISSIONS } from '../../lib/ui.js'
 
-const SHORT_LABELS = { view_sales: 'Sales', manage_tables: 'Tables', manage_stock: 'Stock', manage_expenses: 'Expenses', manage_sales: 'Purchase' }
+const SHORT_LABELS = { view_sales: 'Sales', manage_menu: 'Food items', manage_stock: 'Stock', manage_expenses: 'Expenses', manage_sales: 'Record sales' }
 const ALL_KEYS = PERMISSIONS.map(permission => permission.key)
 
 export function AccountsPage({ users, role, passwordViewable, onCreate, onToggle, onReset, onEdit, onView }) {
   const isOwner = role === 'OWNER'
   const canCreate = isOwner
   const accountLabel = user => user.role === 'OWNER' ? 'Business owner' : 'Chef'
-  const permissionKeys = user => user.permissions === undefined ? ALL_KEYS : user.permissions
-  const permissionSummary = user => permissionKeys(user).map(key => SHORT_LABELS[key] || key).join(' · ')
+  const permissionKeys = user => (user.permissions === undefined ? ALL_KEYS : user.permissions).filter(key => key !== 'manage_tables')
+  const permissionSummary = user => permissionKeys(user).map(key => SHORT_LABELS[key] || key).join(' · ') || 'No permissions'
 
   return <div className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <p className="text-[12px] text-[#94a3b8]">{isOwner ? 'Create and manage chefs and choose what each one can do — view sales, manage tables, stock and more.' : 'Help the business owner with account access and passwords.'}</p>
+      <p className="text-[12px] text-[#94a3b8]">{isOwner ? 'Create and manage chefs and choose what each one can do — manage food items, sales, expenses, and stock.' : 'Help the business owner with account access and passwords.'}</p>
       {canCreate && <button onClick={onCreate} className="flex items-center gap-2 rounded-lg bg-[#f97316] px-3.5 py-2.5 text-[11px] font-semibold text-white"><Plus size={15} />Create chef account</button>}
     </div>
     <section className="overflow-hidden rounded-2xl border border-[#e7ebf0] bg-white">
@@ -38,7 +38,7 @@ export function AccountsPage({ users, role, passwordViewable, onCreate, onToggle
           <button onClick={() => onToggle(user)} className="text-[10px] font-semibold text-[#ea580c]">{user.isActive === false ? 'Reactivate' : 'Deactivate'}</button>
         </> : <><button onClick={() => onEdit(user)} className="text-[10px] font-semibold text-[#ea580c]">Edit</button>{passwordViewable && <button onClick={() => onView(user)} disabled={!user.hasViewablePassword} title={user.hasViewablePassword ? undefined : 'Reset the password once to make it viewable'} className="text-[10px] font-semibold text-[#ea580c] disabled:text-[#e2e8f0] disabled:opacity-60">{user.hasViewablePassword ? 'View password' : 'View password*'}</button>}<button onClick={() => onReset(user)} className="text-[10px] font-semibold text-[#ea580c]">Reset password</button><button onClick={() => onToggle(user)} className="text-[10px] font-semibold text-[#ea580c]">{user.isActive === false ? 'Reactivate' : 'Deactivate'}</button></>}</td>
       </tr>)}</tbody></table></div>
-      {!users.length && <p className="px-5 py-10 text-center text-[11px] text-[#94a3b8]">{isOwner ? 'No chef accounts yet. Create one to manage tables, stock and orders.' : 'No accounts are available to support yet.'}</p>}
+      {!users.length && <p className="px-5 py-10 text-center text-[11px] text-[#94a3b8]">{isOwner ? 'No chef accounts yet. Create one to manage food items, sales, expenses, and stock.' : 'No accounts are available to support yet.'}</p>}
       {users.length > 0 && !isOwner && <p className="px-5 py-3 text-[10px] text-[#94a3b8]">* Reset the password once for an account to make its current password viewable.</p>}
     </section>
   </div>

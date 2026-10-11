@@ -1,21 +1,19 @@
-import { useEffect, useMemo, useState } from 'react'
-import { io } from 'socket.io-client'
-import {
-  Activity, ArrowDownRight, ArrowRight, ArrowUpRight, Bell, Check, ChefHat, ChevronDown,
-  ChevronLeft, ChevronRight, CircleHelp, Clock3, Coffee, Command, CreditCard, Download,
-  Eye, EyeOff, Filter, Globe2, Hotel, LayoutDashboard, Leaf, LogOut, Menu, MoreHorizontal,
-  Package, Plus, QrCode, Search, Settings2, ShieldCheck, ShoppingBag, SlidersHorizontal,
-  Sparkles, TrendingUp, Users, Utensils, Wallet, X,
-} from 'lucide-react'
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar } from 'recharts'
-import { api } from '../../lib/api.js'
-import { money, today, cx, orderCode, orderTime, navItems } from '../../lib/ui.js'
-import { Badge } from '../Badge/Badge.jsx'
+import { ChevronDown } from 'lucide-react'
+import { cx } from '../../lib/ui.js'
 
 export function MetricCard({ title, value, change, icon: Icon, detail, inverse = false }) {
-  return <div className={cx('min-w-0 rounded-2xl border p-3 sm:p-[18px]', inverse ? 'border-[#f97316] bg-[#f97316] text-white' : 'border-[#e7ebf0] bg-white')}>
-    <div className="flex items-start justify-between gap-1.5 sm:gap-2"><span className={cx('min-w-0 break-words text-[10px] font-medium leading-4 sm:text-[11px]', inverse ? 'text-white/65' : 'text-[#94a3b8]')}>{title}</span><span className={cx('grid size-7 shrink-0 place-items-center rounded-[9px] sm:size-8 sm:rounded-[10px]', inverse ? 'bg-white/10 text-white' : 'bg-[#fff6ee] text-[#ea580c]')}><Icon size={15} strokeWidth={1.8} className="sm:hidden" /><Icon size={16} strokeWidth={1.8} className="hidden sm:block" /></span></div>
-    <div className="mt-2 flex min-w-0 flex-wrap items-end gap-1 sm:mt-3 sm:gap-1.5"><strong className={cx('font-display max-w-full break-words text-[15px] font-bold leading-tight tracking-[-.4px] min-[420px]:text-[17px] sm:text-[clamp(1.1rem,5vw,1.5625rem)] sm:tracking-[-.7px]', inverse ? 'text-white' : 'text-[#0f172a]')}>{value}</strong>{change && <Badge tone={inverse ? 'gray' : 'green'}><ArrowUpRight size={11} />{change}</Badge>}</div>
-    <p className={cx('mt-1 break-words text-[9px] leading-4 sm:mt-1.5 sm:text-[10px]', inverse ? 'text-white/55' : 'text-[#94a3b8]')}>{detail}</p>
+  return <div className={cx('flex h-full min-h-[96px] min-w-0 flex-col justify-between border p-2.5 sm:min-h-[100px] sm:p-3', inverse ? 'border-[#f0ddd5] bg-[#fffaf8]' : 'border-[#eee4df] bg-white')}>
+    <div className="flex items-center justify-between gap-2">
+      <span className="min-w-0 truncate text-[10px] font-medium text-[#786d67] sm:text-[11px]">{title}</span>
+      <span className="grid size-5 shrink-0 place-items-center rounded-full border border-[#e8ded9] text-[#8d817b]"><ChevronDown size={12} /></span>
+    </div>
+    <div className="flex min-w-0 items-center gap-2.5">
+      <span className={cx('grid size-9 shrink-0 place-items-center rounded-full', inverse ? 'bg-[#fff0ea] text-[#db6248]' : 'bg-[#fff0ea] text-[#e7654b]')}><Icon size={17} strokeWidth={1.8} /></span>
+      <strong className="font-display min-w-0 break-words text-[17px] font-bold leading-tight tracking-[-.5px] text-[#292421] min-[420px]:text-[19px] sm:text-[clamp(1.1rem,2vw,1.45rem)]">{value}</strong>
+    </div>
+    <div className="flex min-h-[18px] min-w-0 items-center gap-1.5">
+      {change && <span className="rounded-full bg-[#eaf7ef] px-2 py-0.5 text-[9px] font-semibold text-[#55a978]">{change}</span>}
+      <p className="min-w-0 truncate text-[9px] leading-4 text-[#8d817b]">{detail}</p>
+    </div>
   </div>
 }

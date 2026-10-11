@@ -1,10 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
-import { io } from 'socket.io-client'
+import { useEffect, useState } from 'react'
 import { ChevronDown, LogOut, Menu, ShieldCheck, X } from 'lucide-react'
-import { API_BASE_URL, api } from '../../lib/api.js'
-import { money, today, cx, orderCode, orderTime, navItems, hasPermission } from '../../lib/ui.js'
+import { api } from '../../lib/api.js'
+import { cx, navItems, hasPermission } from '../../lib/ui.js'
 import { AccessCard } from '../AccessCard/AccessCard.jsx'
-import { OrdersTable } from '../OrdersTable/OrdersTable.jsx'
 import { Reports } from '../Reports/Reports.jsx'
 import { AccountsPage } from '../AccountsPage/AccountsPage.jsx'
 import { DeveloperDashboard } from '../DeveloperDashboard/DeveloperDashboard.jsx'
@@ -18,33 +16,31 @@ import { ResetPasswordModal } from '../ResetPasswordModal/ResetPasswordModal.jsx
 import { ViewPasswordModal } from '../ViewPasswordModal/ViewPasswordModal.jsx'
 import { AccountEditModal } from '../AccountEditModal/AccountEditModal.jsx'
 import { ChangePasswordModal } from '../ChangePasswordModal/ChangePasswordModal.jsx'
-import { TablesPage } from '../TablesPage/TablesPage.jsx'
 import { StockPage } from '../StockPage/StockPage.jsx'
 import { CategoriesPage } from '../CategoriesPage/CategoriesPage.jsx'
 import { PurchasePage } from '../PurchasePage/PurchasePage.jsx'
 import { SupportPage } from '../SupportPage/SupportPage.jsx'
-import { SearchModal } from '../SearchModal/SearchModal.jsx'
+
+const dateKey = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 
 export default function App() {
   const [user, setUser] = useState(null)
   const role = user?.role || 'OWNER'
   const [page, setPage] = useState(role === 'DEVELOPER' ? 'Platform overview' : 'Overview')
-  const [orders, setOrders] = useState([])
   const [users, setUsers] = useState([])
   const [analytics, setAnalytics] = useState({
-    totalOrdersCount: 0,
+    totalSalesCount: 0,
     totalRevenue: 0,
-    netProfit: 0,
+    totalExpenses: 0,
+    netBalance: 0,
+    sales: [],
+    expenses: [],
     series: [],
-    weekRevenue: 0,
-    weekProfit: 0,
-    weekOrders: 0,
     isActual: false,
   })
   const [platformOverview, setPlatformOverview] = useState({
     businessCount: 0,
     userCount: 0,
-    activeOrdersCount: 0,
     databaseStatus: 'Disconnected',
     passwordViewable: false,
   })
@@ -58,35 +54,21 @@ export default function App() {
   // Mobile drawer accordion state: sections with children collapse, and at
   // most one of them is expanded at a time.
   const [openMobileGroups, setOpenMobileGroups] = useState(() => new Set())
-  const [notifications, setNotifications] = useState([])
-  const [searchOpen, setSearchOpen] = useState(false)
   const hotelName = user?.hotel?.name || (role === 'DEVELOPER' ? 'WAGA BITS support' : 'Your business')
 
   useEffect(() => {
     api('/api/auth/me').then(data => { setUser(data.user); if (data.user.role) setPage(data.user.role === 'DEVELOPER' ? 'Platform overview' : 'Overview') }).catch(() => {})
   }, [])
   useEffect(() => {
-    if (user && user.role !== 'DEVELOPER') {
-      api('/api/orders/active').then(data => setOrders(data.orders)).catch(err => setApiError(err.message))
-    }
-    if (user && ['OWNER', 'DEVELOPER'].includes(user.role)) {
+    if (user && ['OWNER', 'KITCHEN'].includes(user.role)) {
       const end = new Date()
       const start = new Date()
       start.setDate(start.getDate() - 6)
-      const from = start.toISOString().slice(0, 10)
-      const to = end.toISOString().slice(0, 10)
-      Promise.all([
-        api('/api/owner/analytics/daily'),
-        api(`/api/owner/analytics/reports?from=${from}&to=${to}`),
-      ]).then(([daily, weekly]) => setAnalytics({
-        ...daily,
-        series: weekly.series,
-        weekRevenue: weekly.totalRevenue,
-        weekProfit: weekly.netProfit,
-        weekOrders: weekly.totalOrdersCount,
-        reportOrders: weekly.orders,
-        isActual: true,
-      })).catch(err => setApiError(err.message))
+      const from = dateKey(start)
+      const to = dateKey(end)
+      api(`/api/owner/analytics/reports?from=${from}&to=${to}`)
+        .then(data => setAnalytics({ ...data, isActual: true }))
+        .catch(err => setApiError(err.message))
     }
     if (user?.role === 'OWNER') {
       api('/api/owner/staff').then(data => setUsers(data.users)).catch(err => setApiError(err.message))
@@ -96,67 +78,36 @@ export default function App() {
         setUsers(data.users)
         setPlatformOverview(previous => ({ ...previous, passwordViewable: Boolean(data.passwordViewable) }))
       }).catch(err => setApiError(err.message))
-      api('/api/developer/orders').then(data => setOrders(data.orders)).catch(err => setApiError(err.message))
       api('/api/developer/overview').then(data => setPlatformOverview(data)).catch(err => setApiError(err.message))
     }
   }, [user])
   useEffect(() => { setPage(role === 'DEVELOPER' ? 'Platform overview' : 'Overview') }, [role])
-  useEffect(() => {
-    if (!user) return undefined
-    const socket = io(API_BASE_URL || undefined, { withCredentials: true })
-    const businessId = user.role === 'DEVELOPER' ? platformOverview.business?._id : user.hotelId
-    if (businessId) socket.emit('join_hotel', businessId)
-    const refreshSupportOverview = () => {
-      if (user.role !== 'DEVELOPER') return
-      api('/api/developer/overview').then(data => {
-        setPlatformOverview(data)
-      }).catch(err => setApiError(err.message))
-    }
-    socket.on('new_order', order => {
-      setOrders(previous => [order, ...previous])
-      if (user.role === 'KITCHEN') playNewOrderChime()
-      pushNotification({ type: 'new_order', order })
-      refreshSupportOverview()
-    })
-    socket.on('order_status', update => setOrders(previous => previous.map(order => (order._id || order.id) === update._id ? { ...order, ...update } : order)))
-    socket.on('order_updated', update => {
-      setOrders(previous => previous.map(order => (order._id || order.id) === update._id ? { ...order, ...update } : order))
-      pushNotification({ type: 'order_updated', order: update })
-      refreshSupportOverview()
-    })
-    socket.on('tables_updated', payload => {
-      pushNotification({ type: 'tables_updated', table: payload?.table })
-    })
-    return () => socket.disconnect()
-  }, [user, platformOverview.business?._id])
   useEffect(() => {
     if (!toast) return undefined
     const timeout = window.setTimeout(() => setToast(''), 3200)
     return () => window.clearTimeout(timeout)
   }, [toast])
 
-  // Live notification feed for the bell dropdown; newest first, capped.
-  const pushNotification = notification => setNotifications(previous => [{ ...notification, id: `${notification.type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, at: new Date().toISOString(), read: false }, ...previous].slice(0, 50))
-  const unreadCount = notifications.filter(notification => !notification.read).length
-  const markAllRead = () => setNotifications(previous => previous.map(entry => ({ ...entry, read: true })))
-  const clearNotifications = () => setNotifications([])
-  const openNotification = notification => {
-    setNotifications(previous => previous.map(entry => entry.id === notification.id ? { ...entry, read: true } : entry))
-    if (notification.type === 'tables_updated') setPage('Tables')
-    else setPage('Orders')
-  }
-
-  const currentNav = (navItems[role] || navItems.OWNER).filter(item => {
-    if (role !== 'KITCHEN') return true
-    if (item.label === 'Tables') return hasPermission(user, 'manage_tables')
-    if (item.label === 'Stock') return hasPermission(user, 'manage_stock')
-    if (item.label === 'Expenses') return hasPermission(user, 'manage_expenses')
-    if (item.label === 'Purchase') return hasPermission(user, 'manage_sales')
-    return true
+  const currentNav = (navItems[role] || navItems.OWNER).flatMap(item => {
+    if (role !== 'KITCHEN') return [item]
+    if (item.label === 'Stock' && !hasPermission(user, 'manage_stock')) return []
+    if (item.label === 'Categories') {
+      const children = item.children.filter(child => child.label !== 'Expenses' || hasPermission(user, 'manage_expenses'))
+      return [{ ...item, children }]
+    }
+    if (item.label !== 'Sales & Expenses') return [item]
+    const children = item.children.filter(child => {
+      const target = child.target || child.label
+      if (target === 'Make sale') return hasPermission(user, 'manage_sales')
+      if (target === 'Sales') return hasPermission(user, 'view_sales')
+      if (target === 'Purchase expenses') return hasPermission(user, 'manage_expenses')
+      return true
+    })
+    return children.length ? [{ ...item, children }] : []
   })
   // Single-open accordion: expanding a section hides the subsections of any
   // other section, and the section owning the current page opens itself.
-  // Children may carry their own target page (Purchase > Expenses vs the
+  // Children may carry their own target page (Sales & Expenses > Expenses vs the
   // Categories subsection with the same label).
   useEffect(() => {
     const active = currentNav.find(item => item.children?.some(child => (child.target || child.label) === page))
@@ -164,33 +115,6 @@ export default function App() {
   }, [page, currentNav])
   const toggleMobileGroup = label => setOpenMobileGroups(previous => previous.has(label) ? new Set() : new Set([label]))
   const canManageStock = role === 'OWNER' || hasPermission(user, 'manage_stock')
-  const canManageTables = hasPermission(user, 'manage_tables')
-  const advanceOrder = async order => {
-    const next = { Pending: 'Preparing', Preparing: 'Ready', Ready: 'Served' }[order.status]
-    if (!next) return
-    if (user) {
-      try {
-        const data = await api(`/api/orders/${order._id}/status`, { method: 'PATCH', body: JSON.stringify({ status: next }) })
-        setOrders(previous => previous.map(entry => entry._id === order._id ? { ...entry, ...data.order } : entry))
-      } catch (err) { setToast(err.message) }
-    } else setOrders(previous => previous.map(entry => entry.id === order.id ? { ...entry, status: next } : entry))
-  }
-  const playNewOrderChime = () => {
-    if (!window.AudioContext) return
-    const audio = new window.AudioContext()
-    const oscillator = audio.createOscillator()
-    const volume = audio.createGain()
-    oscillator.type = 'sine'
-    oscillator.frequency.setValueAtTime(880, audio.currentTime)
-    oscillator.frequency.setValueAtTime(1175, audio.currentTime + 0.13)
-    volume.gain.setValueAtTime(0.12, audio.currentTime)
-    volume.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.38)
-    oscillator.connect(volume)
-    volume.connect(audio.destination)
-    oscillator.start()
-    oscillator.stop(audio.currentTime + 0.38)
-    oscillator.onended = () => audio.close()
-  }
   const login = async (email, password) => {
     const data = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
     setUser(data.user)
@@ -217,15 +141,7 @@ export default function App() {
     if (!user) return
     try {
       const report = await api(`/api/owner/analytics/reports?from=${from}&to=${to}`)
-      setAnalytics(previous => ({
-        ...previous,
-        series: report.series,
-        weekRevenue: report.totalRevenue,
-        weekProfit: report.netProfit,
-        weekOrders: report.totalOrdersCount,
-        reportOrders: report.orders,
-        isActual: true,
-      }))
+      setAnalytics({ ...report, isActual: true })
     } catch (err) { setToast(err.message) }
   }
   const resetUserPassword = async password => {
@@ -269,7 +185,6 @@ export default function App() {
 
   let content
   if (!user) content = <AccessCard onLogin={() => setModal('login')} />
-  else if (page === 'Tables' && ['OWNER', 'KITCHEN'].includes(role)) content = <TablesPage user={user} canManage={canManageTables} />
   else if (page === 'Food type') content = <CategoriesPage initialView="foodtype" />
   else if (page === 'Expenses') content = <CategoriesPage initialView="expenses" />
   else if (page === 'Make sale' && ['OWNER', 'KITCHEN'].includes(role)) content = <PurchasePage initialView="make-sale" canManageExpenses={hasPermission(user, 'manage_expenses')} canApprove={hasPermission(user, 'approve_records')} />
@@ -277,19 +192,18 @@ export default function App() {
   else if (page === 'Purchase expenses' && ['OWNER', 'KITCHEN'].includes(role)) content = <PurchasePage initialView="expenses" canManageExpenses={hasPermission(user, 'manage_expenses')} canApprove={hasPermission(user, 'approve_records')} />
   else if (page === 'Stock' && ['OWNER', 'KITCHEN'].includes(role)) content = <StockPage user={user} canManage={canManageStock} />
   else if (page === 'Help & support' && ['OWNER', 'DEVELOPER'].includes(role)) content = <SupportPage role={role} />
-  else if (page === 'Orders') content = <OrdersTable orders={orders} onAdvance={role === 'KITCHEN' || role === 'OWNER' ? advanceOrder : undefined} />
-  else if (page === 'Reports') content = <Reports orders={orders} analytics={analytics} currency="UGX" onRange={loadReportRange} />
+  else if (page === 'Reports') content = <Reports analytics={analytics} currency="UGX" onRange={loadReportRange} />
   else if (page === 'Accounts' || page === 'Chefs') content = <AccountsPage users={users} role={role} passwordViewable={platformOverview.passwordViewable} onCreate={() => setModal('account')} onToggle={toggleUser} onReset={account => { setResettingUser(account); setModal('reset') }} onEdit={account => { setEditingUser(account); setModal('edit-account') }} onView={account => { setViewingUser(account); setModal('view-password') }} />
-  else if (role === 'DEVELOPER') content = <DeveloperDashboard users={users} orders={orders} onNavigate={setPage} overview={platformOverview} />
-  else content = <Overview orders={orders} hotelName={hotelName} onNavigate={setPage} analytics={analytics} currency="UGX" />
+  else if (role === 'DEVELOPER') content = <DeveloperDashboard users={users} onNavigate={setPage} overview={platformOverview} />
+  else content = <Overview hotelName={hotelName} onNavigate={setPage} analytics={analytics} currency="UGX" />
 
-  return <div className="min-h-screen bg-[#f6f7f9]">
+  return <div className="min-h-screen bg-[#fbf8f6]">
     <Sidebar role={role} page={page} setPage={setPage} user={user} onLogin={() => setModal('login')} onLogout={logout} onChangePassword={() => setModal('change-password')} hotelName={hotelName} items={currentNav} />
     {mobileNav && <div className="fixed inset-0 z-30 bg-[#0f172a]/30 lg:hidden" onMouseDown={e => { if (e.target === e.currentTarget) setMobileNav(false) }}><div className="flex h-full max-h-[100dvh] w-[min(270px,85vw)] flex-col overflow-y-auto bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" onClick={e => e.stopPropagation()}><div className="flex items-center justify-between px-2 py-2"><Brand /><button onClick={() => setMobileNav(false)} aria-label="Close navigation" className="grid size-9 place-items-center rounded-lg hover:bg-[#f8fafc]"><X size={18} /></button></div><div className="mt-5 rounded-xl border border-[#e7ebf0] p-3"><p className="truncate text-[11px] font-semibold">{hotelName}</p><p className="mt-1 text-[10px] text-[#94a3b8]">{user?.name || 'WAGA BITS'}</p></div><p className="mb-2 mt-6 px-2 text-[10px] font-bold uppercase tracking-[1.3px] text-[#94a3b8]">{role === 'DEVELOPER' ? 'Developer support' : role === 'KITCHEN' ? 'Chef portal' : 'Owner portal'}</p><nav className="space-y-1">{currentNav.map(item => item.children
-              ? <div key={item.label}><button onClick={() => toggleMobileGroup(item.label)} className={cx('flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-[12px] font-semibold transition', item.children.some(child => child.label === page) ? 'bg-[#fff4ec] text-[#ea580c]' : 'text-[#64748b] hover:bg-[#f8fafc] hover:text-[#1e293b]')}><item.icon size={17} /><span className="flex-1">{item.label}</span><ChevronDown size={14} className={cx('shrink-0 text-[#94a3b8] transition-transform', openMobileGroups.has(item.label) ? '' : '-rotate-90')} /></button>{openMobileGroups.has(item.label) && <div className="ml-[26px] border-l border-[#e7ebf0] pl-3">{item.children.map(child => <button key={child.label} onClick={() => { setPage(child.target || child.label); setMobileNav(false) }} className={cx('flex w-full items-center rounded-lg px-3 py-2.5 text-left text-[12px]', page === (child.target || child.label) ? 'bg-[#fff4ec] text-[#ea580c]' : 'text-[#64748b]')}>{child.label}</button>)}</div>}</div>
-              : <button key={item.label} onClick={() => { setPage(item.label); setMobileNav(false) }} className={cx('flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-[12px]', page === item.label ? 'bg-[#fff4ec] text-[#ea580c]' : 'text-[#64748b]')}><item.icon size={17} />{item.label}</button>)}</nav><div className="mt-auto space-y-1 pt-5">{user ? <button onClick={() => { setMobileNav(false); logout() }} className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-[12px] text-[#64748b] hover:bg-[#f8fafc]"><LogOut size={16} />Sign out</button> : <button onClick={() => { setMobileNav(false); setModal('login') }} className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-[12px] text-[#64748b] hover:bg-[#f8fafc]"><ShieldCheck size={16} />Sign in</button>}</div></div></div>}
-    <div className="min-h-screen min-w-0 lg:pl-[250px]"><div className="flex items-center border-b border-[#e7ebf0] bg-[#f6f7f9]/90 px-3 sm:px-4 lg:hidden"><button onClick={() => setMobileNav(true)} className="mr-2 grid size-10 shrink-0 place-items-center text-[#64748b]" aria-label="Open navigation"><Menu size={19} /></button><Brand /></div>    <Header role={role} page={page} onLogin={() => setModal('login')} user={user} hotelName={hotelName} titleOverride={page === 'Purchase expenses' ? 'Expenses' : role === 'OWNER' && page === 'Overview' ? `Good morning, ${user?.name?.split(' ')[0] || ''}` : undefined} notifications={notifications} unreadCount={unreadCount} onMarkAllRead={markAllRead} onClearNotifications={clearNotifications} onOpenNotification={openNotification} onNavigate={setPage} orders={orders} />
-    {searchOpen && <SearchModal onClose={() => setSearchOpen(false)} onNavigate={setPage} orders={orders} role={role} />}<main className="mx-auto min-w-0 max-w-[1420px] px-3 py-4 sm:px-6 sm:py-6 lg:px-9 lg:py-7">{apiError && user && <div className="mb-4 flex items-center justify-between rounded-lg bg-[#fef9ee] px-3 py-2.5 text-[10px] text-[#b45309]"><span className="min-w-0 break-words">{apiError}</span><button onClick={() => setApiError('')} className="ml-2 shrink-0"><X size={14} /></button></div>}{content}</main></div>
+              ? <div key={item.label}><button onClick={() => toggleMobileGroup(item.label)} className={cx('flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-[12px] font-semibold transition', item.children.some(child => (child.target || child.label) === page) ? 'bg-[#fff4ec] text-[#ea580c]' : 'text-[#64748b] hover:bg-[#f8fafc] hover:text-[#1e293b]')}><item.icon size={17} /><span className="flex-1">{item.label}</span><ChevronDown size={14} className={cx('shrink-0 text-[#94a3b8] transition-transform', openMobileGroups.has(item.label) ? '' : '-rotate-90')} /></button>{openMobileGroups.has(item.label) && <div className="ml-[26px] border-l border-[#e7ebf0] pl-3">{item.children.map(child => <button key={child.label} onClick={() => { setPage(child.target || child.label); setMobileNav(false) }} className={cx('flex w-full items-center rounded-lg px-3 py-2.5 text-left text-[12px]', page === (child.target || child.label) ? 'bg-[#fff4ec] text-[#ea580c]' : 'text-[#64748b]')}>{child.label}</button>)}</div>}</div>
+              : <button key={item.label} onClick={() => { setPage(item.label); setMobileNav(false) }} className={cx('flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-[12px]', page === item.label ? 'bg-[#fff4ec] text-[#ea580c]' : 'text-[#64748b]')}><item.icon size={17} />{item.label === 'Overview' ? 'Dashboard' : item.label}</button>)}</nav><div className="mt-auto space-y-1 pt-5">{user ? <button onClick={() => { setMobileNav(false); logout() }} className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-[12px] text-[#64748b] hover:bg-[#f8fafc]"><LogOut size={16} />Sign out</button> : <button onClick={() => { setMobileNav(false); setModal('login') }} className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-[12px] text-[#64748b] hover:bg-[#f8fafc]"><ShieldCheck size={16} />Sign in</button>}</div></div></div>}
+    <div className="min-h-screen min-w-0 lg:pl-[210px]"><div className="flex items-center border-b border-[#eee4df] bg-white px-3 sm:px-4 lg:hidden"><button onClick={() => setMobileNav(true)} className="mr-2 grid size-10 shrink-0 place-items-center text-[#786d67]" aria-label="Open navigation"><Menu size={19} /></button><Brand /></div>    <Header role={role} page={page} onLogin={() => setModal('login')} user={user} hotelName={hotelName} titleOverride={page === 'Purchase expenses' ? 'Expenses' : undefined} onNavigate={setPage} />
+    <main className="mx-auto min-w-0 max-w-[1200px] px-3 py-3 sm:px-5 sm:py-4 lg:px-6 lg:py-5">{apiError && user && <div className="mb-4 flex items-center justify-between rounded-lg bg-[#fff7e8] px-3 py-2.5 text-[10px] text-[#a85f18]"><span className="min-w-0 break-words">{apiError}</span><button onClick={() => setApiError('')} className="ml-2 shrink-0"><X size={14} /></button></div>}{content}</main></div>
     {modal === 'login' && <LoginModal onClose={() => setModal('')} onLogin={login} />}
     {modal === 'account' && role === 'OWNER' && <AccountModal onClose={() => setModal('')} onSubmit={createAccount} />}
     {modal === 'reset' && resettingUser && <ResetPasswordModal account={resettingUser} onClose={() => { setModal(''); setResettingUser(null) }} onSubmit={resetUserPassword} />}

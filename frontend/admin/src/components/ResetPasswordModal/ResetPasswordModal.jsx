@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar } from 'recharts'
 import { api } from '../../lib/api.js'
-import { isStrongPassword, money, PASSWORD_RULE, today, cx, orderCode, orderTime, navItems } from '../../lib/ui.js'
+import { isStrongPassword, money, PASSWORD_RULE, today, cx, navItems } from '../../lib/ui.js'
 import { PasswordStrengthMeter } from '../PasswordStrengthMeter/PasswordStrengthMeter.jsx'
 import { Modal } from '../Modal/Modal.jsx'
 import { TextField } from '../TextField/TextField.jsx'

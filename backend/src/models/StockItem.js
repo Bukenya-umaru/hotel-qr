@@ -2,7 +2,7 @@ import mongoose from 'mongoose'
 
 // One stock entry per meat/food kind the kitchen tracks in plates,
 // e.g. "Beef plates", "Chicken plates". Chefs adjust the count by hand
-// and customer orders deduct from it automatically.
+// and recorded sales deduct from it automatically.
 const schema = new mongoose.Schema({
   hotelId: { type: mongoose.Schema.Types.ObjectId, ref: 'Hotel', required: true, index: true },
   name: { type: String, required: true, trim: true, maxlength: 60 },
@@ -24,7 +24,7 @@ const schema = new mongoose.Schema({
   price: { type: Number, required: true, min: 0, default: 0 },
   // Keeps a running total of the count ever added, for quick insight.
   totalAdded: { type: Number, required: true, min: 0, default: 0 },
-  // Running total of plates deducted by orders (manual reduces excluded).
+  // Running total of stock deducted by sales (manual reduces excluded).
   totalUsed: { type: Number, required: true, min: 0, default: 0 },
   // Sign-off on the current count: stock added by someone who cannot approve
   // waits for the owner (or staff granted the approval permission). Approved

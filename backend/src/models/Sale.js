@@ -46,7 +46,7 @@ const schema = new mongoose.Schema({
   // "crates". Empty for sales recorded before units were tracked.
   unit: { type: String, default: '', trim: true, maxlength: 20 },
   amount: { type: Number, required: true, min: 0 },
-  // Optional walk-in customer details, e.g. who the takeaway order was for.
+  // Optional walk-in customer details for identifying a recorded sale.
   customerName: { type: String, default: '', trim: true, maxlength: 80 },
   customerContact: { type: String, default: '', trim: true, maxlength: 60 },
   note: { type: String, default: '', trim: true, maxlength: 200 },

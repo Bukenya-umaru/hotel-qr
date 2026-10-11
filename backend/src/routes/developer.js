@@ -3,7 +3,6 @@ import express from 'express'
 import mongoose from 'mongoose'
 import { authenticate, authorize, publicUser } from '../middleware/auth.js'
 import { Hotel } from '../models/Hotel.js'
-import { Order } from '../models/Order.js'
 import { User } from '../models/User.js'
 import { asyncRoute, idIsValid, safeSupport } from '../utils/http.js'
 import { revealPassword, storePassword, vaultEnabled } from '../utils/passwordVault.js'
@@ -12,7 +11,7 @@ import { isStrongPassword, PASSWORD_RULE_MESSAGE } from '../utils/passwordPolicy
 const router = express.Router()
 router.use(authenticate, authorize('DEVELOPER'))
 
-// Help & support details the developer maintains for the customer menu page.
+// Business contact details the developer maintains for the information page.
 router.get('/support', asyncRoute(async (_req, res) => {
   const hotel = await Hotel.findOne({ isActive: true }).select('support')
   if (!hotel) return res.status(404).json({ message: 'No active business is configured yet.' })
@@ -31,7 +30,6 @@ router.patch('/support', asyncRoute(async (req, res) => {
   }
   if (!Object.keys(updates).length) return res.status(400).json({ message: 'Provide a phone number, WhatsApp number, email, opening hours, or a help message to save.' })
   const hotel = await Hotel.findByIdAndUpdate(business._id, { $set: updates }, { new: true, runValidators: true }).select('support')
-  req.app.get('io').to(`menu:${business._id}`).emit('support_updated', safeSupport(hotel.support))
   res.json({ support: safeSupport(hotel.support) })
 }))
 
@@ -44,14 +42,6 @@ router.get('/users', asyncRoute(async (_req, res) => {
     users: users.map(user => ({ ...publicUser(user), hasViewablePassword: Boolean(user.passwordVault) })),
     passwordViewable: vaultEnabled(),
   })
-}))
-
-router.get('/orders', asyncRoute(async (_req, res) => {
-  const business = await Hotel.findOne({ isActive: true }).select('_id')
-  const orders = business
-    ? await Order.find({ hotelId: business._id }).sort({ createdAt: -1 }).limit(200)
-    : []
-  res.json({ orders })
 }))
 
 router.patch('/users/:id', asyncRoute(async (req, res) => {
@@ -103,17 +93,11 @@ router.get('/users/:id/password', asyncRoute(async (req, res) => {
 router.get('/overview', asyncRoute(async (_req, res) => {
   const business = await Hotel.findOne({ isActive: true }).select('name slug city tableCount currency taxRate')
   const businessFilter = business ? { hotelId: business._id } : { hotelId: null }
-  const [userCount, activeOrdersCount, recentOrders] = await Promise.all([
-    User.countDocuments({ ...businessFilter, role: { $in: ['OWNER', 'KITCHEN'] }, isActive: true }),
-    Order.countDocuments({ ...businessFilter, status: { $in: ['Pending', 'Preparing', 'Ready'] } }),
-    Order.find({ ...businessFilter, status: { $nin: ['Served', 'Cancelled'] } }).sort({ createdAt: -1 }).limit(12),
-  ])
+  const userCount = await User.countDocuments({ ...businessFilter, role: { $in: ['OWNER', 'KITCHEN'] }, isActive: true })
   res.json({
     business,
     businessCount: business ? 1 : 0,
     userCount,
-    activeOrdersCount,
-    recentOrders,
     databaseStatus: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
   })
 }))

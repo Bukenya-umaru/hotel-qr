@@ -10,15 +10,11 @@ import { Server as SocketServer } from 'socket.io'
 import { COOKIE_NAME } from './middleware/auth.js'
 import { uploadDirectory } from './middleware/upload.js'
 import { Hotel } from './models/Hotel.js'
-import { Order } from './models/Order.js'
 import { User } from './models/User.js'
 import authRoutes from './routes/auth.js'
 import developerRoutes from './routes/developer.js'
-import menuRoutes from './routes/menu.js'
-import orderRoutes from './routes/orders.js'
 import ownerRoutes from './routes/owner.js'
 import stockRoutes from './routes/stock.js'
-import tableRoutes from './routes/tables.js'
 
 const app = express()
 const server = http.createServer(app)
@@ -43,9 +39,6 @@ app.get('/api/health', (_req, res) => res.json({
   database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
 }))
 app.use('/api/auth', authRoutes)
-app.use('/api/menu', menuRoutes)
-app.use('/api/orders', orderRoutes)
-app.use('/api/tables', tableRoutes)
 app.use('/api/owner', ownerRoutes)
 app.use('/api/stock', stockRoutes)
 app.use('/api/developer', developerRoutes)
@@ -84,22 +77,13 @@ io.on('connection', socket => {
     if (user?.role === 'DEVELOPER') {
       Hotel.exists({ _id: hotelId, isActive: true })
         .then(business => { if (business) socket.join(`hotel:${hotelId}`) })
-        .catch(error => console.error(`Unable to join business order stream: ${error.message}`))
+        .catch(error => console.error(`Unable to join business update stream: ${error.message}`))
     }
-  })
-  socket.on('join_menu', async slug => {
-    const hotel = await Hotel.findOne({ slug: String(slug || '').trim().toLowerCase(), isActive: true }).select('_id').catch(() => null)
-    if (hotel) socket.join(`menu:${hotel._id}`)
-  })
-  socket.on('join_order', async orderId => {
-    if (!/^[a-f\d]{24}$/i.test(String(orderId))) return
-    const order = await Order.exists({ _id: orderId }).catch(() => null)
-    if (order) socket.join(`order:${orderId}`)
   })
 })
 
 app.use((error, _req, res, _next) => {
-  if (error.code === 11000) return res.status(409).json({ message: 'That account, business, or table identifier is already in use.' })
+  if (error.code === 11000) return res.status(409).json({ message: 'That account or business identifier is already in use.' })
   if (error.name === 'ValidationError' || error.name === 'CastError') {
     return res.status(400).json({ message: 'The submitted data is invalid.' })
   }

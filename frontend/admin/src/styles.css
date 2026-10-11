@@ -3,36 +3,36 @@
 @theme {
   --font-sans: "DM Sans", sans-serif;
   --font-display: "Manrope", sans-serif;
-  --color-ink: #0f172a;
-  --color-orange: #ea580c;
-  --color-cream: #f6f7f9;
+  --color-ink: #292421;
+  --color-orange: #e7654b;
+  --color-cream: #fbf8f6;
 }
 
 * { box-sizing: border-box; }
 #root { min-height: 100vh; min-height: 100dvh; }
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
-body { margin: 0; background: #f6f7f9; color: #0f172a; font-family: "DM Sans", sans-serif; }
+body { margin: 0; background: #fbf8f6; color: #292421; font-family: "DM Sans", sans-serif; }
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
-::selection { background: #ffedd5; color: #0f172a; }
+::selection { background: #fce5dd; color: #292421; }
 .font-display { font-family: "Manrope", sans-serif; }
-.soft-shadow { box-shadow: 0 8px 32px rgba(15, 23, 42, .06); }
+.soft-shadow { box-shadow: 0 8px 32px rgba(53, 42, 36, .06); }
 /* Platform look: white cards on a light gray canvas get a soft two-layer
    shadow so sections lift gently off the page without heavy borders. */
 .rounded-2xl.border,
-.rounded-xl.border { box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 4px 16px rgba(15, 23, 42, .04); }
+.rounded-xl.border { box-shadow: 0 1px 2px rgba(53, 42, 36, .035), 0 4px 16px rgba(53, 42, 36, .035); }
 /* Elevated interactive cards (subsection tiles) lift on hover. */
-button.rounded-2xl.border.transition:hover { box-shadow: 0 2px 4px rgba(15, 23, 42, .05), 0 10px 24px rgba(15, 23, 42, .08); transform: translateY(-1px); }
+button.rounded-2xl.border.transition:hover { box-shadow: 0 2px 4px rgba(53, 42, 36, .05), 0 10px 24px rgba(53, 42, 36, .08); transform: translateY(-1px); }
 /* Slim, unobtrusive scrollbars for panels and lists. */
-* { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+* { scrollbar-width: thin; scrollbar-color: #ddcfc8 transparent; }
 *::-webkit-scrollbar { width: 8px; height: 8px; }
-*::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
-*::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+*::-webkit-scrollbar-thumb { background: #ddcfc8; border-radius: 8px; }
+*::-webkit-scrollbar-thumb:hover { background: #bca9a0; }
 *::-webkit-scrollbar-track { background: transparent; }
 .scrollbar-hidden { scrollbar-width: none; }
 .scrollbar-hidden::-webkit-scrollbar { display: none; }
 .pulse-dot { animation: pulse-dot 1.8s infinite; }
-@keyframes pulse-dot { 50% { box-shadow: 0 0 0 5px rgba(249, 115, 22, .15); } }
+@keyframes pulse-dot { 50% { box-shadow: 0 0 0 5px rgba(231, 101, 75, .15); } }
 
 /* Print support: hide the dashboard shell, show only the selected ticket. */
 @media print {

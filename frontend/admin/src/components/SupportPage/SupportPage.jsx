@@ -62,7 +62,7 @@ export function SupportPage({ role = 'OWNER' }) {
       <h2 className="font-display text-lg font-bold">Help & support</h2>
       <p className="mt-1 text-[12px] text-[#94a3b8]">
         {isOwner
-          ? 'These details appear on the customer menu page, so guests can call or message you directly from their phone.'
+          ? 'Keep your business contact details up to date for staff and customers.'
           : 'Maintain the help & support details shown to customers on the menu page for this business.'}
       </p>
     </div>

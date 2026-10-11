@@ -6,19 +6,17 @@ import { api } from '../../lib/api.js'
 import { money, cx, UNIT_OPTIONS, unitDisplay } from '../../lib/ui.js'
 import { Modal } from '../Modal/Modal.jsx'
 
-// The independent Purchase page. Clicking "Purchase" in the sidebar lands
-// here and shows its subsections — Make sale, Sales and Expenses — each
-// opening its own workspace, the same way Categories shows Food type and
-// Expenses.
+// Sales and expense records each open their own workspace, like the
+// Food type and expense-category sections in Categories.
 export function PurchasePage({ initialView = 'menu', canManageExpenses = true, canApprove = false }) {
   const [view, setView] = useState(initialView) // 'menu' | 'make-sale' | 'sales' | 'expenses'
   const [saleCount, setSaleCount] = useState(null)
   const [expenseCount, setExpenseCount] = useState(null)
   const [error, setError] = useState('')
 
-  // Follow sidebar navigation between the Purchase subsections. Staff
-  // without the expenses permission fall back to the menu of subsections.
-  useEffect(() => { setView(canManageExpenses ? initialView : 'menu') }, [initialView, canManageExpenses])
+  // Follow sidebar navigation while keeping expense-only permissions scoped
+  // to expense records.
+  useEffect(() => { setView(initialView === 'expenses' && !canManageExpenses ? 'menu' : initialView) }, [initialView, canManageExpenses])
 
   // The counts on the subsection cards are a nice-to-have; probe the APIs
   // quietly so a failure never blocks the page.
@@ -54,7 +52,7 @@ export function PurchasePage({ initialView = 'menu', canManageExpenses = true, c
   return <div className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h2 className="font-display text-lg font-bold">Purchase</h2>
+        <h2 className="font-display text-lg font-bold">Sales & Expenses</h2>
         <p className="mt-1 text-[12px] text-[#94a3b8]">{view === 'menu'
           ? 'Choose a subsection to work in.'
           : view === 'make-sale'

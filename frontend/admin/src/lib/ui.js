@@ -1,5 +1,5 @@
 import {
-  Boxes, ChefHat, CircleHelp, LayoutDashboard, Rows3, ShoppingBag, ShoppingCart, TrendingUp, Users, Utensils,
+  Boxes, CircleHelp, LayoutDashboard, Rows3, ShoppingCart, TrendingUp, Users, Utensils,
 } from 'lucide-react'
 
 export const money = (value, currency = 'UGX') => new Intl.NumberFormat('en-UG', {
@@ -41,17 +41,10 @@ export const STRENGTH_STEPS = [
   { label: 'Excellent', color: '#16a34a', width: '100%' },
 ]
 
-export const orderCode = order => order.id?.replace('SS-', '') || String(order._id || '').slice(-6).toUpperCase()
-
-export const orderTime = order => order.time || (order.createdAt
-  ? new Date(order.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-  : 'Just now')
-
 // Capabilities the owner can grant a chef. A chef with no stored
 // permissions keeps full access, matching how existing accounts behave.
 export const PERMISSIONS = [
   { key: 'view_sales', label: 'View sales' },
-  { key: 'manage_tables', label: 'Manage tables' },
   { key: 'manage_stock', label: 'Manage stock' },
   { key: 'manage_expenses', label: 'Manage expenses' },
   { key: 'manage_sales', label: 'Record sales' },
@@ -84,24 +77,21 @@ export const hasPermission = (user, key) => grantedPermissions(user).includes(ke
 export const navItems = {
   OWNER: [
     { label: 'Overview', icon: LayoutDashboard },
-    { label: 'Orders', icon: ShoppingBag },
     { label: 'Categories', icon: Rows3, children: [{ label: 'Food type' }, { label: 'Expenses' }] },
     { label: 'Stock', icon: Boxes },
-    { label: 'Purchase', icon: ShoppingCart, children: [{ label: 'Make sale' }, { label: 'Sales' }, { label: 'Expenses', target: 'Purchase expenses' }] },
-    { label: 'Tables', icon: ChefHat },
+    { label: 'Sales & Expenses', icon: ShoppingCart, children: [{ label: 'Record Sale', target: 'Make sale' }, { label: 'Sales' }, { label: 'Expenses', target: 'Purchase expenses' }] },
     { label: 'Chefs', icon: Users },
     { label: 'Reports', icon: TrendingUp },
     { label: 'Help & support', icon: CircleHelp },
   ],
   KITCHEN: [
+    { label: 'Overview', icon: LayoutDashboard },
     { label: 'Categories', icon: Rows3, children: [{ label: 'Food type' }, { label: 'Expenses' }] },
     { label: 'Stock', icon: Boxes },
-    { label: 'Purchase', icon: ShoppingCart, children: [{ label: 'Make sale' }, { label: 'Sales' }, { label: 'Expenses', target: 'Purchase expenses' }] },
-    { label: 'Tables', icon: ChefHat },
+    { label: 'Sales & Expenses', icon: ShoppingCart, children: [{ label: 'Record Sale', target: 'Make sale' }, { label: 'Sales' }, { label: 'Expenses', target: 'Purchase expenses' }] },
   ],
   DEVELOPER: [
     { label: 'Platform overview', icon: LayoutDashboard },
-    { label: 'Orders', icon: ShoppingBag },
     { label: 'Accounts', icon: Users },
     { label: 'Help & support', icon: CircleHelp },
   ],
