@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { Receipt, ShoppingBag, Wallet } from 'lucide-react'
+import { FileSpreadsheet, PackageOpen, Printer, Receipt, ShoppingBag, Wallet } from 'lucide-react'
 import { money } from '../../lib/ui.js'
+import { downloadReportCsv, downloadReportPdf } from '../../lib/reportExport.js'
 import { MetricCard } from '../MetricCard/MetricCard.jsx'
 
 const dateText = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
@@ -13,8 +14,11 @@ const initialRange = () => {
 }
 const formatTime = value => new Date(value).toLocaleString('en-UG', { dateStyle: 'medium', timeStyle: 'short' })
 
-export function Reports({ analytics, currency, onRange }) {
-  const [range, setRange] = useState(initialRange)
+export function Reports({ analytics, currency, onRange, hotelName = 'Your business', reportRange }) {
+  // Seed the filter from the range the dashboard already applied and
+  // persisted in App (reportRange), so leaving and coming back to Reports
+  // shows the applied range instead of resetting to the default week.
+  const [range, setRange] = useState(reportRange || initialRange)
   const setPreset = preset => {
     const to = new Date()
     const from = new Date(to)
@@ -32,10 +36,15 @@ export function Reports({ analytics, currency, onRange }) {
   }))
   const sales = analytics.sales || []
   const expenses = analytics.expenses || []
+  const damages = analytics.damages || []
 
   return <div className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <p className="text-[12px] text-[#8d817b]">Track recorded food sales and business expenses.</p>
+      <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+        <button onClick={() => downloadReportCsv({ analytics, currency, from: range.from, to: range.to })} title="Download the records as a spreadsheet file" className="flex items-center gap-1.5 rounded-lg border border-[#eee4df] bg-white px-3 py-2 text-[10px] font-semibold text-[#655a54] hover:border-[#e7654b]"><FileSpreadsheet size={13} />CSV</button>
+        <button onClick={() => downloadReportPdf({ analytics, currency, from: range.from, to: range.to, hotelName })} title="Save a designed PDF report to this device" className="flex items-center gap-1.5 rounded-lg bg-[#e7654b] px-3 py-2 text-[10px] font-semibold text-white hover:bg-[#d95c43]"><Printer size={13} />Export report</button>
+      </div>
       <div className="flex w-full flex-wrap gap-2 sm:w-auto">
         {['Daily', 'Monthly', 'Yearly'].map(preset => <button key={preset} onClick={() => setPreset(preset)} className="rounded-lg border border-[#eee4df] bg-white px-3 py-2 text-[10px] font-semibold text-[#655a54] hover:border-[#e7654b]">{preset}</button>)}
       </div>
@@ -50,6 +59,7 @@ export function Reports({ analytics, currency, onRange }) {
       <MetricCard title="Food sales" value={money(analytics.totalRevenue, currency)} icon={ShoppingBag} detail={`${analytics.totalSalesCount || 0} records in selected period`} />
       <MetricCard title="Expenses" value={money(analytics.totalExpenses, currency)} icon={Receipt} detail={`${analytics.totalExpensesCount || 0} records in selected period`} />
       <MetricCard title="Balance after expenses" value={money(analytics.netBalance, currency)} icon={Wallet} detail="Sales minus recorded expenses" inverse />
+      <MetricCard title="Damage losses" value={money(analytics.totalDamages || 0, currency)} icon={PackageOpen} detail={`${(analytics.damages || []).length} damage record${(analytics.damages || []).length === 1 ? '' : 's'} in selected period`} inverse />
     </div>
 
     <section className="border border-[#eee4df] bg-white p-4 sm:p-5">
@@ -85,6 +95,16 @@ export function Reports({ analytics, currency, onRange }) {
             <div className="min-w-0 flex-1"><p className="truncate text-[11px] font-semibold text-[#292421]">{expense.categoryName || 'Expense'}</p><p className="mt-1 truncate text-[9px] text-[#8d817b]">{expense.note || formatTime(expense.createdAt)}</p></div>
             <strong className="shrink-0 text-[10px] text-[#292421]">{money(expense.amount, currency)}</strong>
           </div>) : <p className="px-4 py-8 text-center text-[10px] text-[#a19690]">No expenses recorded in this period.</p>}
+        </div>
+      </section>
+      <section className="min-w-0 border border-[#eee4df] bg-white xl:col-span-2">
+        <div className="flex items-center justify-between border-b border-[#f1eae6] px-4 py-3"><div><h2 className="font-display text-[14px] font-bold text-[#292421]">Recorded Damage</h2><p className="mt-1 text-[10px] text-[#a19690]">Goods lost in this period, priced at the stock unit value</p></div><span className="text-[10px] font-semibold text-[#655a54]">{damages.length}</span></div>
+        <div className="divide-y divide-[#f1eae6]">
+          {damages.length ? damages.map(damage => <div key={damage._id} className="flex items-center gap-3 px-4 py-3">
+            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#fff0ea] text-[#d95c43]"><PackageOpen size={14} /></span>
+            <div className="min-w-0 flex-1"><p className="truncate text-[11px] font-semibold text-[#292421]">{damage.name || 'Damage'} <span className="font-normal text-[#a19690]">{damage.quantity} {damage.unit || 'units'}</span></p><p className="mt-1 truncate text-[9px] text-[#8d817b]">{damage.note || formatTime(damage.createdAt)}</p></div>
+            <strong className="shrink-0 text-[10px] text-[#292421]">−{money(damage.value, currency)}</strong>
+          </div>) : <p className="px-4 py-8 text-center text-[10px] text-[#a19690]">No damage recorded in this period.</p>}
         </div>
       </section>
     </div>

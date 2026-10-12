@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  ArrowRight, CalendarDays, ChartNoAxesCombined, ChevronDown, MoreHorizontal, Receipt,
+  ArrowRight, CalendarDays, ChartNoAxesCombined, ChevronDown, MoreHorizontal, PackageOpen, Receipt,
   ShoppingBag, SlidersHorizontal, TrendingUp, Wallet, UsersRound, Download,
 } from 'lucide-react'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
 import { money } from '../../lib/ui.js'
+import { api } from '../../lib/api.js'
 import { MetricCard } from '../MetricCard/MetricCard.jsx'
 import { DateCalendar } from '../DateCalendar/DateCalendar.jsx'
 
@@ -38,7 +39,7 @@ const periodDates = key => {
   return { from: day(start), to: day(end) }
 }
 
-export function Overview({ hotelName, onNavigate, analytics, currency, onRange }) {
+export function Overview({ hotelName, onNavigate, analytics, currency, onRange, reportRange }) {
   const sales = analytics.sales || []
   const expenses = analytics.expenses || []
   const canViewSales = analytics.canViewSales !== false
@@ -47,10 +48,23 @@ export function Overview({ hotelName, onNavigate, analytics, currency, onRange }
   // Date filter state, shared by the date button and the Filter chip (both
   // open the same option menu, as in the reference). The first render keeps
   // the range the dashboard already loaded; later changes re-fetch.
-  const [periodKey, setPeriodKey] = useState('7')
+  // Seed from the range persisted in App (reportRange) so navigating away
+  // and back shows the applied range, not a reset default. If the persisted
+  // range matches a preset period, restore that preset; otherwise treat it
+  // as the custom calendar range.
+  const initialPeriod = () => {
+    const range = reportRange || { from: periodDates('7').from, to: periodDates('7').to }
+    for (const item of PERIODS) {
+      if (item.key === 'today' || item.key === 'month') continue
+      const dates = periodDates(item.key)
+      if (dates.from === range.from && dates.to === range.to) return { key: item.key, custom: null }
+    }
+    return { key: '7', custom: { from: range.from, to: range.to } }
+  }
+  const [periodKey, setPeriodKey] = useState(() => initialPeriod().key)
   // Custom from/to range picked from the calendar; null while a preset
   // period is active.
-  const [customRange, setCustomRange] = useState(null)
+  const [customRange, setCustomRange] = useState(() => initialPeriod().custom)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef(null)
   const onRangeRef = useRef(onRange)
@@ -89,6 +103,17 @@ export function Overview({ hotelName, onNavigate, analytics, currency, onRange }
   const profit = canViewSales && canViewExpenses
     ? Number(analytics.totalRevenue || 0) - Number(analytics.totalExpenses || 0)
     : null
+  // Damages load from their own endpoint so the dashboard card is ready
+  // whenever the analytics payload carries one; a quiet load never blocks
+  // the page. The analytics payload's total (when present) wins.
+  const [damageTotal, setDamageTotal] = useState(analytics.totalDamages ?? null)
+  useEffect(() => {
+    if (analytics.totalDamages !== undefined) { setDamageTotal(analytics.totalDamages); return }
+    let cancelled = false
+    api('/api/owner/damages').then(data => { if (!cancelled) setDamageTotal(data.total || 0) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [analytics.totalDamages])
+  const damagesTotal = damageTotal === null ? null : Number(damageTotal || 0)
   const series = (analytics.series || []).map(day => ({
     day: formatDay(day.date),
     sales: day.revenue || 0,
@@ -108,7 +133,13 @@ export function Overview({ hotelName, onNavigate, analytics, currency, onRange }
   const seriesRaw = analytics.series || []
   const positiveDays = seriesRaw.filter(day => (day.revenue || 0) >= (day.expenses || 0)).length
   const coverage = seriesRaw.length ? Math.max(0, Math.min(1, positiveDays / seriesRaw.length)) : 0.7
-  const reportDate = new Intl.DateTimeFormat('en-UG', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date())
+  // The date button reflects the applied range — today's date for the
+  // current-day default, otherwise the exact from–to the user applied.
+  const readRange = customRange || periodDates(periodKey)
+  const shortDate = value => value ? new Date(`${value}T12:00:00`).toLocaleDateString('en-UG', { month: 'long', day: 'numeric', year: 'numeric' }) : ''
+  const reportDate = customRange && customRange.from !== customRange.to
+    ? `${shortDate(customRange.from)} – ${shortDate(customRange.to)}`
+    : shortDate(readRange.from)
 
   return <div className="space-y-4">
     <div className="flex flex-wrap items-end justify-between gap-3">
@@ -143,6 +174,7 @@ export function Overview({ hotelName, onNavigate, analytics, currency, onRange }
       <MetricCard title="Total Order" value={canViewSales ? periodSales : '—'} icon={ChartNoAxesCombined} detail={canViewSales ? `${period.label} orders` : 'Access not granted'} />
       <MetricCard title="Total Sale" value={salesTotal === null ? '—' : money(salesTotal, currency)} icon={TrendingUp} detail={canViewSales ? `${period.label} revenue` : 'Access not granted'} />
       <MetricCard title="Total Profit" value={profit === null ? '—' : money(profit, currency)} icon={Wallet} detail={canViewExpenses ? `${money(expensesTotal || 0, currency)} spent ${dayWording}` : 'Access not granted'} inverse />
+      <MetricCard title="Damage" value={canViewExpenses ? money(damagesTotal === null ? analytics.totalDamages || 0 : damagesTotal, currency) : '—'} icon={PackageOpen} detail={canViewExpenses ? (dayWording === 'today' ? 'goods lost today' : 'goods lost in period') : 'Access not granted'} inverse />
     </div>
 
     <div className="flex flex-col gap-3.5 xl:flex-row">

@@ -8,6 +8,7 @@ import { MenuCategory } from '../models/MenuCategory.js'
 import { Expense } from '../models/Expense.js'
 import { ExpenseCategory } from '../models/ExpenseCategory.js'
 import { HotelExpense } from '../models/HotelExpense.js'
+import { DamageRecord } from '../models/DamageRecord.js'
 import { Sale, formatSaleId } from '../models/Sale.js'
 import { StockItem } from '../models/StockItem.js'
 import { Hotel } from '../models/Hotel.js'
@@ -312,6 +313,110 @@ router.post('/expenses/:expenseId/approve', authenticate, authorize('OWNER', 'KI
   })
   broadcastChange(req.app.get('io'), String(hotelScope(req)), 'expenses_changed')
   res.json({ expense: { ...expense.toObject(), approvedByName: req.user.name } })
+}))
+
+// ---- Damaged goods: stock lost to spoilage, breakage, spillage etc. ----
+// ---- Records drawn from stock reduce its count; deleting a record   ----
+// ---- restores it. Entries not tied to stock are recorded as-is.     ----
+
+router.get('/damages', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (!requireExpenseAccess(req, res)) return
+  const scope = hotelScope(req)
+  if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
+  const startOfToday = new Date()
+  startOfToday.setHours(0, 0, 0, 0)
+  const [damages, allTime, todayTotals] = await Promise.all([
+    DamageRecord.find({ hotelId: scope }).sort({ createdAt: -1 }).limit(100).populate('recordedBy', 'name').populate('stockItemId', 'name'),
+    DamageRecord.aggregate([
+      { $match: { hotelId: new mongoose.Types.ObjectId(scope) } },
+      { $group: { _id: null, total: { $sum: '$value' }, count: { $sum: 1 } } },
+    ]),
+    DamageRecord.aggregate([
+      { $match: { hotelId: new mongoose.Types.ObjectId(scope), createdAt: { $gte: startOfToday } } },
+      { $group: { _id: null, total: { $sum: '$value' }, count: { $sum: 1 } } },
+    ]),
+  ])
+  res.json({
+    total: allTime[0]?.total || 0,
+    count: allTime[0]?.count || 0,
+    todayTotal: todayTotals[0]?.total || 0,
+    todayCount: todayTotals[0]?.count || 0,
+    damages: damages.map(damage => ({
+      _id: damage._id,
+      name: damage.name,
+      quantity: damage.quantity,
+      unit: damage.unit || '',
+      value: damage.value,
+      stockItem: damage.stockItemId ? { _id: String(damage.stockItemId._id || damage.stockItemId), name: damage.stockItemId.name || '' } : null,
+      note: damage.note,
+      recordedBy: damage.recordedBy?.name || '',
+      createdAt: damage.createdAt,
+    })),
+  })
+}))
+
+router.post('/damages', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (!requireExpenseAccess(req, res)) return
+  const scope = hotelScope(req)
+  if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
+  const name = String(req.body.name || '').trim().slice(0, 60)
+  const quantity = req.body.quantity === undefined || req.body.quantity === '' ? 1 : Number(req.body.quantity)
+  const unit = String(req.body.unit || '').trim().toLowerCase().slice(0, 20)
+  const note = String(req.body.note || '').trim().slice(0, 200)
+  if (!name) return res.status(400).json({ message: 'Give the damaged item a name, e.g. Beef plates.' })
+  if (!Number.isFinite(quantity) || quantity <= 0) return res.status(400).json({ message: 'Enter the quantity that was damaged.' })
+  // Stock-picked damages price themselves from the stock's unit price ×
+  // quantity; a tampered client cannot set its own value for those.
+  let stockItem = null
+  let value = 0
+  if (idIsValid(req.body.stockItemId)) {
+    stockItem = await StockItem.findOne({ _id: req.body.stockItemId, hotelId: scope })
+    if (!stockItem) return res.status(404).json({ message: 'The chosen stock item could not be found.' })
+    if (stockItem.plates < quantity) return res.status(400).json({ message: `Only ${stockItem.plates} ${stockItem.unit === 'other' ? `(${stockItem.customUnit || 'units'})` : stockItem.unit || 'units'} of ${stockItem.name} in stock — you cannot record damage of ${quantity}.` })
+    value = Math.round((stockItem.price || 0) * quantity * 100) / 100
+  } else {
+    value = Math.round((Number(req.body.value) || 0) * 100) / 100
+    if (!Number.isFinite(value) || value <= 0) return res.status(400).json({ message: 'Enter the money value of what was damaged.' })
+  }
+  const damage = await DamageRecord.create({
+    hotelId: scope,
+    name,
+    quantity: Math.round(quantity * 100) / 100,
+    unit,
+    value,
+    stockItemId: stockItem ? stockItem._id : null,
+    note,
+    recordedBy: req.user._id,
+  })
+  if (stockItem) {
+    await StockItem.updateOne({ _id: stockItem._id, plates: { $gte: quantity } }, { $inc: { plates: -quantity, totalUsed: quantity } }).catch(() => {})
+    req.app.get('io').to(`hotel:${scope}`).emit('stock_updated')
+    await checkLowStock(req.app.get('io'), scope, [String(stockItem._id)])
+  }
+  await notifyHotel(req.app.get('io'), scope, {
+    type: 'new_damage',
+    title: `Damage recorded — ${damage.name}`,
+    body: `${damage.quantity} ${damage.unit || 'units'} · ${damage.value} value · by ${req.user.name}`,
+    refId: damage._id,
+  })
+  broadcastChange(req.app.get('io'), scope, 'damages_changed')
+  res.status(201).json({ damage: { ...damage.toObject(), recordedBy: req.user.name } })
+}))
+
+router.delete('/damages/:damageId', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (!requireExpenseAccess(req, res)) return
+  if (!idIsValid(req.params.damageId)) return res.status(404).json({ message: 'Damage record not found.' })
+  const scope = hotelScope(req)
+  const damage = await DamageRecord.findOne({ _id: req.params.damageId, hotelId: scope })
+  if (!damage) return res.status(404).json({ message: 'Damage record not found.' })
+  await DamageRecord.deleteOne({ _id: damage._id })
+  // Restoring stock on delete keeps the ledger consistent with the count.
+  if (damage.stockItemId && damage.quantity > 0) {
+    await StockItem.updateOne({ _id: damage.stockItemId, hotelId: scope }, { $inc: { plates: damage.quantity, totalUsed: -damage.quantity } }).catch(() => {})
+    req.app.get('io').to(`hotel:${scope}`).emit('stock_updated')
+  }
+  broadcastChange(req.app.get('io'), String(scope), 'damages_changed')
+  res.status(204).end()
 }))
 
 // Spending totals per section, newest expense included for a quick glance.
@@ -841,9 +946,10 @@ async function report(req, res) {
   const filter = { createdAt: { $gte: from, $lte: to } }
   if (scope) filter.hotelId = scope
   const match = scope ? { ...filter, hotelId: new mongoose.Types.ObjectId(scope) } : { ...filter, hotelId: { $exists: true } }
-  const [sales, expenses, salesTotals, expenseTotals, salesSeries, expenseSeries] = await Promise.all([
+  const [sales, expenses, damages, salesTotals, expenseTotals, salesSeries, expenseSeries] = await Promise.all([
     canViewSales ? Sale.find(filter).sort({ createdAt: -1 }).limit(1000).lean() : Promise.resolve([]),
     canViewExpenses ? HotelExpense.find(filter).sort({ createdAt: -1 }).limit(1000).lean() : Promise.resolve([]),
+    canViewExpenses ? DamageRecord.find(filter).sort({ createdAt: -1 }).limit(1000).lean() : Promise.resolve([]),
     canViewSales ? Sale.aggregate([
       { $match: match },
       { $group: { _id: null, totalSalesCount: { $sum: 1 }, totalRevenue: { $sum: '$amount' } } },
@@ -880,6 +986,8 @@ async function report(req, res) {
     ...sale,
     saleId: displaySaleId(sale),
   }))
+  // Damages are a loss, priced from the stock's unit value at record time.
+  const totalDamages = (damages || []).reduce((sum, damage) => sum + (damage.value || 0), 0)
   res.json({
     from: from.toISOString(),
     to: to.toISOString(),
@@ -887,7 +995,18 @@ async function report(req, res) {
     totalRevenue,
     totalExpensesCount: expenseTotals[0]?.totalExpensesCount || 0,
     totalExpenses,
+    totalDamages,
+    damages: (damages || []).map(damage => ({
+      _id: damage._id,
+      name: damage.name,
+      quantity: damage.quantity,
+      unit: damage.unit || '',
+      value: damage.value,
+      note: damage.note || '',
+      createdAt: damage.createdAt,
+    })),
     netBalance: canViewSales && canViewExpenses ? totalRevenue - totalExpenses : null,
+    netBalanceAfterDamages: canViewSales && canViewExpenses ? totalRevenue - totalExpenses - totalDamages : null,
     canViewSales,
     canViewExpenses,
     series,

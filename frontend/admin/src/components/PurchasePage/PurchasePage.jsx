@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from 'react'
 import { io } from 'socket.io-client'
 import {
-  ArrowDown, BadgePlus, Banknote, CalendarDays, Check, ChevronRight, History, Minus, Pencil, Plus, Receipt, Trash2,
+  ArrowDown, BadgePlus, Banknote, CalendarDays, Check, ChevronRight, History, Minus, Pencil, Plus, Receipt, Trash2, PackageOpen,
 } from 'lucide-react'
 import { api, API_BASE_URL } from '../../lib/api.js'
 import { money, cx, UNIT_OPTIONS, unitDisplay } from '../../lib/ui.js'
@@ -10,20 +10,24 @@ import { Modal } from '../Modal/Modal.jsx'
 // Sales and expense records each open their own workspace, like the
 // Food type and expense-category sections in Categories.
 export function PurchasePage({ hotelId, initialView = 'menu', canManageExpenses = true, canApprove = false }) {
-  const [view, setView] = useState(initialView) // 'menu' | 'make-sale' | 'sales' | 'expenses'
+  const [view, setView] = useState(initialView) // 'menu' | 'make-sale' | 'sales' | 'expenses' | 'damages'
   const [saleCount, setSaleCount] = useState(null)
   const [expenseCount, setExpenseCount] = useState(null)
+  const [damageCount, setDamageCount] = useState(null)
   const [error, setError] = useState('')
 
   // Follow sidebar navigation while keeping expense-only permissions scoped
   // to expense records.
-  useEffect(() => { setView(initialView === 'expenses' && !canManageExpenses ? 'menu' : initialView) }, [initialView, canManageExpenses])
+  useEffect(() => { setView((initialView === 'expenses' || initialView === 'damages') && !canManageExpenses ? 'menu' : initialView) }, [initialView, canManageExpenses])
 
   // The counts on the subsection cards are a nice-to-have; probe the APIs
   // quietly so a failure never blocks the page.
   useEffect(() => {
     api('/api/owner/sales').then(data => setSaleCount(data.count)).catch(() => {})
-    if (canManageExpenses) api('/api/owner/expenses').then(data => setExpenseCount(data.count)).catch(() => {})
+    if (canManageExpenses) {
+      api('/api/owner/expenses').then(data => setExpenseCount(data.count)).catch(() => {})
+      api('/api/owner/damages').then(data => setDamageCount(data.count)).catch(() => {})
+    }
   }, [view, canManageExpenses])
 
   const SUBSECTIONS = [
@@ -47,6 +51,12 @@ export function PurchasePage({ hotelId, initialView = 'menu', canManageExpenses 
       title: 'Expenses',
       description: 'Record everything the hotel spends, e.g. cooking gas, wages, deliveries.',
       stat: expenseCount === null ? '…' : `${expenseCount} expense${expenseCount === 1 ? '' : 's'}`,
+    }, {
+      key: 'damages',
+      icon: PackageOpen,
+      title: 'Damage',
+      description: 'Record damaged goods — from tracked stock or items not in stock — as plates, items, cups, kg or any other measure.',
+      stat: damageCount === null ? '…' : `${damageCount} damage${damageCount === 1 ? '' : 's'}`,
     }] : []),
   ]
 
@@ -60,6 +70,8 @@ export function PurchasePage({ hotelId, initialView = 'menu', canManageExpenses 
           ? 'Record one or more items as a single sale, with an optional customer name and contact.'
           : view === 'expenses'
           ? 'Record what the hotel spends and keep track of the money going out.'
+          : view === 'damages'
+          ? 'Record damaged goods, price the loss and keep the stock count honest.'
           : 'Every sale made by this hotel, newest first, each with its own ID.'}</p>
       </div>
     </div>
@@ -77,6 +89,7 @@ export function PurchasePage({ hotelId, initialView = 'menu', canManageExpenses 
     {view === 'make-sale' && <MakeSaleView onError={setError} onViewSales={() => setView('sales')} />}
     {view === 'sales' && <SalesView onError={setError} canApprove={canApprove} hotelId={hotelId} />}
     {view === 'expenses' && <ExpensesView onError={setError} canApprove={canApprove} hotelId={hotelId} />}
+    {view === 'damages' && <DamagesView onError={setError} hotelId={hotelId} />}
   </div>
 }
 
@@ -764,6 +777,233 @@ function ExpensesView({ onError, canApprove = false, hotelId }) {
     {!filtered.length && <p className="mt-3 rounded-xl border border-dashed border-[#e7ebf0] px-3 py-6 text-center text-[10px] text-[#94a3b8]">{hasFilter ? 'No expenses in the selected dates — pick another range or choose All.' : 'No expenses recorded yet — click “Record expense” above to record your first one.'}</p>}
     {showPopup && <RecordExpenseModal onClose={() => setShowPopup(false)} onSaved={() => { setShowPopup(false); load() }} />}
   </div>
+}
+
+// ---- Subsection: Damage — record goods lost to spoilage, breakage or  ----
+// ---- spillage, either from tracked stock (its count drops) or items   ----
+// ---- not in stock. Units follow the system: plates, items, cups, kg,  ----
+// ---- or any custom word. Stock-picked rows price the loss from the    ----
+// ---- stock's unit value; deleting a record restores the stock.        ----
+
+function DamagesView({ onError, hotelId }) {
+  const [damages, setDamages] = useState([])
+  const [stats, setStats] = useState({ total: 0, count: 0, todayTotal: 0, todayCount: 0 })
+  const [busy, setBusy] = useState(false)
+  const [showPopup, setShowPopup] = useState(false)
+  const [range, setRange] = useState({ from: '', to: '' })
+
+  const load = async () => {
+    try {
+      const data = await api('/api/owner/damages')
+      setDamages(data.damages)
+      setStats({ total: data.total, count: data.count, todayTotal: data.todayTotal, todayCount: data.todayCount })
+      onError('')
+    } catch (err) {
+      onError(err.message)
+    }
+  }
+  useEffect(() => { load() }, [])
+
+  // Live list: damages broadcast damages_changed on record or delete.
+  useEffect(() => {
+    const socket = io(API_BASE_URL || undefined, { withCredentials: true })
+    socket.on('connect', () => {
+      socket.emit('join_hotel', hotelId)
+    })
+    socket.on('damages_changed', load)
+    return () => socket.disconnect()
+  }, [])
+
+  const removeDamage = async damage => {
+    const label = damage.note ? `${damage.name} — ${damage.note}` : damage.name
+    if (!window.confirm(`Remove the damage record for ${label}?${damage.stockItem ? ' The stock count it drew down will be restored.' : ''}`)) return
+    setBusy(true)
+    try {
+      await api(`/api/owner/damages/${damage._id}`, { method: 'DELETE' })
+      onError('')
+      await load()
+    } catch (err) {
+      onError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const damageTime = value => new Date(value).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+
+  // Date filter — the same From/To range and presets as Sales and Expenses.
+  const fromBound = dayBound(range.from, false)
+  const toBound = dayBound(range.to, true)
+  const hasFilter = Boolean(range.from || range.to)
+  const filtered = damages.filter(damage => inDayRange(new Date(damage.createdAt).getTime(), fromBound, toBound))
+  const filteredTotal = filtered.reduce((sum, damage) => sum + damage.value, 0)
+
+  return <div className="rounded-xl border border-[#e7ebf0] bg-white p-4">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <p className="flex items-center gap-2 font-display text-[15px] font-bold text-[#292421]">Recorded damage
+        <span className="rounded-full bg-[#f1f4f9] px-2 py-0.5 text-[9px] font-semibold text-[#64748b]">{stats.count}</span>
+      </p>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {hasFilter && <span className="rounded-full bg-[#f97316] px-2.5 py-1 text-[9px] font-semibold text-white">Selected {money(filteredTotal)} · {filtered.length} record{filtered.length === 1 ? '' : 's'}</span>}
+        <span className="rounded-full bg-[#fef2f2] px-2.5 py-1 text-[9px] font-semibold text-[#dc2626]">Today {money(stats.todayTotal)} · {stats.todayCount} record{stats.todayCount === 1 ? '' : 's'}</span>
+        <span className="rounded-full bg-[#f1f4f9] px-2.5 py-1 text-[9px] font-semibold text-[#64748b]">All time {money(stats.total)}</span>
+        <button onClick={() => setShowPopup(true)} className="flex items-center gap-1.5 rounded-lg bg-[#f97316] px-3 py-2 text-[10px] font-semibold text-white hover:bg-[#ea580c]"><Plus size={13} />Record damage</button>
+      </div>
+    </div>
+    <DateFilterRow range={range} setRange={setRange} />
+    {filtered.length > 0 && <ul className="mt-3 divide-y divide-[#f1f5f9]">
+      {filtered.map(damage => <li key={damage._id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[11px] font-semibold text-[#0f172a]">
+            {damage.name}
+            <span className="ml-1.5 font-normal text-[#94a3b8]">{damage.quantity} {damage.unit || 'units'}</span>
+          </p>
+          <p className="mt-0.5 truncate text-[9px] text-[#94a3b8]">{damageTime(damage.createdAt)}{damage.recordedBy && ` · by ${damage.recordedBy}`}{damage.stockItem && ` · from stock: ${damage.stockItem.name}`}{damage.note && ` · ${damage.note}`}</p>
+        </div>
+        <span className="shrink-0 text-[11px] font-bold text-[#dc2626]">−{money(damage.value)}</span>
+        <button disabled={busy} onClick={() => removeDamage(damage)} title="Remove record" className="shrink-0 rounded-md p-1 text-[#f87171] hover:bg-[#fef2f2] hover:text-[#dc2626] disabled:opacity-50"><Trash2 size={13} /></button>
+      </li>)}
+    </ul>}
+    {!filtered.length && <p className="mt-3 rounded-xl border border-dashed border-[#e7ebf0] px-3 py-6 text-center text-[10px] text-[#94a3b8]">{hasFilter ? 'No damage records in the selected dates — pick another range or choose All.' : 'No damage recorded yet — click “Record damage” above to record your first one.'}</p>}
+    {showPopup && <RecordDamageModal onClose={() => setShowPopup(false)} onSaved={() => { setShowPopup(false); load() }} />}
+  </div>
+}
+
+// ---- Popup for recording one damage — pick an item from the hotel's ----
+// ---- stock (its count drops and the loss is priced from the stock's ----
+// ---- unit value) or record something not in stock with its own value. ----
+
+function RecordDamageModal({ onClose, onSaved }) {
+  // The hotel's stock powers the item search, exactly as in Make sale.
+  const [stock, setStock] = useState([])
+  const [mode, setMode] = useState(null) // 'stock' | 'other'
+  const [name, setName] = useState('')
+  const [stockId, setStockId] = useState('')
+  const [quantity, setQuantity] = useState('1')
+  const [unit, setUnit] = useState('plates')
+  const [customUnit, setCustomUnit] = useState('')
+  const [value, setValue] = useState('')
+  const [note, setNote] = useState('')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  // A quiet load — if stock cannot be read, 'other' mode still works.
+  useEffect(() => {
+    let cancelled = false
+    api('/api/stock').then(data => {
+      if (cancelled) return
+      setStock(data.items || [])
+      setMode((data.items || []).length ? 'stock' : 'other')
+    }).catch(() => { if (!cancelled) setMode('other') })
+    return () => { cancelled = true }
+  }, [])
+
+  const stockMatches = query => {
+    const text = String(query || '').trim().toLowerCase()
+    const list = text ? stock.filter(entry => entry.name.toLowerCase().includes(text)) : stock
+    return list.slice(0, 8)
+  }
+
+  // Picking a stock item fills in its unit and shows the per-unit value;
+  // the loss value is computed from the unit price × quantity.
+  const pickedStock = stock.find(entry => String(entry._id) === stockId) || null
+  const unitWord = pickedStock
+    ? unitDisplay(pickedStock.unit, pickedStock.customUnit || '')
+    : unit === 'other' ? (customUnit.trim() || 'units') : unit
+  const unitPrice = pickedStock ? (pickedStock.price ?? 0) : null
+  const computedValue = unitPrice != null && Number(quantity) > 0
+    ? Math.round(unitPrice * Number(quantity) * 100) / 100
+    : null
+
+  const pickedName = event => {
+    setName(event.target.value)
+    setStockId('')
+  }
+
+  const submit = async event => {
+    event.preventDefault()
+    const qty = quantity === '' ? 1 : Number(quantity)
+    const label = pickedStock ? pickedStock.name : name
+    if (!label.trim()) { setError('Give the damaged item a name, e.g. Beef plates.'); return }
+    if (!Number.isFinite(qty) || qty <= 0) { setError('Enter the quantity that was damaged.'); return }
+    if (pickedStock && pickedStock.plates < qty) {
+      setError(`Only ${pickedStock.plates} ${unitWord} of ${pickedStock.name} in stock — you cannot record damage of ${qty}.`)
+      return
+    }
+    setBusy(true)
+    try {
+      const payload = { name: label.trim(), quantity: qty, unit: unitWord, note: note.trim() }
+      if (pickedStock) payload.stockItemId = pickedStock._id
+      else {
+        const money = Number(value)
+        if (!Number.isFinite(money) || money <= 0) { setError('Enter the money value of what was damaged.'); setBusy(false); return }
+        payload.value = money
+      }
+      await api('/api/owner/damages', { method: 'POST', body: JSON.stringify(payload) })
+      onSaved()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const inputClass = 'w-full rounded-lg border border-[#e7ebf0] bg-white px-3 py-2.5 text-[12px] outline-none focus:border-[#fdba74] focus:ring-2 focus:ring-[#fff4ec]'
+  const labelClass = 'mb-1.5 block text-[10px] font-semibold text-[#64748b]'
+  const modeButton = active => cx('rounded-md px-2 py-1.5 text-[10px] font-semibold transition', active ? 'bg-white text-[#f97316] shadow-sm' : 'text-[#64748b] hover:text-[#0f172a]')
+
+  return <Modal title="Record damage" onClose={onClose}>
+    <form className="space-y-3.5" onSubmit={submit}>
+      {stock.length > 0 && <div>
+        <span className={labelClass}>Where is it from? <span className="text-[#dc2626]">*</span></span>
+        <div className="grid grid-cols-2 gap-1 rounded-lg bg-[#f1f4f9] p-1">
+          <button type="button" onClick={() => { setMode('stock'); setName(''); setStockId('') }} className={modeButton(mode === 'stock')}>From stock</button>
+          <button type="button" onClick={() => { setMode('other'); setName(''); setStockId('') }} className={modeButton(mode === 'other')}>Not in stock</button>
+        </div>
+      </div>}
+      {stock.length === 0 && <p className="rounded-lg bg-[#fff7e8] px-3 py-2 text-[10px] leading-4 text-[#a85f18]">No stock items yet — recording in “not in stock” mode. Add stock under Stock in the sidebar to draw damage from tracked items.</p>}
+
+      {mode === 'stock'
+        ? <div>
+            <span className={labelClass}>Stock item <span className="text-[#dc2626]">*</span></span>
+            <select autoFocus value={stockId} onChange={event => { setStockId(event.target.value); setName('') }} className={cx(inputClass, 'mt-0.5')}>
+              <option value="">Choose a stock item…</option>
+              {stock.map(item => <option key={item._id} value={item._id}>{item.name} — {item.plates} {unitDisplay(item.unit, item.customUnit || '')} in stock</option>)}
+            </select>
+            {pickedStock && <p className="mt-1.5 text-[9px] text-[#94a3b8]">Priced from stock: {money(pickedStock.price)} per {unitWord} — the count drops when recorded.</p>}
+          </div>
+        : <label className="block"><span className={labelClass}>Damaged item name <span className="text-[#dc2626]">*</span></span>
+            <input required autoFocus="autoFocus" value={name} onChange={pickedName} maxLength="60" placeholder="e.g. Broken plates, spoilt beef" className={inputClass} />
+          </label>}
+      {/* Name is derived from the picked stock item in stock mode. */}
+
+      <div className="grid grid-cols-3 gap-2">
+        <label className="block"><span className={labelClass}>Quantity <span className="text-[#dc2626]">*</span></span>
+          <input required type="number" min="0.01" step="0.01" value={quantity} onChange={event => setQuantity(event.target.value)} placeholder="e.g. 3" className={inputClass} />
+        </label>
+        {!pickedStock && <label className="block"><span className={labelClass}>Unit</span>
+          <select value={unit} onChange={event => setUnit(event.target.value)} className={inputClass}>
+            {UNIT_OPTIONS.map(option => <option key={option.key} value={option.key}>{option.label}</option>)}
+          </select>
+        </label>}
+        {!pickedStock && unit === 'other' && <label className="block"><span className={labelClass}>Unit name</span>
+          <input value={customUnit} onChange={event => setCustomUnit(event.target.value)} maxLength="20" placeholder="e.g. crates" className={inputClass} />
+        </label>}
+      </div>
+
+      {mode === 'other' && <label className="block"><span className={labelClass}>Value of damage (UGX) <span className="text-[#dc2626]">*</span></span>
+        <input required type="number" min="0" step="1" value={value} onChange={event => setValue(event.target.value)} placeholder="e.g. 15000" className={inputClass} />
+      </label>}
+      {pickedStock && <p className="rounded-lg bg-[#fff7e8] px-3 py-2 text-[10px] text-[#a85f18]">Loss value: <b>{computedValue != null ? money(computedValue) : '—'}</b> ({money(pickedStock.price)} × {quantity || 1} {unitWord})</p>}
+
+      <label className="block"><span className={labelClass}>Note — optional</span>
+        <input value={note} onChange={event => setNote(event.target.value)} maxLength="200" placeholder="e.g. fell, spillage during prep" className={inputClass} />
+      </label>
+
+      {error && <p className="text-[11px] text-[#dc2626]">{error}</p>}
+      <button disabled={busy || mode === null || (mode === 'stock' && !pickedStock)} className="w-full rounded-lg bg-[#f97316] py-2.5 text-[11px] font-semibold text-white hover:bg-[#ea580c] disabled:cursor-not-allowed disabled:opacity-60">{busy ? 'Recording…' : 'Record damage'}</button>
+    </form>
+  </Modal>
 }
 
 // ---- Popup for recording one expense — pick one of the expense categories ----
