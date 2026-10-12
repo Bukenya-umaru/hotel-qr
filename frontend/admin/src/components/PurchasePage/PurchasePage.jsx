@@ -3,7 +3,7 @@ import { io } from 'socket.io-client'
 import {
   ArrowDown, BadgePlus, Banknote, CalendarDays, Check, ChevronRight, History, Minus, Pencil, Plus, Receipt, Trash2, PackageOpen,
 } from 'lucide-react'
-import { api, API_BASE_URL } from '../../lib/api.js'
+import { api, apiAssetUrl, API_BASE_URL } from '../../lib/api.js'
 import { money, cx, UNIT_OPTIONS, unitDisplay } from '../../lib/ui.js'
 import { Modal } from '../Modal/Modal.jsx'
 
@@ -103,6 +103,10 @@ const UNIT_KEYS = UNIT_OPTIONS.map(option => option.key)
 const saleLine = sale => ((Array.isArray(sale.items) && sale.items.length ? sale.items : [{ name: sale.name, quantity: sale.quantity, unit: sale.unit }])
   .map(item => `${item.name || 'Item'}${Number(item.quantity) !== 1 ? ` ×${item.quantity}${item.unit ? ` ${item.unit}` : ''}` : ''}`)
   .join(', '))
+
+// Image of a sale line's stock item, from the sale's stockImages map returned
+// by the API; empty when the line is not stock-linked or has no photo.
+const saleItemImage = (sale, item) => (sale.stockImages ? sale.stockImages[String(item.stockItemId || '')] || '' : '')
 
 // ---- Shared date filter (Sales and Expenses) — a From/To range over the ----
 // ---- record times with quick presets. Empty from/to mean no filter, and ----
@@ -237,7 +241,12 @@ function SalesView({ onError, canApprove = false, hotelId }) {
     {filtered.length > 0 && <ul className="mt-3 divide-y divide-[#f1f5f9]">
       {filtered.map(sale => <li key={sale._id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[11px] font-semibold text-[#0f172a]">{saleLine(sale)}</p>
+          <p className="flex items-center gap-1.5 text-[11px] font-semibold text-[#0f172a]">
+            {(() => { const image = saleItemImage(sale, (Array.isArray(sale.items) && sale.items[0]) || sale); return image
+              ? <img src={apiAssetUrl(image)} alt="" aria-hidden="true" className="size-6 shrink-0 rounded-md object-cover" />
+              : null })()}
+            <span className="min-w-0 truncate">{saleLine(sale)}</span>
+          </p>
           <p className="mt-0.5 flex items-center gap-1.5 text-[9px] text-[#94a3b8]">
             <span className="shrink-0 rounded bg-[#f1f4f9] px-1.5 py-0.5 font-mono text-[8px] font-bold tracking-wide text-[#64748b]">{sale.saleId}</span>
             <span className="truncate">{saleTime(sale.createdAt)}{sale.recordedBy && ` · by ${sale.recordedBy}`}{sale.customerName && ` · for ${sale.customerName}`}{sale.customerContact && ` · ${sale.customerContact}`}{sale.note && ` · ${sale.note}`}</span>
@@ -602,6 +611,11 @@ function MakeSaleView({ onError, onViewSales }) {
         </div>
         {items.map((item, index) => {
           const locked = item.stockId || item.committed
+          // Stock-picked lines show the stock entry's photo so the staff sees
+          // the same item face everywhere.
+          const stockImage = (item.stockId || item.pendingStockId) && stock.length
+            ? stock.find(entry => String(entry._id) === String(item.stockId || item.pendingStockId))?.imageUrl || ''
+            : ''
           return <div key={index} className="py-1 first:pt-0">
             {locked ? (
               // Added lines — picked from stock or typed in — show as plain
@@ -610,6 +624,7 @@ function MakeSaleView({ onError, onViewSales }) {
               <div className="flex flex-wrap items-center gap-1">
                 <div className="min-w-0 flex-[1_1_100%] sm:flex-[2_1_0%]">
                   <p className="flex items-center gap-1.5 px-1 text-[11px] font-semibold text-[#0f172a]">
+                    {stockImage && <img src={apiAssetUrl(stockImage)} alt="" aria-hidden="true" className="size-6 shrink-0 rounded-md object-cover" />}
                     <span className="min-w-0 truncate">{item.name}</span>
                     {item.stockId && <span className="shrink-0 rounded bg-[#f0fdf4] px-1 py-0.5 text-[8px] font-bold text-[#16a34a]">stock</span>}
                   </p>
@@ -638,7 +653,12 @@ function MakeSaleView({ onError, onViewSales }) {
                   }} maxLength="60" placeholder="Search stock or type an item" autoFocus={index === items.length - 1} className={cx(inputClass, 'w-full')} />
                   {openSearch === index && <div className="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-lg border border-[#e7ebf0] bg-white shadow-lg">
                     {stockMatches(item.name).map(stockItem => <button key={stockItem._id} type="button" onMouseDown={() => pickStock(index, stockItem)} className="flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left transition hover:bg-[#fff6ee]">
-                      <span className="min-w-0 truncate text-[10px] font-semibold text-[#0f172a]">{stockItem.name}</span>
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        {stockItem.imageUrl
+                          ? <img src={apiAssetUrl(stockItem.imageUrl)} alt="" aria-hidden="true" className="size-6 shrink-0 rounded-md object-cover" />
+                          : <span aria-hidden="true" className="grid size-6 shrink-0 place-items-center rounded-md bg-[#f1f5f9] text-[#e2e8f0]"><PackageOpen size={11} /></span>}
+                        <span className="min-w-0 truncate text-[10px] font-semibold text-[#0f172a]">{stockItem.name}</span>
+                      </span>
                       <span className="shrink-0 text-[8px] text-[#94a3b8]">{money(stockItem.price)}/{unitDisplay(stockItem.unit, stockItem.customUnit)}{Number(stockItem.plates) > 0 && ` · ${stockItem.plates} in stock`}</span>
                     </button>)}
                     {!stockMatches(item.name).length && <p className="px-2.5 py-2 text-[9px] text-[#94a3b8]">Not in stock — set the price, then click Add.</p>}
@@ -853,6 +873,9 @@ function DamagesView({ onError, hotelId }) {
     <DateFilterRow range={range} setRange={setRange} />
     {filtered.length > 0 && <ul className="mt-3 divide-y divide-[#f1f5f9]">
       {filtered.map(damage => <li key={damage._id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
+        {damage.stockItem?.imageUrl
+          ? <img src={apiAssetUrl(damage.stockItem.imageUrl)} alt="" aria-hidden="true" className="size-7 shrink-0 rounded-md object-cover" />
+          : null}
         <div className="min-w-0 flex-1">
           <p className="truncate text-[11px] font-semibold text-[#0f172a]">
             {damage.name}
@@ -970,7 +993,10 @@ function RecordDamageModal({ onClose, onSaved }) {
               <option value="">Choose a stock item…</option>
               {stock.map(item => <option key={item._id} value={item._id}>{item.name} — {item.plates} {unitDisplay(item.unit, item.customUnit || '')} in stock</option>)}
             </select>
-            {pickedStock && <p className="mt-1.5 text-[9px] text-[#94a3b8]">Priced from stock: {money(pickedStock.price)} per {unitWord} — the count drops when recorded.</p>}
+            {pickedStock && <p className="mt-1.5 flex items-center gap-1.5 text-[9px] text-[#94a3b8]">
+              {pickedStock.imageUrl && <img src={apiAssetUrl(pickedStock.imageUrl)} alt={pickedStock.name} className="size-7 shrink-0 rounded-md object-cover" />}
+              Priced from stock: {money(pickedStock.price)} per {unitWord} — the count drops when recorded.
+            </p>}
           </div>
         : <label className="block"><span className={labelClass}>Damaged item name <span className="text-[#dc2626]">*</span></span>
             <input required autoFocus="autoFocus" value={name} onChange={pickedName} maxLength="60" placeholder="e.g. Broken plates, spoilt beef" className={inputClass} />

@@ -326,7 +326,7 @@ router.get('/damages', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(a
   const startOfToday = new Date()
   startOfToday.setHours(0, 0, 0, 0)
   const [damages, allTime, todayTotals] = await Promise.all([
-    DamageRecord.find({ hotelId: scope }).sort({ createdAt: -1 }).limit(100).populate('recordedBy', 'name').populate('stockItemId', 'name'),
+    DamageRecord.find({ hotelId: scope }).sort({ createdAt: -1 }).limit(100).populate('recordedBy', 'name').populate('stockItemId', 'name imageUrl'),
     DamageRecord.aggregate([
       { $match: { hotelId: new mongoose.Types.ObjectId(scope) } },
       { $group: { _id: null, total: { $sum: '$value' }, count: { $sum: 1 } } },
@@ -347,7 +347,7 @@ router.get('/damages', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(a
       quantity: damage.quantity,
       unit: damage.unit || '',
       value: damage.value,
-      stockItem: damage.stockItemId ? { _id: String(damage.stockItemId._id || damage.stockItemId), name: damage.stockItemId.name || '' } : null,
+      stockItem: damage.stockItemId ? { _id: String(damage.stockItemId._id || damage.stockItemId), name: damage.stockItemId.name || '', imageUrl: damage.stockItemId.imageUrl || '' } : null,
       note: damage.note,
       recordedBy: damage.recordedBy?.name || '',
       createdAt: damage.createdAt,
@@ -519,6 +519,15 @@ const saleItems = sale => (Array.isArray(sale.items) && sale.items.length
     ? [{ name: sale.name, quantity: sale.quantity, unit: sale.unit || '', amount: sale.amount, stockItemId: null }]
     : [])
 
+// Stock images for the line items, so every screen showing the items can
+// present the same photo the kitchen put on the stock entry.
+const saleItemImages = sales => {
+  const ids = [...new Set(sales.flatMap(sale => saleItems(sale).map(item => String(item.stockItemId || '')).filter(Boolean)))]
+  if (!ids.length) return {}
+  return StockItem.find({ _id: { $in: ids } }).select('imageUrl').then(docs =>
+    Object.fromEntries(docs.map(doc => [String(doc._id), doc.imageUrl || ''])))
+}
+
 router.get('/sales', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
   if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_sales')) return res.status(403).json({ message: 'The owner has not granted you permission to record sales.' })
   const scope = hotelScope(req)
@@ -536,6 +545,7 @@ router.get('/sales', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(asy
       { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } },
     ]),
   ])
+  const stockImages = await saleItemImages(sales)
   res.json({
     total: allTime[0]?.total || 0,
     count: allTime[0]?.count || 0,
@@ -545,6 +555,9 @@ router.get('/sales', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(asy
       _id: sale._id,
       saleId: displaySaleId(sale),
       name: sale.name,
+      // Stock item images by id, so image-capable screens can show the same
+      // photo the kitchen put on the stock entry.
+      stockImages,
       items: saleItems(sale),
       quantity: sale.quantity,
       unit: sale.unit || '',
