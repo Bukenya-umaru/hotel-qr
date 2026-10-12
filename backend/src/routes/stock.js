@@ -161,7 +161,7 @@ router.patch('/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadMenuImag
   if (!requireStockPermission(req, res)) return
   if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Stock not found.' })
   const scope = hotelScope(req)
-  const current = await StockItem.findOne({ _id: req.params.id, hotelId: scope }).select('unit customUnit imageUrl approved')
+  const current = await StockItem.findOne({ _id: req.params.id, hotelId: scope }).select('unit customUnit imageUrl approved plates')
   if (!current) return res.status(404).json({ message: 'Stock not found.' })
   // Approved stock is the signed-off record — its details can no longer change.
   if (current.approved) return res.status(403).json({ message: 'This stock has been approved and can no longer be edited.' })
@@ -212,6 +212,9 @@ router.patch('/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadMenuImag
     return res.status(404).json({ message: 'Stock not found.' })
   }
   if (req.file && current.imageUrl) await removeUploadedImage(current.imageUrl)
+  // Editing the count down is the same as reducing it — alert the staff when
+  // the edited count has dipped to the low-stock limit.
+  if (stock.plates < current.plates) await checkLowStock(req.app.get('io'), String(scope), [stock._id])
   req.app.get('io').to(`hotel:${scope}`).emit('stock_updated')
   res.json({ item: stock })
 }))
