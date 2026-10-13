@@ -234,6 +234,15 @@ router.get('/expenses', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(
       approved: expense.approved,
       approvedAt: expense.approvedAt,
       approvedByName: expense.approvedBy?.name || '',
+      // Change trail for the owner: what the expense looked like before each
+      // edit, newest last.
+      edits: (expense.edits || []).map(edit => ({
+        amount: edit.amount,
+        note: edit.note || '',
+        categoryName: edit.categoryName || '',
+        editedByName: edit.editedByName || '',
+        editedAt: edit.editedAt,
+      })),
     })),
   })
 }))
@@ -294,6 +303,66 @@ router.delete('/expenses/:expenseId', authenticate, authorize('OWNER', 'KITCHEN'
   res.status(204).end()
 }))
 
+// A chef with the edit permission can correct any unapproved expense until
+// it is signed off. Every edit snapshots what the expense looked like
+// BEFORE the change into `edits`, so the owner sees "changed from X to this"
+// with who made the change and when.
+router.patch('/expenses/:expenseId', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (!requireExpenseAccess(req, res)) return
+  if (!idIsValid(req.params.expenseId)) return res.status(404).json({ message: 'Expense not found.' })
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'approve_records') && !hasPerm(req.user, 'edit_records')) {
+    return res.status(403).json({ message: 'The owner has not granted you permission to edit expenses.' })
+  }
+  const scope = hotelScope(req)
+  const expense = await HotelExpense.findOne({ _id: req.params.expenseId, hotelId: scope })
+  if (!expense) return res.status(404).json({ message: 'Expense not found.' })
+  // Approved expenses are the books of record — they can no longer be changed.
+  if (expense.approved) return res.status(403).json({ message: 'This expense has been approved and can no longer be changed.' })
+  const amount = Number(req.body.amount)
+  const note = String(req.body.note || '').trim().slice(0, 200)
+  if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ message: 'Enter an expense amount greater than zero.' })
+  // Category can be re-picked by id or created by name, exactly as when
+  // recording. Omitted means the expense keeps its current category.
+  let category = null
+  let categoryName = expense.categoryName
+  if (req.body.categoryId !== undefined || req.body.categoryName !== undefined) {
+    if (idIsValid(req.body.categoryId)) {
+      category = await ExpenseCategory.findOne({ _id: req.body.categoryId, hotelId: scope })
+      if (!category) return res.status(404).json({ message: 'Expense category not found.' })
+    } else {
+      const name = String(req.body.categoryName || '').trim().slice(0, 60)
+      if (!name) return res.status(400).json({ message: 'Choose a category, or type a new category name.' })
+      category = await ExpenseCategory.findOneAndUpdate(
+        { hotelId: scope, name: new RegExp(`^${name.replace(/[.*+?^${}()|[\\]]/g, '\\$&')}$`, 'i') },
+        { $setOnInsert: { hotelId: scope, name } },
+        { new: true, upsert: true },
+      )
+    }
+    categoryName = category.name
+  }
+  const same = expense.amount === Math.round(amount * 100) / 100
+    && expense.note === note
+    && (!category || String(category._id) === String(expense.category))
+  if (same) return res.status(400).json({ message: 'Nothing changed — update the amount, category or note before saving.' })
+  expense.edits = [...(expense.edits || []), {
+    amount: expense.amount,
+    note: expense.note || '',
+    categoryName: expense.categoryName,
+    editedBy: req.user._id,
+    editedByName: req.user.name,
+    editedAt: new Date(),
+  }].slice(-20)
+  expense.amount = Math.round(amount * 100) / 100
+  expense.note = note
+  if (category) {
+    expense.category = category._id
+    expense.categoryName = categoryName
+  }
+  await expense.save()
+  broadcastChange(req.app.get('io'), String(scope), 'expenses_changed')
+  res.json({ expense: { ...expense.toObject(), editedByName: req.user.name } })
+}))
+
 // The owner — or staff granted the approval permission — signs an expense off.
 // Once approved the expense is locked and can no longer be deleted.
 router.post('/expenses/:expenseId/approve', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
@@ -326,7 +395,7 @@ router.get('/damages', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(a
   const startOfToday = new Date()
   startOfToday.setHours(0, 0, 0, 0)
   const [damages, allTime, todayTotals] = await Promise.all([
-    DamageRecord.find({ hotelId: scope }).sort({ createdAt: -1 }).limit(100).populate('recordedBy', 'name').populate('stockItemId', 'name imageUrl'),
+    DamageRecord.find({ hotelId: scope }).sort({ createdAt: -1 }).limit(100).populate('recordedBy', 'name').populate('approvedBy', 'name').populate('stockItemId', 'name imageUrl'),
     DamageRecord.aggregate([
       { $match: { hotelId: new mongoose.Types.ObjectId(scope) } },
       { $group: { _id: null, total: { $sum: '$value' }, count: { $sum: 1 } } },
@@ -351,6 +420,17 @@ router.get('/damages', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(a
       note: damage.note,
       recordedBy: damage.recordedBy?.name || '',
       createdAt: damage.createdAt,
+      approved: damage.approved,
+      approvedAt: damage.approvedAt,
+      approvedByName: damage.approvedBy?.name || '',
+      edits: (damage.edits || []).map(edit => ({
+        name: edit.name,
+        quantity: edit.quantity,
+        value: edit.value,
+        note: edit.note || '',
+        editedByName: edit.editedByName || '',
+        editedAt: edit.editedAt,
+      })),
     })),
   })
 }))
@@ -387,6 +467,11 @@ router.post('/damages', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(
     stockItemId: stockItem ? stockItem._id : null,
     note,
     recordedBy: req.user._id,
+    // Records by someone allowed to approve are trusted straight away;
+    // everyone else's wait for the owner's (or an approver's) sign-off.
+    approved: hasPerm(req.user, 'approve_records'),
+    approvedBy: hasPerm(req.user, 'approve_records') ? req.user._id : null,
+    approvedAt: hasPerm(req.user, 'approve_records') ? new Date() : null,
   })
   if (stockItem) {
     await StockItem.updateOne({ _id: stockItem._id, plates: { $gte: quantity } }, { $inc: { plates: -quantity, totalUsed: quantity } }).catch(() => {})
@@ -409,6 +494,8 @@ router.delete('/damages/:damageId', authenticate, authorize('OWNER', 'KITCHEN'),
   const scope = hotelScope(req)
   const damage = await DamageRecord.findOne({ _id: req.params.damageId, hotelId: scope })
   if (!damage) return res.status(404).json({ message: 'Damage record not found.' })
+  // Approved damages are the books of record — they can no longer be changed.
+  if (damage.approved) return res.status(403).json({ message: 'This damage has been approved and can no longer be changed.' })
   await DamageRecord.deleteOne({ _id: damage._id })
   // Restoring stock on delete keeps the ledger consistent with the count.
   if (damage.stockItemId && damage.quantity > 0) {
@@ -417,6 +504,117 @@ router.delete('/damages/:damageId', authenticate, authorize('OWNER', 'KITCHEN'),
   }
   broadcastChange(req.app.get('io'), String(scope), 'damages_changed')
   res.status(204).end()
+}))
+
+// A chef with the edit permission can correct any unapproved damage until
+// it is signed off. The drawn stock follows the correction: the previously
+// recorded quantity is restored to the old stock item and the new amount is
+// deducted (priced from the stock's unit value like a fresh record), or the
+// value is set by hand for records not tied to stock.
+router.patch('/damages/:damageId', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (!requireExpenseAccess(req, res)) return
+  if (!idIsValid(req.params.damageId)) return res.status(404).json({ message: 'Damage record not found.' })
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'approve_records') && !hasPerm(req.user, 'edit_records')) {
+    return res.status(403).json({ message: 'The owner has not granted you permission to edit damage records.' })
+  }
+  const scope = hotelScope(req)
+  const damage = await DamageRecord.findOne({ _id: req.params.damageId, hotelId: scope })
+  if (!damage) return res.status(404).json({ message: 'Damage record not found.' })
+  if (damage.approved) return res.status(403).json({ message: 'This damage has been approved and can no longer be changed.' })
+  const name = req.body.name === undefined ? damage.name : String(req.body.name || '').trim().slice(0, 60)
+  const quantity = req.body.quantity === undefined || req.body.quantity === '' ? damage.quantity : Number(req.body.quantity)
+  const note = req.body.note === undefined ? damage.note : String(req.body.note || '').trim().slice(0, 200)
+  if (!name) return res.status(400).json({ message: 'Give the damaged item a name, e.g. Beef plates.' })
+  if (!Number.isFinite(quantity) || quantity <= 0) return res.status(400).json({ message: 'Enter the quantity that was damaged.' })
+  // The stock link can be re-picked by id (or dropped with null); omitted
+  // means the record keeps its current link.
+  let stockItem = null
+  let value = 0
+  const wantsStock = req.body.stockItemId !== undefined
+  if (wantsStock) {
+    if (idIsValid(req.body.stockItemId)) {
+      stockItem = await StockItem.findOne({ _id: req.body.stockItemId, hotelId: scope })
+      if (!stockItem) return res.status(404).json({ message: 'The chosen stock item could not be found.' })
+      value = Math.round((stockItem.price || 0) * quantity * 100) / 100
+    } else {
+      stockItem = null
+      value = Math.round((Number(req.body.value) || 0) * 100) / 100
+      if (!Number.isFinite(value) || value <= 0) return res.status(400).json({ message: 'Enter the money value of what was damaged.' })
+    }
+  } else if (damage.stockItemId && idIsValid(damage.stockItemId)) {
+    stockItem = await StockItem.findOne({ _id: damage.stockItemId, hotelId: scope })
+    value = stockItem ? Math.round((stockItem.price || 0) * quantity * 100) / 100 : damage.value
+    if (!stockItem) {
+      stockItem = null
+      value = Math.round((Number(req.body.value) || 0) || damage.value) || damage.value
+    }
+  } else {
+    value = req.body.value === undefined ? damage.value : Math.round((Number(req.body.value) || 0) * 100) / 100
+    if (!Number.isFinite(value) || value <= 0) return res.status(400).json({ message: 'Enter the money value of what was damaged.' })
+  }
+  const same = damage.name === name && damage.quantity === quantity && damage.note === note
+    && value === damage.value && String(damage.stockItemId || '') === String(stockItem ? stockItem._id : '')
+  if (same) return res.status(400).json({ message: 'Nothing changed — update the record before saving.' })
+  damage.edits = [...(damage.edits || []), {
+    name: damage.name,
+    quantity: damage.quantity,
+    value: damage.value,
+    stockItemId: damage.stockItemId || null,
+    note: damage.note || '',
+    editedBy: req.user._id,
+    editedByName: req.user.name,
+    editedAt: new Date(),
+  }].slice(-20)
+  damage.name = name
+  damage.quantity = Math.round(quantity * 100) / 100
+  damage.value = value
+  damage.stockItemId = stockItem ? stockItem._id : null
+  damage.note = note
+  await damage.save()
+  // Stock follows the corrected record: restore what the earlier record
+  // drew down, then deduct the new quantity (subject to availability).
+  const oldStockId = (damage.edits[damage.edits.length - 1].stockItemId || null) && String(damage.edits[damage.edits.length - 1].stockItemId)
+  const newStockId = stockItem ? String(stockItem._id) : null
+  const adjusted = new Set()
+  if (oldStockId) {
+    const oldQty = damage.edits[damage.edits.length - 1].quantity
+    if (oldQty > 0) {
+      await StockItem.updateOne({ _id: oldStockId, hotelId: scope }, { $inc: { plates: oldQty, totalUsed: -oldQty } }).catch(() => {})
+      adjusted.add(oldStockId)
+    }
+  }
+  if (newStockId && quantity > 0) {
+    await StockItem.updateOne({ _id: newStockId, hotelId: scope, plates: { $gte: quantity } }, { $inc: { plates: -quantity, totalUsed: quantity } }).catch(() => {})
+    adjusted.add(newStockId)
+  }
+  if (adjusted.size) {
+    req.app.get('io').to(`hotel:${scope}`).emit('stock_updated')
+    await checkLowStock(req.app.get('io'), scope, [...adjusted])
+  }
+  broadcastChange(req.app.get('io'), String(scope), 'damages_changed')
+  res.json({ damage: { ...damage.toObject(), editedByName: req.user.name } })
+}))
+
+// The owner — or staff granted the approval permission — signs a damage off.
+// Once approved the damage is locked and can no longer be edited or deleted.
+router.post('/damages/:damageId/approve', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+  if (!requireExpenseAccess(req, res)) return
+  if (!hasPerm(req.user, 'approve_records')) return res.status(403).json({ message: 'You do not have permission to approve damage records.' })
+  if (!idIsValid(req.params.damageId)) return res.status(404).json({ message: 'Damage record not found.' })
+  const damage = await DamageRecord.findOneAndUpdate(
+    { _id: req.params.damageId, hotelId: hotelScope(req) },
+    { $set: { approved: true, approvedBy: req.user._id, approvedAt: new Date() } },
+    { new: true },
+  )
+  if (!damage) return res.status(404).json({ message: 'Damage record not found.' })
+  await notifyHotel(req.app.get('io'), String(hotelScope(req)), {
+    type: 'damage_approved',
+    title: `Damage approved — ${damage.name}`,
+    body: `Signed off by ${req.user.name}`,
+    refId: damage._id,
+  })
+  broadcastChange(req.app.get('io'), String(hotelScope(req)), 'damages_changed')
+  res.json({ damage: { ...damage.toObject(), approvedByName: req.user.name } })
 }))
 
 // Spending totals per section, newest expense included for a quick glance.
@@ -807,7 +1005,7 @@ router.post('/staff', authenticate, authorize('OWNER'), asyncRoute(async (req, r
   const normalizedEmail = String(email || '').trim().toLowerCase()
   if (!String(name || '').trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) ||
       !isStrongPassword(password)) {
-    return res.status(400).json({ message: 'Provide a name, valid email, and a password of at least 8 characters with letters and numbers.' })
+    return res.status(400).json({ message: 'Provide a name, valid email, and a password of at least 6 characters with letters and numbers.' })
   }
   if (!validPermissions(permissions)) {
     return res.status(400).json({ message: 'One or more permissions are not supported.' })
@@ -995,10 +1193,21 @@ async function report(req, res) {
   }))
   const totalRevenue = salesTotals[0]?.totalRevenue || 0
   const totalExpenses = expenseTotals[0]?.totalExpenses || 0
+  // Stock images by id, so every screen showing the sale lines can show
+  // the same photo the kitchen put on the stock entry.
+  const stockImages = await saleItemImages(sales)
   const saleRecords = sales.map(sale => ({
     ...sale,
     saleId: displaySaleId(sale),
+    stockImages,
   }))
+  // Damages refer to stock items; photos are fetched in one query so each
+  // record can show the item's face.
+  const damageStockIds = [...new Set((damages || []).map(damage => String(damage.stockItemId || '')).filter(id => idIsValid(id)))]
+  const damageStockImages = damageStockIds.length
+    ? Object.fromEntries(await StockItem.find({ _id: { $in: damageStockIds } }).select('imageUrl').then(docs =>
+      docs.map(doc => [String(doc._id), doc.imageUrl || ''])))
+    : {}
   // Damages are a loss, priced from the stock's unit value at record time.
   const totalDamages = (damages || []).reduce((sum, damage) => sum + (damage.value || 0), 0)
   res.json({
@@ -1017,6 +1226,8 @@ async function report(req, res) {
       value: damage.value,
       note: damage.note || '',
       createdAt: damage.createdAt,
+      // The stock item's photo when the damage drew from tracked stock.
+      imageUrl: damageStockImages[String(damage.stockItemId || '')] || '',
     })),
     netBalance: canViewSales && canViewExpenses ? totalRevenue - totalExpenses : null,
     netBalanceAfterDamages: canViewSales && canViewExpenses ? totalRevenue - totalExpenses - totalDamages : null,

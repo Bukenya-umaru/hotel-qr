@@ -22,7 +22,7 @@ export function ChangePasswordModal({ onClose, onSubmit }) {
   )
   const passwordField = (label, field, placeholder) => (
     <div className="relative">
-      <TextField label={label} type={show[field] ? 'text' : 'password'} minLength="8" autoComplete="new-password"
+      <TextField label={label} type={show[field] ? 'text' : 'password'} minLength="6" autoComplete="new-password"
         placeholder={placeholder} value={form[field]}
         onChange={event => setForm(previous => ({ ...previous, [field]: event.target.value }))} />
       {visibilityIcon(field)}

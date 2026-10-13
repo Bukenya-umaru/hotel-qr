@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
 import { money } from '../../lib/ui.js'
-import { api } from '../../lib/api.js'
+import { api, apiAssetUrl } from '../../lib/api.js'
 import { MetricCard } from '../MetricCard/MetricCard.jsx'
 import { DateCalendar } from '../DateCalendar/DateCalendar.jsx'
 
@@ -38,6 +38,10 @@ const periodDates = key => {
   }).format(value)
   return { from: day(start), to: day(end) }
 }
+
+// Photo of a sale line's stock item, from the sale's stockImages map
+// returned by the API; empty when the line is not stock-linked or has no photo.
+const saleItemImage = (sale, item) => (sale.stockImages ? sale.stockImages[String(item?.stockItemId || '')] || '' : '')
 
 export function Overview({ hotelName, onNavigate, analytics, currency, onRange, reportRange }) {
   const sales = analytics.sales || []
@@ -288,7 +292,9 @@ export function Overview({ hotelName, onNavigate, analytics, currency, onRange, 
           </div>
           <div className="space-y-2.5 p-3 sm:p-4">
             {recentSales.length ? recentSales.map(sale => <div key={sale._id} className="flex items-center gap-2.5 border border-[#f0e8e4] p-2.5">
-              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#fff0ea] text-[#d95c43]"><ShoppingBag size={16} /></span>
+              {(() => { const image = saleItemImage(sale, (Array.isArray(sale.items) && sale.items[0]) || sale); return image
+                ? <img src={apiAssetUrl(image)} alt="" aria-hidden="true" className="size-9 shrink-0 rounded-full object-cover" />
+                : <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#fff0ea] text-[#d95c43]"><ShoppingBag size={16} /></span> })()}
               <span className="min-w-0 flex-1"><span className="block truncate text-[10px] font-semibold text-[#292421]">{sale.name || sale.items?.[0]?.name || 'Food sale'}</span><span className="mt-1 block truncate text-[9px] text-[#8d817b]">{sale.saleId || formatTime(sale.createdAt)}{sale.customerName ? ` · ${sale.customerName}` : ''}</span></span>
               <div className="shrink-0 text-right"><strong className="block text-[10px] font-semibold text-[#292421]">{canViewSales ? money(sale.amount, currency) : '—'}</strong><span className={`mt-1 inline-block rounded px-1.5 py-0.5 text-[8px] font-semibold ${sale.approved === false ? 'bg-[#fdf1cf] text-[#c4901c]' : 'bg-[#eaf7ef] text-[#55a978]'}`}>{sale.approved === false ? 'Pending' : 'Complete'}</span></div>
             </div>) : <div className="py-8 text-center"><span className="mx-auto grid size-9 place-items-center rounded-full bg-[#fbf5f2] text-[#a19690]"><ShoppingBag size={16} /></span><p className="mt-2 text-[10px] text-[#8d817b]">No sales {dayWording}.</p></div>}

@@ -9,8 +9,8 @@ if (!MONGODB_URI || !DEVELOPER_NAME || !DEVELOPER_EMAIL || !DEVELOPER_PASSWORD) 
   console.error('Set MONGODB_URI, DEVELOPER_NAME, DEVELOPER_EMAIL, and DEVELOPER_PASSWORD in backend/.env.')
   process.exit(1)
 }
-if (DEVELOPER_PASSWORD.length < 12) {
-  console.error('DEVELOPER_PASSWORD must be at least 12 characters long.')
+if (DEVELOPER_PASSWORD.length < 6) {
+  console.error('DEVELOPER_PASSWORD must be at least 6 characters long.')
   process.exit(1)
 }
 

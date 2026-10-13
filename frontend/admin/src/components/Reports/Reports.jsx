@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { FileSpreadsheet, PackageOpen, Printer, Receipt, ShoppingBag, Wallet } from 'lucide-react'
 import { money } from '../../lib/ui.js'
+import { apiAssetUrl } from '../../lib/api.js'
 import { downloadReportCsv, downloadReportPdf } from '../../lib/reportExport.js'
 import { MetricCard } from '../MetricCard/MetricCard.jsx'
 
@@ -13,6 +14,10 @@ const initialRange = () => {
   return { from: dateText(from), to: dateText(to) }
 }
 const formatTime = value => new Date(value).toLocaleString('en-UG', { dateStyle: 'medium', timeStyle: 'short' })
+
+// Photo of a sale line's stock item, from the sale's stockImages map the
+// analytics API returns; empty when the line is not stock-linked or has no photo.
+const saleItemImage = (sale, item) => (sale.stockImages ? sale.stockImages[String(item?.stockItemId || '')] || '' : '')
 
 export function Reports({ analytics, currency, onRange, hotelName = 'Your business', reportRange }) {
   // Seed the filter from the range the dashboard already applied and
@@ -81,7 +86,9 @@ export function Reports({ analytics, currency, onRange, hotelName = 'Your busine
         <div className="flex items-center justify-between border-b border-[#f1eae6] px-4 py-3"><div><h2 className="font-display text-[14px] font-bold text-[#292421]">Recorded Sales</h2><p className="mt-1 text-[10px] text-[#a19690]">Food sales in this period</p></div><span className="text-[10px] font-semibold text-[#655a54]">{sales.length}</span></div>
         <div className="divide-y divide-[#f1eae6]">
           {sales.length ? sales.map(sale => <div key={sale._id} className="flex items-center gap-3 px-4 py-3">
-            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#fff0ea] text-[#d95c43]"><ShoppingBag size={14} /></span>
+            {(() => { const image = saleItemImage(sale, (Array.isArray(sale.items) && sale.items[0]) || sale); return image
+              ? <img src={apiAssetUrl(image)} alt="" aria-hidden="true" className="size-8 shrink-0 rounded-full object-cover" />
+              : <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#fff0ea] text-[#d95c43]"><ShoppingBag size={14} /></span> })()}
             <div className="min-w-0 flex-1"><p className="truncate text-[11px] font-semibold text-[#292421]">{sale.name || 'Food sale'} <span className="font-normal text-[#a19690]">{sale.saleId}</span></p><p className="mt-1 text-[9px] text-[#8d817b]">{formatTime(sale.createdAt)}</p></div>
             <strong className="shrink-0 text-[10px] text-[#292421]">{money(sale.amount, currency)}</strong>
           </div>) : <p className="px-4 py-8 text-center text-[10px] text-[#a19690]">No sales recorded in this period.</p>}
@@ -101,7 +108,9 @@ export function Reports({ analytics, currency, onRange, hotelName = 'Your busine
         <div className="flex items-center justify-between border-b border-[#f1eae6] px-4 py-3"><div><h2 className="font-display text-[14px] font-bold text-[#292421]">Recorded Damage</h2><p className="mt-1 text-[10px] text-[#a19690]">Goods lost in this period, priced at the stock unit value</p></div><span className="text-[10px] font-semibold text-[#655a54]">{damages.length}</span></div>
         <div className="divide-y divide-[#f1eae6]">
           {damages.length ? damages.map(damage => <div key={damage._id} className="flex items-center gap-3 px-4 py-3">
-            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#fff0ea] text-[#d95c43]"><PackageOpen size={14} /></span>
+            {damage.imageUrl
+              ? <img src={apiAssetUrl(damage.imageUrl)} alt="" aria-hidden="true" className="size-8 shrink-0 rounded-full object-cover" />
+              : <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#fff0ea] text-[#d95c43]"><PackageOpen size={14} /></span>}
             <div className="min-w-0 flex-1"><p className="truncate text-[11px] font-semibold text-[#292421]">{damage.name || 'Damage'} <span className="font-normal text-[#a19690]">{damage.quantity} {damage.unit || 'units'}</span></p><p className="mt-1 truncate text-[9px] text-[#8d817b]">{damage.note || formatTime(damage.createdAt)}</p></div>
             <strong className="shrink-0 text-[10px] text-[#292421]">−{money(damage.value, currency)}</strong>
           </div>) : <p className="px-4 py-8 text-center text-[10px] text-[#a19690]">No damage recorded in this period.</p>}

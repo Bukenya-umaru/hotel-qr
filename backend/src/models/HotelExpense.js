@@ -18,6 +18,16 @@ const schema = new mongoose.Schema({
   approved: { type: Boolean, default: false, index: true },
   approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   approvedAt: { type: Date, default: null },
+  // Change trail: each edit before approval snapshots what the expense
+  // looked like before it, so the owner sees "changed from X to this".
+  edits: [{
+    amount: { type: Number, default: 0 },
+    note: { type: String, default: '' },
+    categoryName: { type: String, default: '' },
+    editedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    editedByName: { type: String, default: '' },
+    editedAt: { type: Date, default: Date.now },
+  }],
 }, { timestamps: true })
 
 schema.index({ hotelId: 1, createdAt: -1 })

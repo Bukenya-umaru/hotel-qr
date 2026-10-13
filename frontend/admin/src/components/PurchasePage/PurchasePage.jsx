@@ -89,7 +89,7 @@ export function PurchasePage({ hotelId, initialView = 'menu', canManageExpenses 
     {view === 'make-sale' && <MakeSaleView onError={setError} onViewSales={() => setView('sales')} />}
     {view === 'sales' && <SalesView onError={setError} canApprove={canApprove} hotelId={hotelId} />}
     {view === 'expenses' && <ExpensesView onError={setError} canApprove={canApprove} hotelId={hotelId} />}
-    {view === 'damages' && <DamagesView onError={setError} hotelId={hotelId} />}
+    {view === 'damages' && <DamagesView onError={setError} canApprove={canApprove} hotelId={hotelId} />}
   </div>
 }
 
@@ -277,6 +277,14 @@ function EditSaleModal({ sale, onClose, onSaved }) {
   const [note, setNote] = useState(sale.note || '')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  // The hotel's stock supplies the photos shown beside stock-linked lines.
+  // A quiet load — if stock cannot be read, lines simply show no photo.
+  const [stock, setStock] = useState([])
+  useEffect(() => {
+    let cancelled = false
+    api('/api/stock').then(data => { if (!cancelled) setStock(data.items || []) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   const setItem = (index, patch) => setItems(previous => previous.map((item, i) => (i === index ? { ...item, ...patch } : item)))
   const removeItem = index => setItems(previous => previous.filter((_, i) => i !== index))
@@ -342,7 +350,12 @@ function EditSaleModal({ sale, onClose, onSaved }) {
       <div className="space-y-2">
         {items.map((item, index) => <div key={index} className="rounded-lg border border-[#e7ebf0] p-2.5">
           <div className="flex items-center justify-between gap-2">
-            <input aria-label={`Item ${index + 1} name`} value={item.name} onChange={event => setItem(index, { name: event.target.value })} maxLength="60" className={cx(inputClass, 'min-w-0 flex-1')} />
+            <span className="flex min-w-0 flex-1 items-center gap-1.5">
+              {(() => { const image = (item.stockId || item.pendingStockId) && stock.length ? stock.find(entry => String(entry._id) === String(item.stockId || item.pendingStockId))?.imageUrl || '' : ''; return image
+                ? <img src={apiAssetUrl(image)} alt="" aria-hidden="true" className="size-6 shrink-0 rounded-md object-cover" />
+                : null })()}
+              <input aria-label={`Item ${index + 1} name`} value={item.name} onChange={event => setItem(index, { name: event.target.value })} maxLength="60" className={cx(inputClass, 'min-w-0 flex-1')} />
+            </span>
             <button type="button" onClick={() => removeItem(index)} title={`Remove ${item.name}`} className="shrink-0 rounded-md p-1.5 text-[#f87171] transition hover:bg-[#fef2f2] hover:text-[#dc2626]"><Trash2 size={13} /></button>
           </div>
           <div className="mt-2 grid grid-cols-3 gap-2">
@@ -391,7 +404,7 @@ function SaleHistoryModal({ sale, onClose }) {
     <div className="space-y-3">
       <div className="rounded-lg border border-[#e7ebf0] p-3">
         <p className="text-[10px] font-bold text-[#94a3b8]">CURRENT (after edit)</p>
-        <SaleSnapshot name={sale.name} items={sale.items} amount={sale.amount} customerName={sale.customerName} note={sale.note} />
+        <SaleSnapshot name={sale.name} items={sale.items} amount={sale.amount} customerName={sale.customerName} note={sale.note} sale={sale} />
       </div>
       {[...sale.edits].reverse().map((edit, index) => <Fragment key={index}>
         <div className="flex items-center gap-2 text-[9px] font-semibold text-[#b45309]"><ArrowDown size={12} />changed to the block above — by {edit.editedByName || 'staff'} · {new Date(edit.editedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
@@ -404,9 +417,14 @@ function SaleHistoryModal({ sale, onClose }) {
   </Modal>
 }
 
-function SaleSnapshot({ name, items, amount, customerName, note }) {
+function SaleSnapshot({ name, items, amount, customerName, note, sale }) {
   return <div className="mt-1">
-    <p className="text-[11px] font-semibold text-[#0f172a]">{saleLine({ items, name })}</p>
+    <p className="flex items-center gap-1.5 text-[11px] font-semibold text-[#0f172a]">
+      {(() => { const image = sale ? saleItemImage(sale, (Array.isArray(items) && items[0]) || { stockItemId: null }) : ''; return image
+        ? <img src={apiAssetUrl(image)} alt="" aria-hidden="true" className="size-6 shrink-0 rounded-md object-cover" />
+        : null })()}
+      <span className="min-w-0 truncate">{saleLine({ items, name })}</span>
+    </p>
     <p className="mt-0.5 text-[9px] text-[#94a3b8]">{money(amount)}{customerName && ` · for ${customerName}`}{note && ` · ${note}`}</p>
   </div>
 }
@@ -701,6 +719,8 @@ function ExpensesView({ onError, canApprove = false, hotelId }) {
   const [stats, setStats] = useState({ total: 0, count: 0, todayTotal: 0, todayCount: 0 })
   const [busy, setBusy] = useState(false)
   const [showPopup, setShowPopup] = useState(false)
+  const [editing, setEditing] = useState(null)
+  const [historyFor, setHistoryFor] = useState(null)
   const [range, setRange] = useState({ from: '', to: '' }) // Date filter: empty from/to = everything.
 
   const load = async () => {
@@ -790,12 +810,16 @@ function ExpensesView({ onError, canApprove = false, hotelId }) {
           {expense.approved && <p className="mt-0.5 flex items-center gap-1 text-[8px] font-bold text-[#16a34a]"><Check size={10} />Approved{expense.approvedByName && ` by ${expense.approvedByName}`}</p>}
         </div>
         {!expense.approved && canApprove && <button disabled={busy} onClick={() => approveExpense(expense)} title="Approve expense" className="flex shrink-0 items-center gap-1 rounded-md bg-[#f0fdf4] px-2 py-1 text-[9px] font-bold text-[#16a34a] transition hover:bg-[#dcfce7] disabled:opacity-50"><Check size={11} />Approve</button>}
+        {!expense.approved && <button disabled={busy} onClick={() => setEditing(expense)} title={`Edit ${expense.categoryName} expense`} className="flex shrink-0 items-center gap-1 rounded-md bg-[#fff4ec] px-2 py-1 text-[9px] font-bold text-[#ea580c] transition hover:bg-[#ffedd5] disabled:opacity-50"><Pencil size={11} />Edit</button>}
+        {expense.edits?.length > 0 && <button onClick={() => setHistoryFor(expense)} title="See what changed" className="flex shrink-0 items-center gap-1 rounded-md bg-[#fef9ee] px-2 py-1 text-[9px] font-bold text-[#b45309] transition hover:bg-[#fef3c7]"><History size={11} />Edited</button>}
         <span className="shrink-0 text-[11px] font-bold text-[#dc2626]">−{money(expense.amount)}</span>
         <button disabled={busy || expense.approved} onClick={() => removeExpense(expense)} title={expense.approved ? 'Approved — cannot be changed' : `Remove ${expense.categoryName} expense`} className="shrink-0 rounded-md p-1 text-[#f87171] hover:bg-[#fef2f2] hover:text-[#dc2626] disabled:opacity-50"><Trash2 size={13} /></button>
       </li>)}
     </ul>}
     {!filtered.length && <p className="mt-3 rounded-xl border border-dashed border-[#e7ebf0] px-3 py-6 text-center text-[10px] text-[#94a3b8]">{hasFilter ? 'No expenses in the selected dates — pick another range or choose All.' : 'No expenses recorded yet — click “Record expense” above to record your first one.'}</p>}
     {showPopup && <RecordExpenseModal onClose={() => setShowPopup(false)} onSaved={() => { setShowPopup(false); load() }} />}
+    {editing && <EditExpenseModal expense={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load() }} />}
+    {historyFor && <ExpenseHistoryModal expense={historyFor} onClose={() => setHistoryFor(null)} />}
   </div>
 }
 
@@ -805,11 +829,13 @@ function ExpensesView({ onError, canApprove = false, hotelId }) {
 // ---- or any custom word. Stock-picked rows price the loss from the    ----
 // ---- stock's unit value; deleting a record restores the stock.        ----
 
-function DamagesView({ onError, hotelId }) {
+function DamagesView({ onError, canApprove = false, hotelId }) {
   const [damages, setDamages] = useState([])
   const [stats, setStats] = useState({ total: 0, count: 0, todayTotal: 0, todayCount: 0 })
   const [busy, setBusy] = useState(false)
   const [showPopup, setShowPopup] = useState(false)
+  const [editing, setEditing] = useState(null)
+  const [historyFor, setHistoryFor] = useState(null)
   const [range, setRange] = useState({ from: '', to: '' })
 
   const load = async () => {
@@ -840,6 +866,21 @@ function DamagesView({ onError, hotelId }) {
     setBusy(true)
     try {
       await api(`/api/owner/damages/${damage._id}`, { method: 'DELETE' })
+      onError('')
+      await load()
+    } catch (err) {
+      onError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // The owner — or staff granted the approval permission — signs a damage
+  // off. Once approved it is locked: no more edits or removals.
+  const approveDamage = async damage => {
+    setBusy(true)
+    try {
+      await api(`/api/owner/damages/${damage._id}/approve`, { method: 'POST' })
       onError('')
       await load()
     } catch (err) {
@@ -882,13 +923,19 @@ function DamagesView({ onError, hotelId }) {
             <span className="ml-1.5 font-normal text-[#94a3b8]">{damage.quantity} {damage.unit || 'units'}</span>
           </p>
           <p className="mt-0.5 truncate text-[9px] text-[#94a3b8]">{damageTime(damage.createdAt)}{damage.recordedBy && ` · by ${damage.recordedBy}`}{damage.stockItem && ` · from stock: ${damage.stockItem.name}`}{damage.note && ` · ${damage.note}`}</p>
+          {damage.approved && <p className="mt-0.5 flex items-center gap-1 text-[8px] font-bold text-[#16a34a]"><Check size={10} />Approved{damage.approvedByName && ` by ${damage.approvedByName}`}</p>}
         </div>
-        <span className="shrink-0 text-[11px] font-bold text-[#dc2626]">−{money(damage.value)}</span>
-        <button disabled={busy} onClick={() => removeDamage(damage)} title="Remove record" className="shrink-0 rounded-md p-1 text-[#f87171] hover:bg-[#fef2f2] hover:text-[#dc2626] disabled:opacity-50"><Trash2 size={13} /></button>
-      </li>)}
-    </ul>}
-    {!filtered.length && <p className="mt-3 rounded-xl border border-dashed border-[#e7ebf0] px-3 py-6 text-center text-[10px] text-[#94a3b8]">{hasFilter ? 'No damage records in the selected dates — pick another range or choose All.' : 'No damage recorded yet — click “Record damage” above to record your first one.'}</p>}
-    {showPopup && <RecordDamageModal onClose={() => setShowPopup(false)} onSaved={() => { setShowPopup(false); load() }} />}
+        {!damage.approved && canApprove && <button disabled={busy} onClick={() => approveDamage(damage)} title="Approve damage record" className="flex shrink-0 items-center gap-1 rounded-md bg-[#f0fdf4] px-2 py-1 text-[9px] font-bold text-[#16a34a] transition hover:bg-[#dcfce7] disabled:opacity-50"><Check size={11} />Approve</button>}
+      {!damage.approved && <button disabled={busy} onClick={() => setEditing(damage)} title={`Edit ${damage.name} damage`} className="flex shrink-0 items-center gap-1 rounded-md bg-[#fff4ec] px-2 py-1 text-[9px] font-bold text-[#ea580c] transition hover:bg-[#ffedd5] disabled:opacity-50"><Pencil size={11} />Edit</button>}
+      {damage.edits?.length > 0 && <button onClick={() => setHistoryFor(damage)} title="See what changed" className="flex shrink-0 items-center gap-1 rounded-md bg-[#fef9ee] px-2 py-1 text-[9px] font-bold text-[#b45309] transition hover:bg-[#fef3c7]"><History size={11} />Edited</button>}
+      <span className="shrink-0 text-[11px] font-bold text-[#dc2626]">−{money(damage.value)}</span>
+      <button disabled={busy || damage.approved} onClick={() => removeDamage(damage)} title={damage.approved ? 'Approved — cannot be changed' : 'Remove record'} className="shrink-0 rounded-md p-1 text-[#f87171] hover:bg-[#fef2f2] hover:text-[#dc2626] disabled:opacity-50"><Trash2 size={13} /></button>
+    </li>)}
+  </ul>}
+  {!filtered.length && <p className="mt-3 rounded-xl border border-dashed border-[#e7ebf0] px-3 py-6 text-center text-[10px] text-[#94a3b8]">{hasFilter ? 'No damage records in the selected dates — pick another range or choose All.' : 'No damage recorded yet — click “Record damage” above to record your first one.'}</p>}
+  {showPopup && <RecordDamageModal onClose={() => setShowPopup(false)} onSaved={() => { setShowPopup(false); load() }} />}
+  {editing && <EditDamageModal damage={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load() }} />}
+  {historyFor && <DamageHistoryModal damage={historyFor} onClose={() => setHistoryFor(null)} />}
   </div>
 }
 
@@ -1118,5 +1165,247 @@ function RecordExpenseModal({ onClose, onSaved }) {
       {error && <p className="text-[11px] text-[#dc2626]">{error}</p>}
       <button disabled={busy || mode === null} className="w-full rounded-lg bg-[#f97316] py-2.5 text-[11px] font-semibold text-white hover:bg-[#ea580c] disabled:cursor-not-allowed disabled:opacity-60">{busy ? 'Recording…' : 'Record expense'}</button>
     </form>
+  </Modal>
+}
+
+// ---- Edit an unapproved expense until it is approved; approved ones are ----
+// ---- locked. Each save snapshots what it was before into the trail.   ----
+
+function EditExpenseModal({ expense, onClose, onSaved }) {
+  const [mode, setMode] = useState('existing') // 'existing' | 'new'
+  const [categoryId, setCategoryId] = useState(expense.category || '')
+  const [newName, setNewName] = useState('')
+  const [amount, setAmount] = useState(String(expense.amount ?? ''))
+  const [note, setNote] = useState(expense.note || '')
+  const [categories, setCategories] = useState(null)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    api('/api/owner/expense-categories').then(data => {
+      if (cancelled) return
+      const list = data.categories || []
+      // Keep the expense's current category selectable even if renamed.
+      if (expense.categoryName && !list.some(category => String(category._id) === String(expense.category))) {
+        list.unshift({ _id: expense.category, name: expense.categoryName })
+      }
+      setCategories(list)
+    }).catch(() => { if (!cancelled) setCategories([]) })
+    return () => { cancelled = true }
+  }, [expense])
+
+  const submit = async event => {
+    event.preventDefault()
+    const value = Number(amount)
+    if (!Number.isFinite(value) || value <= 0) { setError('Enter an expense amount greater than zero.'); return }
+    const body = { amount: value, note: note.trim() }
+    if (mode === 'new') {
+      if (!newName.trim()) { setError('Name the category, e.g. Cooking gas.'); return }
+      body.categoryName = newName.trim()
+    } else if (categoryId) {
+      body.categoryId = categoryId
+    }
+    setBusy(true)
+    try {
+      await api(`/api/owner/expenses/${expense._id}`, { method: 'PATCH', body: JSON.stringify(body) })
+      onSaved()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const inputClass = 'w-full rounded-lg border border-[#e7ebf0] bg-white px-3 py-2.5 text-[12px] outline-none focus:border-[#fdba74] focus:ring-2 focus:ring-[#fff4ec]'
+  const labelClass = 'mb-1.5 block text-[10px] font-semibold text-[#64748b]'
+  const modeButton = active => cx('rounded-md px-2 py-1.5 text-[10px] font-semibold transition', active ? 'bg-white text-[#f97316] shadow-sm' : 'text-[#64748b] hover:text-[#0f172a]')
+
+  return <Modal title={`Edit expense — ${expense.categoryName}`} onClose={onClose}>
+    <form className="space-y-3.5" onSubmit={submit}>
+      <p className="text-[10px] leading-4 text-[#94a3b8]">This expense is not approved yet, so it can still be corrected. The owner will see what it looked like before your change.</p>
+      <div>
+        <span className={labelClass}>Category <span className="text-[#dc2626]">*</span></span>
+        {categories === null ? <p className="text-[10px] text-[#94a3b8]">Loading categories…</p> : <>
+          {categories.length > 0 && <div className="grid grid-cols-2 gap-1 rounded-lg bg-[#f1f4f9] p-1">
+            <button type="button" onClick={() => setMode('existing')} className={modeButton(mode === 'existing')}>Pick a category</button>
+            <button type="button" onClick={() => setMode('new')} className={modeButton(mode === 'new')}>New category</button>
+          </div>}
+          {mode === 'existing' && <select value={categoryId} onChange={event => setCategoryId(event.target.value)} className={cx(inputClass, 'mt-2')}>
+            <option value="">Keep current ({expense.categoryName})</option>
+            {categories.map(category => <option key={category._id} value={category._id}>{category.name}</option>)}
+          </select>}
+          {mode === 'new' && <input required value={newName} onChange={event => setNewName(event.target.value)} maxLength="60" placeholder="Category name, e.g. Cooking gas" className={cx(inputClass, 'mt-2')} />}
+        </>}
+      </div>
+      <label className="block"><span className={labelClass}>Amount (UGX) <span className="text-[#dc2626]">*</span></span>
+        <input required type="number" min="0" step="1" value={amount} onChange={event => setAmount(event.target.value)} placeholder="e.g. 25000" className={inputClass} />
+      </label>
+      <label className="block"><span className={labelClass}>Note — optional</span>
+        <input value={note} onChange={event => setNote(event.target.value)} maxLength="200" placeholder="e.g. gas refill" className={inputClass} />
+      </label>
+      {error && <p className="text-[11px] text-[#dc2626]">{error}</p>}
+      <button disabled={busy} className="w-full rounded-lg bg-[#f97316] py-2.5 text-[11px] font-semibold text-white hover:bg-[#ea580c] disabled:opacity-60">{busy ? 'Saving…' : 'Save changes'}</button>
+    </form>
+  </Modal>
+}
+
+// The change trail: each edit snapshots what the expense looked like before it.
+function ExpenseHistoryModal({ expense, onClose }) {
+  const previous = expense.edits?.length ? expense.edits[expense.edits.length - 1] : null
+  return <Modal title={`Changes to ${expense.categoryName}`} onClose={onClose}>
+    <div className="space-y-3">
+      <div className="rounded-lg border border-[#e7ebf0] p-3">
+        <p className="text-[10px] font-bold text-[#94a3b8]">CURRENT (after edit)</p>
+        <p className="text-[11px] font-semibold text-[#0f172a]">{expense.categoryName} — {money(expense.amount)}</p>
+        <p className="mt-0.5 text-[9px] text-[#94a3b8]">{expense.note || 'no note'}</p>
+      </div>
+      {previous && <>
+        <div className="flex items-center gap-2 text-[9px] font-semibold text-[#b45309]"><ArrowDown size={12} />changed to the block above — by {previous.editedByName || 'staff'} · {new Date(previous.editedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
+        <div className="rounded-lg border border-[#f1f5f9] bg-[#f8fafc] p-3">
+          <p className="text-[10px] font-bold text-[#94a3b8]">BEFORE{expense.edits.length > 1 ? ` (${expense.edits.length} edit${expense.edits.length === 1 ? '' : 's'} total, latest shown)` : ''}</p>
+          <p className="text-[11px] font-semibold text-[#0f172a]">{previous.categoryName || expense.categoryName} — {money(previous.amount)}</p>
+          <p className="mt-0.5 text-[9px] text-[#94a3b8]">{previous.note || 'no note'}</p>
+        </div>
+      </>}
+      {!previous && <p className="text-[10px] text-[#94a3b8]">No edits recorded yet.</p>}
+    </div>
+  </Modal>
+}
+
+// ---- Edit an unapproved damage until it is approved; approved ones are ----
+// ---- locked. Stock-picked records re-price from the stock's unit value. ----
+
+function EditDamageModal({ damage, onClose, onSaved }) {
+  const [stock, setStock] = useState([])
+  const [mode, setMode] = useState(damage.stockItem || damage.stockItemId ? 'stock' : 'other') // 'stock' | 'other'
+  const [hasStockList, setHasStockList] = useState(null) // whether the hotel has any stock
+  const [name, setName] = useState(damage.name || '')
+  const [stockId, setStockId] = useState('')
+  const [quantity, setQuantity] = useState(String(damage.quantity ?? 1))
+  const [value, setValue] = useState(damage.stockItem ? '' : String(damage.value ?? ''))
+  const [note, setNote] = useState(damage.note || '')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  // A quiet load — if stock cannot be read, 'other' mode still works.
+  useEffect(() => {
+    let cancelled = false
+    api('/api/stock').then(data => {
+      if (cancelled) return
+      const list = data.items || []
+      setHasStockList(Boolean(list.length))
+      // Keep the record's current stock link selectable even if the entry
+      // is missing from the live list.
+      if (damage.stockItem && damage.stockItem._id && !list.some(entry => String(entry._id) === String(damage.stockItem._id))) {
+        list.unshift({ _id: damage.stockItem._id, name: damage.stockItem.name })
+      }
+      setStock(list)
+      if (!list.length) setMode('other')
+    }).catch(() => { if (!cancelled) setHasStockList(false) })
+    return () => { cancelled = true }
+  }, [damage])
+
+  const pickedStock = stock.find(entry => String(entry._id) === String(stockId)) || null
+  const unitWord = pickedStock ? unitDisplay(pickedStock.unit, pickedStock.customUnit || '') : 'units'
+  const unitPrice = pickedStock ? (pickedStock.price ?? 0) : null
+  const computedValue = unitPrice != null && Number(quantity) > 0
+    ? Math.round(unitPrice * Number(quantity) * 100) / 100
+    : null
+
+  const submit = async event => {
+    event.preventDefault()
+    const qty = quantity === '' ? 1 : Number(quantity)
+    if (!Number.isFinite(qty) || qty <= 0) { setError('Enter the quantity that was damaged.'); return }
+    const body = { name: name.trim() || damage.name, quantity: qty, note: note.trim() }
+    if (mode === 'stock' && pickedStock) {
+      body.stockItemId = pickedStock._id
+    } else {
+      body.stockItemId = null
+      const money = Number(value)
+      if (!Number.isFinite(money) || money <= 0) { setError('Enter the money value of what was damaged.'); return }
+      body.value = money
+    }
+    setBusy(true)
+    try {
+      await api(`/api/owner/damages/${damage._id}`, { method: 'PATCH', body: JSON.stringify(body) })
+      onSaved()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const inputClass = 'w-full rounded-lg border border-[#e7ebf0] bg-white px-3 py-2.5 text-[12px] outline-none focus:border-[#fdba74] focus:ring-2 focus:ring-[#fff4ec]'
+  const labelClass = 'mb-1.5 block text-[10px] font-semibold text-[#64748b]'
+  const modeButton = active => cx('rounded-md px-2 py-1.5 text-[10px] font-semibold transition', active ? 'bg-white text-[#f97316] shadow-sm' : 'text-[#64748b] hover:text-[#0f172a]')
+
+  return <Modal title={`Edit damage — ${damage.name}`} onClose={onClose}>
+    <form className="space-y-3.5" onSubmit={submit}>
+      <p className="text-[10px] leading-4 text-[#94a3b8]">This record is not approved yet, so it can still be corrected. The stock count follows the change, and the owner will see what it looked like before.</p>
+      {hasStockList && <div>
+        <span className={labelClass}>Where is it from? <span className="text-[#dc2626]">*</span></span>
+        <div className="grid grid-cols-2 gap-1 rounded-lg bg-[#f1f4f9] p-1">
+          <button type="button" onClick={() => { setMode('stock'); setStockId('') }} className={modeButton(mode === 'stock')}>From stock</button>
+          <button type="button" onClick={() => { setMode('other') }} className={modeButton(mode === 'other')}>Not in stock</button>
+        </div>
+      </div>}
+      {mode === 'stock'
+        ? <div>
+            <span className={labelClass}>Stock item <span className="text-[#dc2626]">*</span></span>
+            <select value={stockId} onChange={event => setStockId(event.target.value)} className={cx(inputClass, 'mt-0.5')}>
+              <option value="">Keep current{(damage.stockItem ? ` (${damage.stockItem.name})` : '')}</option>
+              {stock.map(item => <option key={item._id} value={item._id}>{item.name} — {item.plates} {unitDisplay(item.unit, item.customUnit || '')} in stock</option>)}
+            </select>
+            {pickedStock && <p className="mt-1.5 flex items-center gap-1.5 text-[9px] text-[#94a3b8]">
+              {pickedStock.imageUrl && <img src={apiAssetUrl(pickedStock.imageUrl)} alt={pickedStock.name} className="size-7 shrink-0 rounded-md object-cover" />}
+              Priced from stock: {money(pickedStock.price)} per {unitWord} — the count follows the correction.
+            </p>}
+          </div>
+        : <label className="block"><span className={labelClass}>Damaged item name <span className="text-[#dc2626]">*</span></span>
+            <input required value={name} onChange={event => setName(event.target.value)} maxLength="60" placeholder="e.g. Broken plates, spoilt beef" className={inputClass} />
+          </label>}
+
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block"><span className={labelClass}>Quantity <span className="text-[#dc2626]">*</span></span>
+          <input required type="number" min="0.01" step="0.01" value={quantity} onChange={event => setQuantity(event.target.value)} placeholder="e.g. 3" className={inputClass} />
+        </label>
+        {mode === 'other' && <label className="block"><span className={labelClass}>Value of damage (UGX) <span className="text-[#dc2626]">*</span></span>
+          <input required type="number" min="0" step="1" value={value} onChange={event => setValue(event.target.value)} placeholder="e.g. 15000" className={inputClass} />
+        </label>}
+      </div>
+      {mode === 'stock' && pickedStock && <p className="rounded-lg bg-[#fff7e8] px-3 py-2 text-[10px] text-[#a85f18]">Loss value: <b>{computedValue != null ? money(computedValue) : '—'}</b> ({money(pickedStock.price)} × {quantity || 1} {unitWord})</p>}
+
+      <label className="block"><span className={labelClass}>Note — optional</span>
+        <input value={note} onChange={event => setNote(event.target.value)} maxLength="200" placeholder="e.g. fell, spillage during prep" className={inputClass} />
+      </label>
+
+      {error && <p className="text-[11px] text-[#dc2626]">{error}</p>}
+      <button disabled={busy} className="w-full rounded-lg bg-[#f97316] py-2.5 text-[11px] font-semibold text-white hover:bg-[#ea580c] disabled:opacity-60">{busy ? 'Saving…' : 'Save changes'}</button>
+    </form>
+  </Modal>
+}
+
+// The change trail: each edit snapshots what the damage looked like before it.
+function DamageHistoryModal({ damage, onClose }) {
+  const previous = damage.edits?.length ? damage.edits[damage.edits.length - 1] : null
+  return <Modal title={`Changes to ${damage.name}`} onClose={onClose}>
+    <div className="space-y-3">
+      <div className="rounded-lg border border-[#e7ebf0] p-3">
+        <p className="text-[10px] font-bold text-[#94a3b8]">CURRENT (after edit)</p>
+        <p className="text-[11px] font-semibold text-[#0f172a]">{damage.name} — {damage.quantity} {damage.unit || 'units'} — {money(damage.value)}</p>
+        <p className="mt-0.5 text-[9px] text-[#94a3b8]">{damage.note || 'no note'}</p>
+      </div>
+      {previous && <Fragment>
+        <div className="flex items-center gap-2 text-[9px] font-semibold text-[#b45309]"><ArrowDown size={12} />changed to the block above — by {previous.editedByName || 'staff'} · {new Date(previous.editedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
+        <div className="rounded-lg border border-[#f1f5f9] bg-[#f8fafc] p-3">
+          <p className="text-[10px] font-bold text-[#94a3b8]">BEFORE{damage.edits.length > 1 ? ` (${damage.edits.length} edit${damage.edits.length === 1 ? '' : 's'} total, latest shown)` : ''}</p>
+          <p className="text-[11px] font-semibold text-[#0f172a]">{previous.name || damage.name} — {previous.quantity} units — {money(previous.value)}</p>
+          <p className="mt-0.5 text-[9px] text-[#94a3b8]">{previous.note || 'no note'}</p>
+        </div>
+      </Fragment>}
+      {!previous && <p className="text-[10px] text-[#94a3b8]">No edits recorded yet.</p>}
+    </div>
   </Modal>
 }

@@ -16,18 +16,19 @@ export const today = new Intl.DateTimeFormat('en-UG', {
 
 export const cx = (...classes) => classes.filter(Boolean).join(' ')
 
-// Minimum password strength: at least 8 characters with both letters and
-// numbers. Shared by every form that sets or resets a password.
-export const PASSWORD_RULE = 'At least 8 characters, including letters and numbers'
+// Minimum password strength: at least 6 characters with both letters and
+// numbers — easy to remember but still a character mix. Shared by every form
+// that sets or resets a password.
+export const PASSWORD_RULE = 'At least 6 characters, including letters and numbers'
 export const isStrongPassword = password =>
-  typeof password === 'string' && password.length >= 8 && /[a-zA-Z]/.test(password) && /\d/.test(password)
+  typeof password === 'string' && password.length >= 6 && /[a-zA-Z]/.test(password) && /\d/.test(password)
 
 // 0–4 strength score for the live meter shown under password fields.
 // 0 = empty, 1 = weak, 2 = fair, 3 = strong, 4 = excellent.
 export const passwordStrength = password => {
   if (!password) return 0
   let score = 0
-  if (password.length >= 8) score += 1
+  if (password.length >= 6) score += 1
   if (/[a-zA-Z]/.test(password) && /\d/.test(password)) score += 1
   if (password.length >= 12) score += 1
   if (/[a-z]/.test(password) && /[A-Z]/.test(password) && /[^a-zA-Z0-9]/.test(password)) score += 1
@@ -48,6 +49,7 @@ export const PERMISSIONS = [
   { key: 'manage_stock', label: 'Manage stock' },
   { key: 'manage_expenses', label: 'Manage expenses' },
   { key: 'manage_sales', label: 'Record sales' },
+  { key: 'edit_records', label: 'Edit expenses & damages until approved' },
   { key: 'approve_records', label: 'Approve sales, stock & expenses' },
 ]
 

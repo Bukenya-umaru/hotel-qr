@@ -18,8 +18,8 @@ if (!MONGODB_URI || !OWNER_NAME || !OWNER_EMAIL || !OWNER_PASSWORD) {
   console.error('Set MONGODB_URI, OWNER_NAME, OWNER_EMAIL, and OWNER_PASSWORD in backend/.env.')
   process.exit(1)
 }
-if (OWNER_PASSWORD.length < 12) {
-  console.error('OWNER_PASSWORD must be at least 12 characters long.')
+if (OWNER_PASSWORD.length < 6) {
+  console.error('OWNER_PASSWORD must be at least 6 characters long.')
   process.exit(1)
 }
 
