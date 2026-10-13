@@ -14,7 +14,7 @@ router.get('/', authenticate, asyncRoute(async (req, res) => {
     Notification.find({
       hotelId: scope,
       readBy: { $ne: req.user._id },
-    }).sort({ createdAt: -1 }).limit(20),
+    }).sort({ createdAt: -1 }).limit(20).lean(),
     Notification.countDocuments({ hotelId: scope, readBy: { $ne: req.user._id } }),
   ])
   res.json({

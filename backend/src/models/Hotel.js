@@ -1,4 +1,5 @@
 import mongoose from 'mongoose'
+import { attachCachePurge } from '../utils/cache.js'
 
 const schema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
@@ -18,5 +19,8 @@ const schema = new mongoose.Schema({
     message: { type: String, default: '', trim: true, maxlength: 400 },
   },
 }, { timestamps: true })
+
+// Business-level schema: any write clears the whole response cache.
+attachCachePurge(schema, { purgeAll: true })
 
 export const Hotel = mongoose.model('Hotel', schema)

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose'
+import { attachCachePurge } from '../utils/cache.js'
 
 const schema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
@@ -14,5 +15,7 @@ const schema = new mongoose.Schema({
   // means every capability is allowed — preserves existing chef accounts.
   permissions: { type: [String], default: undefined },
 }, { timestamps: true })
+
+attachCachePurge(schema)
 
 export const User = mongoose.model('User', schema)

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose'
+import { attachCachePurge } from '../utils/cache.js'
 
 // One recorded damage entry — stock that was spoilt, broken, spilled or
 // otherwise lost, either drawn from a tracked stock item (its count drops)
@@ -41,5 +42,7 @@ const schema = new mongoose.Schema({
 }, { timestamps: true })
 
 schema.index({ hotelId: 1, createdAt: -1 })
+
+attachCachePurge(schema)
 
 export const DamageRecord = mongoose.model('DamageRecord', schema)

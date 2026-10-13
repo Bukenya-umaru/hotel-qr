@@ -1,4 +1,5 @@
 import mongoose from 'mongoose'
+import { attachCachePurge } from '../utils/cache.js'
 
 const schema = new mongoose.Schema({
   hotelId: { type: mongoose.Schema.Types.ObjectId, ref: 'Hotel', required: true, index: true },
@@ -12,5 +13,7 @@ const schema = new mongoose.Schema({
   // Optional stock this food item deducts from when sold.
   stockItemId: { type: mongoose.Schema.Types.ObjectId, ref: 'StockItem', default: null },
 }, { timestamps: true })
+
+attachCachePurge(schema)
 
 export const MenuItem = mongoose.model('MenuItem', schema)

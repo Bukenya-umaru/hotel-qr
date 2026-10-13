@@ -1,4 +1,5 @@
 import mongoose from 'mongoose'
+import { attachCachePurge } from '../utils/cache.js'
 
 // One line inside a multi-item sale — e.g. "Beef plates ×3 — UGX 15,000".
 // `amount` is the line's total (quantity × whatever one costs), not a unit price.
@@ -72,5 +73,7 @@ schema.index({ hotelId: 1, saleNumber: 1 }, { unique: true, sparse: true })
 export const formatSaleId = saleNumber => Number.isInteger(saleNumber) && saleNumber > 0
   ? `SAL-${String(saleNumber).padStart(6, '0')}`
   : ''
+
+attachCachePurge(schema)
 
 export const Sale = mongoose.model('Sale', schema)

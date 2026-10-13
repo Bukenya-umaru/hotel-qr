@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import http from 'node:http'
 import cookieParser from 'cookie-parser'
+import compression from 'compression'
 import cors from 'cors'
 import express from 'express'
 import helmet from 'helmet'
@@ -8,6 +9,7 @@ import jwt from 'jsonwebtoken'
 import mongoose from 'mongoose'
 import { Server as SocketServer } from 'socket.io'
 import { COOKIE_NAME } from './middleware/auth.js'
+import { apiLimiter } from './middleware/rateLimit.js'
 import { uploadDirectory } from './middleware/upload.js'
 import { Hotel } from './models/Hotel.js'
 import { User } from './models/User.js'
@@ -19,15 +21,27 @@ import notificationRoutes from './routes/notifications.js'
 
 const app = express()
 const server = http.createServer(app)
-const origins = (process.env.CLIENT_URLS || process.env.CLIENT_URL || 'http://localhost:5173,http://localhost:5174')
+// Allowed CORS origins must come from .env — no hard-coded fallback.
+const origins = String(process.env.CLIENT_URLS || '')
   .split(',').map(origin => origin.trim()).filter(Boolean)
+// Only trust X-Forwarded-For when explicitly enabled for the deployment
+// (e.g. TRUST_PROXY=1 behind a single reverse proxy), so the client IPs used
+// by rate limiting are the real ones and headers from random clients are ignored.
+if (process.env.TRUST_PROXY) app.set('trust proxy', process.env.TRUST_PROXY === 'true' ? 1 : process.env.TRUST_PROXY)
 const io = new SocketServer(server, { cors: { origin: origins, credentials: true } })
 app.set('io', io)
 
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }))
+// Compress responses (gzip) so API payloads transfer faster over the network.
+// Only compressible content types are compressed; uploaded images (JPG/PNG/WebP)
+// and already-compressed responses are left untouched.
+app.use(compression())
 app.use(cors({ origin: origins, credentials: true }))
 app.use(express.json({ limit: '32kb' }))
 app.use(cookieParser())
+// Backstop against abuse and traffic spikes on every API endpoint.
+app.use('/api', apiLimiter)
+
 app.use('/uploads', express.static(uploadDirectory, {
   index: false,
   dotfiles: 'deny',
@@ -100,6 +114,7 @@ app.use((error, _req, res, _next) => {
 const port = Number(process.env.PORT || 4000)
 try {
   if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) throw new Error('JWT_SECRET must be at least 32 characters.')
+  if (origins.length === 0) throw new Error('CLIENT_URLS must list at least one allowed CORS origin in backend/.env.')
   await mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/stayserve')
   server.listen(port, () => console.log(`StayServe API listening on http://localhost:${port}`))
 } catch (error) {

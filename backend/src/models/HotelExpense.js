@@ -1,4 +1,5 @@
 import mongoose from 'mongoose'
+import { attachCachePurge } from '../utils/cache.js'
 
 // One recorded expense for the whole business — e.g. cooking gas, wages,
 // transport — filed under one of the expense categories managed in
@@ -31,5 +32,7 @@ const schema = new mongoose.Schema({
 }, { timestamps: true })
 
 schema.index({ hotelId: 1, createdAt: -1 })
+
+attachCachePurge(schema)
 
 export const HotelExpense = mongoose.model('HotelExpense', schema)

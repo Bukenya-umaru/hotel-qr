@@ -1,4 +1,5 @@
 import mongoose from 'mongoose'
+import { attachCachePurge } from '../utils/cache.js'
 
 // One stock entry per meat/food kind the kitchen tracks in plates,
 // e.g. "Beef plates", "Chicken plates". Chefs adjust the count by hand
@@ -36,5 +37,7 @@ const schema = new mongoose.Schema({
 }, { timestamps: true })
 
 schema.index({ hotelId: 1, name: 1 }, { unique: true })
+
+attachCachePurge(schema)
 
 export const StockItem = mongoose.model('StockItem', schema)

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose'
+import { attachCachePurge } from '../utils/cache.js'
 
 // Name-only expense categories the chef defines, e.g. "Cooking gas",
 // "Meat purchases". No amounts here — just the buckets to record under.
@@ -8,5 +9,7 @@ const schema = new mongoose.Schema({
 }, { timestamps: true })
 
 schema.index({ hotelId: 1, name: 1 }, { unique: true })
+
+attachCachePurge(schema)
 
 export const ExpenseCategory = mongoose.model('ExpenseCategory', schema)

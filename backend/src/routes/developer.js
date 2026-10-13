@@ -2,6 +2,8 @@ import bcrypt from 'bcryptjs'
 import express from 'express'
 import mongoose from 'mongoose'
 import { authenticate, authorize, publicUser } from '../middleware/auth.js'
+import { sensitiveLimiter } from '../middleware/rateLimit.js'
+import { cacheResponse } from '../utils/cache.js'
 import { Hotel } from '../models/Hotel.js'
 import { User } from '../models/User.js'
 import { asyncRoute, idIsValid, safeSupport } from '../utils/http.js'
@@ -36,7 +38,7 @@ router.patch('/support', asyncRoute(async (req, res) => {
 router.get('/users', asyncRoute(async (_req, res) => {
   const business = await Hotel.findOne({ isActive: true }).select('_id')
   const users = business
-    ? await User.find({ hotelId: business._id, role: { $in: ['OWNER', 'KITCHEN'] } }).sort({ createdAt: -1 }).select('+passwordVault')
+    ? await User.find({ hotelId: business._id, role: { $in: ['OWNER', 'KITCHEN'] } }).sort({ createdAt: -1 }).select('+passwordVault').lean()
     : []
   res.json({
     users: users.map(user => ({ ...publicUser(user), hasViewablePassword: Boolean(user.passwordVault) })),
@@ -77,7 +79,7 @@ router.patch('/users/:id', asyncRoute(async (req, res) => {
 // Reveal the stored password of a business owner or chef account. The
 // plaintext is decrypted server-side only for authenticated developers and
 // never included in any list or login response.
-router.get('/users/:id/password', asyncRoute(async (req, res) => {
+router.get('/users/:id/password', sensitiveLimiter, asyncRoute(async (req, res) => {
   if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Account not found.' })
   const business = await Hotel.findOne({ isActive: true }).select('_id')
   if (!business) return res.status(404).json({ message: 'The business could not be found.' })
@@ -90,7 +92,7 @@ router.get('/users/:id/password', asyncRoute(async (req, res) => {
   res.json({ password })
 }))
 
-router.get('/overview', asyncRoute(async (_req, res) => {
+router.get('/overview', cacheResponse(() => 'v1:overview'), asyncRoute(async (_req, res) => {
   const business = await Hotel.findOne({ isActive: true }).select('name slug city tableCount currency taxRate')
   const businessFilter = business ? { hotelId: business._id } : { hotelId: null }
   const userCount = await User.countDocuments({ ...businessFilter, role: { $in: ['OWNER', 'KITCHEN'] }, isActive: true })

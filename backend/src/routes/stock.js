@@ -6,6 +6,7 @@ import { MenuItem } from '../models/MenuItem.js'
 import { removeUploadedImage, uploadMenuImage } from '../middleware/upload.js'
 import { asyncRoute, idIsValid, safeNumber } from '../utils/http.js'
 import { notifyHotel, checkLowStock, LOW_STOCK_LIMIT } from '../utils/notify.js'
+import { cacheHotelResource } from '../utils/cache.js'
 import { hasPerm } from './owner.js'
 
 const router = express.Router()
@@ -40,12 +41,12 @@ const safeAmount = value => {
 
 // Every stock entry plus linked food names, so the chef sees which sale items
 // deduct from each stock item without extra requests.
-router.get('/', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+router.get('/', authenticate, authorize('OWNER', 'KITCHEN'), cacheHotelResource('stock'), asyncRoute(async (req, res) => {
   const scope = hotelScope(req)
   if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
   const [items, dishes] = await Promise.all([
-    StockItem.find({ hotelId: scope }).sort({ name: 1 }).populate('approvedBy', 'name'),
-    MenuItem.find({ hotelId: scope }).select('name stockItemId').sort({ name: 1 }),
+    StockItem.find({ hotelId: scope }).sort({ name: 1 }).populate('approvedBy', 'name').lean(),
+    MenuItem.find({ hotelId: scope }).select('name stockItemId').sort({ name: 1 }).lean(),
   ])
   const linked = items.map(item => ({
     _id: item._id,
