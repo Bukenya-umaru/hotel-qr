@@ -15,7 +15,7 @@ import { Hotel } from '../models/Hotel.js'
 import { removeUploadedImage, uploadMenuImage } from '../middleware/upload.js'
 import { asyncRoute, idIsValid, safeMenuItem, safeSupport } from '../utils/http.js'
 import { notifyHotel, checkLowStock, broadcastChange } from '../utils/notify.js'
-import { storePassword } from '../utils/passwordVault.js'
+import { revealPassword, storePassword, vaultEnabled } from '../utils/passwordVault.js'
 import { isStrongPassword, PASSWORD_RULE_MESSAGE } from '../utils/passwordPolicy.js'
 import { ALL_PERMISSIONS } from '../utils/permissions.js'
 
@@ -995,8 +995,27 @@ router.post('/sales/:saleId/approve', authenticate, authorize('OWNER', 'KITCHEN'
 }))
 
 router.get('/staff', authenticate, authorize('OWNER'), asyncRoute(async (req, res) => {
-  const users = await User.find({ hotelId: req.user.hotelId._id, role: 'KITCHEN' }).sort({ createdAt: -1 })
-  res.json({ users: users.map(staffUser) })
+  const users = await User.find({ hotelId: req.user.hotelId._id, role: 'KITCHEN' }).sort({ createdAt: -1 }).select('+passwordVault')
+  res.json({
+    users: users.map(user => ({ ...staffUser(user), hasViewablePassword: Boolean(user.passwordVault) })),
+    passwordViewable: vaultEnabled(),
+  })
+}))
+
+// Reveal the stored password of one of the owner's own chef accounts.
+// Owners are scoped to KITCHEN accounts in their own hotel only — they can
+// never view another owner's or the developer's password. The plaintext is
+// decrypted server-side only for authenticated owners and never included in
+// any list or login response.
+router.get('/staff/:id/password', authenticate, authorize('OWNER'), asyncRoute(async (req, res) => {
+  if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Chef account not found.' })
+  const user = await User.findOne({ _id: req.params.id, hotelId: req.user.hotelId._id, role: 'KITCHEN' }).select('+passwordVault')
+  if (!user) return res.status(404).json({ message: 'Chef account not found.' })
+  const password = revealPassword(user)
+  if (password === null) {
+    return res.status(404).json({ message: 'No viewable password is stored for this account yet. Reset the password once — after that you can view the current password anytime.' })
+  }
+  res.json({ password })
 }))
 
 router.post('/staff', authenticate, authorize('OWNER'), asyncRoute(async (req, res) => {

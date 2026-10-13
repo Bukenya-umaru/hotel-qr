@@ -87,7 +87,10 @@ export default function App() {
         .catch(err => setApiError(err.message))
     }
     if (user?.role === 'OWNER') {
-      api('/api/owner/staff').then(data => setUsers(data.users)).catch(err => setApiError(err.message))
+      api('/api/owner/staff').then(data => {
+        setUsers(data.users)
+        setPlatformOverview(previous => ({ ...previous, passwordViewable: Boolean(data.passwordViewable) }))
+      }).catch(err => setApiError(err.message))
     }
     if (user?.role === 'DEVELOPER') {
       api('/api/developer/users').then(data => {
@@ -279,7 +282,7 @@ export default function App() {
     <main className="mx-auto min-w-0 max-w-[1200px] px-3 py-3 sm:px-5 sm:py-4 lg:px-6 lg:py-5">{apiError && user && <div className="mb-4 flex items-center justify-between rounded-lg bg-[#fff7e8] px-3 py-2.5 text-[10px] text-[#a85f18]"><span className="min-w-0 break-words">{apiError}</span><button onClick={() => setApiError('')} className="ml-2 shrink-0"><X size={14} /></button></div>}{content}</main></div>
     {modal === 'account' && role === 'OWNER' && <AccountModal onClose={() => setModal('')} onSubmit={createAccount} />}
     {modal === 'reset' && resettingUser && <ResetPasswordModal account={resettingUser} onClose={() => { setModal(''); setResettingUser(null) }} onSubmit={resetUserPassword} />}
-    {modal === 'view-password' && viewingUser && <ViewPasswordModal account={viewingUser} onClose={() => { setModal(''); setViewingUser(null) }} />}
+    {modal === 'view-password' && viewingUser && <ViewPasswordModal account={viewingUser} endpoint={role === 'DEVELOPER' ? `/api/developer/users/${viewingUser._id}/password` : `/api/owner/staff/${viewingUser._id}/password`} onClose={() => { setModal(''); setViewingUser(null) }} />}
     {modal === 'edit-account' && editingUser && <AccountEditModal account={editingUser} viewerRole={role} onClose={() => { setModal(''); setEditingUser(null) }} onSubmit={updateAccount} />}
     {modal === 'change-password' && <ChangePasswordModal onClose={() => setModal('')} onSubmit={changeOwnPassword} />}
     {toast && <div className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] left-3 right-3 z-[60] flex items-center justify-center gap-2 rounded-xl bg-[#0f172a] px-4 py-3 text-center text-[11px] font-medium text-white shadow-lg sm:bottom-5 sm:left-auto sm:right-5"><Check className="shrink-0 text-[#fdba74]" size={15} />{toast}</div>}

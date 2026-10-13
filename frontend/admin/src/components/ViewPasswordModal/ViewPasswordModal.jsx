@@ -5,9 +5,10 @@ import { Modal } from '../Modal/Modal.jsx'
 
 const VIEW_SECONDS = 15
 
-// Developer-only: reveals an account's actual password for 15 seconds,
-// then hides it and closes.
-export function ViewPasswordModal({ account, onClose }) {
+// Reveals an account's actual password for 15 seconds, then hides it and
+// closes. Used by the developer (any account) and by the business owner for
+// their own chefs; `endpoint` decides which API reveal route to call.
+export function ViewPasswordModal({ account, endpoint, onClose }) {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -15,12 +16,12 @@ export function ViewPasswordModal({ account, onClose }) {
 
   useEffect(() => {
     let active = true
-    api(`/api/developer/users/${account._id}/password`)
+    api(endpoint)
       .then(data => { if (active) setPassword(data.password) })
       .catch(err => { if (active) setError(err.message) })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [account._id])
+  }, [account._id, endpoint])
 
   useEffect(() => {
     if (loading || error) return undefined
@@ -37,6 +38,7 @@ export function ViewPasswordModal({ account, onClose }) {
     {error && <p className="text-[11px] leading-5 text-[#dc2626]">{error}</p>}
     {!loading && !error && <>
       <p className="text-[11px] text-[#64748b]">Share this privately with {account.role === 'OWNER' ? 'the business owner' : 'the chef'} and help them update it after signing in.</p>
+      {account.role === 'KITCHEN' && <p className="mt-1 text-[11px] text-[#64748b]">If it looks out of date, ask them to change it — the latest password is kept whenever they reset it.</p>}
       <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-[#f8fafc] px-4 py-3">
         <code className="min-w-0 flex-1 select-all break-all text-[13px] font-semibold tracking-wide">{password}</code>
         <span className="flex shrink-0 items-center gap-1.5 text-[10px] font-semibold text-[#ea580c]"><Eye size={13} />{secondsLeft}s</span>

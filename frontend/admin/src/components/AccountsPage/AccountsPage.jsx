@@ -24,6 +24,7 @@ export function AccountsPage({ users, role, passwordViewable, onCreate, onToggle
         <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-[#f1f5f9] pt-3">
           {isOwner ? <>
             {user.role === 'KITCHEN' && <button onClick={() => onEdit(user)} className="text-[10px] font-semibold text-[#ea580c]">Permissions</button>}
+            {user.role === 'KITCHEN' && passwordViewable && <button onClick={() => onView(user)} disabled={!user.hasViewablePassword} title={user.hasViewablePassword ? undefined : 'Reset the password once to make it viewable'} className="text-[10px] font-semibold text-[#ea580c] disabled:text-[#e2e8f0] disabled:opacity-60">{user.hasViewablePassword ? 'View password' : 'View password*'}</button>}
             <button onClick={() => onToggle(user)} className="text-[10px] font-semibold text-[#ea580c]">{user.isActive === false ? 'Reactivate' : 'Deactivate'}</button>
           </> : <><button onClick={() => onEdit(user)} className="text-[10px] font-semibold text-[#ea580c]">Edit account</button>{passwordViewable && <button onClick={() => onView(user)} disabled={!user.hasViewablePassword} title={user.hasViewablePassword ? undefined : 'Reset the password once to make it viewable'} className="text-[10px] font-semibold text-[#ea580c] disabled:text-[#e2e8f0] disabled:opacity-60">{user.hasViewablePassword ? 'View password' : 'View password*'}</button>}<button onClick={() => onReset(user)} className="text-[10px] font-semibold text-[#ea580c]">Reset password</button><button onClick={() => onToggle(user)} className="text-[10px] font-semibold text-[#ea580c]">{user.isActive === false ? 'Reactivate' : 'Deactivate'}</button></>}
         </div>
@@ -35,11 +36,12 @@ export function AccountsPage({ users, role, passwordViewable, onCreate, onToggle
         <td className="px-4 py-3.5"><Badge tone={user.isActive === false ? 'gray' : 'green'}>{user.isActive === false ? 'Inactive' : 'Active'}</Badge></td>
         <td className="space-x-3 px-5 py-3.5 text-right">{isOwner ? <>
           {user.role === 'KITCHEN' && <button onClick={() => onEdit(user)} className="text-[10px] font-semibold text-[#ea580c]">Permissions</button>}
+          {user.role === 'KITCHEN' && passwordViewable && <button onClick={() => onView(user)} disabled={!user.hasViewablePassword} title={user.hasViewablePassword ? undefined : 'Reset the password once to make it viewable'} className="text-[10px] font-semibold text-[#ea580c] disabled:text-[#e2e8f0] disabled:opacity-60">{user.hasViewablePassword ? 'View password' : 'View password*'}</button>}
           <button onClick={() => onToggle(user)} className="text-[10px] font-semibold text-[#ea580c]">{user.isActive === false ? 'Reactivate' : 'Deactivate'}</button>
         </> : <><button onClick={() => onEdit(user)} className="text-[10px] font-semibold text-[#ea580c]">Edit</button>{passwordViewable && <button onClick={() => onView(user)} disabled={!user.hasViewablePassword} title={user.hasViewablePassword ? undefined : 'Reset the password once to make it viewable'} className="text-[10px] font-semibold text-[#ea580c] disabled:text-[#e2e8f0] disabled:opacity-60">{user.hasViewablePassword ? 'View password' : 'View password*'}</button>}<button onClick={() => onReset(user)} className="text-[10px] font-semibold text-[#ea580c]">Reset password</button><button onClick={() => onToggle(user)} className="text-[10px] font-semibold text-[#ea580c]">{user.isActive === false ? 'Reactivate' : 'Deactivate'}</button></>}</td>
       </tr>)}</tbody></table></div>
       {!users.length && <p className="px-5 py-10 text-center text-[11px] text-[#94a3b8]">{isOwner ? 'No chef accounts yet. Create one to manage food items, sales, expenses, and stock.' : 'No accounts are available to support yet.'}</p>}
-      {users.length > 0 && !isOwner && <p className="px-5 py-3 text-[10px] text-[#94a3b8]">* Reset the password once for an account to make its current password viewable.</p>}
+      {users.length > 0 && passwordViewable && <p className="px-5 py-3 text-[10px] text-[#94a3b8]">* Reset the password once for an account to make its current password viewable.</p>}
     </section>
   </div>
 }
