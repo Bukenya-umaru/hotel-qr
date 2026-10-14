@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  ArrowRight, CalendarDays, ChartNoAxesCombined, ChevronDown, MoreHorizontal, PackageOpen, Receipt,
+  ArrowRight, Boxes, CalendarDays, ChartNoAxesCombined, ChevronDown, MoreHorizontal, PackageOpen, Receipt,
   ShoppingBag, SlidersHorizontal, TrendingUp, Wallet, UsersRound, Download,
 } from 'lucide-react'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
@@ -57,13 +57,13 @@ export function Overview({ hotelName, onNavigate, analytics, currency, onRange, 
   // range matches a preset period, restore that preset; otherwise treat it
   // as the custom calendar range.
   const initialPeriod = () => {
-    const range = reportRange || { from: periodDates('7').from, to: periodDates('7').to }
+    const range = reportRange || { from: periodDates('today').from, to: periodDates('today').to }
     for (const item of PERIODS) {
       if (item.key === 'today' || item.key === 'month') continue
       const dates = periodDates(item.key)
       if (dates.from === range.from && dates.to === range.to) return { key: item.key, custom: null }
     }
-    return { key: '7', custom: { from: range.from, to: range.to } }
+    return { key: 'today', custom: { from: range.from, to: range.to } }
   }
   const [periodKey, setPeriodKey] = useState(() => initialPeriod().key)
   // Custom from/to range picked from the calendar; null while a preset
@@ -75,7 +75,7 @@ export function Overview({ hotelName, onNavigate, analytics, currency, onRange, 
   onRangeRef.current = onRange
   const firstRender = useRef(true)
   useEffect(() => {
-    // Skip the initial mount: App already loaded this week's range.
+    // Skip the initial mount: App already loaded today's range.
     if (firstRender.current) { firstRender.current = false; return }
     const { from, to } = periodDates(periodKey)
     onRangeRef.current?.(from, to)
@@ -94,7 +94,7 @@ export function Overview({ hotelName, onNavigate, analytics, currency, onRange, 
   }, [menuOpen])
   const period = customRange
     ? { label: `${customRange.from === customRange.to ? 'that day' : 'that range'}` }
-    : PERIODS.find(item => item.key === periodKey) || PERIODS[1]
+    : PERIODS.find(item => item.key === periodKey) || PERIODS[0]
   // Calendar preview range (fall back to the preset's dates for highlighting).
   const { from: periodFrom, to: periodTo } = customRange || periodDates(periodKey)
   // 'today'/'in period' wording keys off whether a single day is selected.
@@ -118,6 +118,38 @@ export function Overview({ hotelName, onNavigate, analytics, currency, onRange, 
     return () => { cancelled = true }
   }, [analytics.totalDamages])
   const damagesTotal = damageTotal === null ? null : Number(damageTotal || 0)
+  // What the kitchen added to stock inside the selected period, straight
+  // from the analytics payload the same fetch returns.
+  const stockAdditions = analytics.stockAdditions || []
+  const stockAdditionUnits = stockAdditions.reduce((sum, item) => sum + (Number(item.plates) || 0), 0)
+  const stockUnitNoun = item => item.unit === 'other' && item.customUnit ? item.customUnit : item.unit || 'plates'
+  // Approve straight from the panel: the backend tells the dashboard whether
+  // the signed-in user holds the approval permission. A successful sign-off
+  // is tracked locally so the chip flips to Approved at once; the next
+  // analytics fetch carries the real status.
+  const canApproveStock = analytics.canApproveStock !== false
+  const [stockApprovals, setStockApprovals] = useState({})
+  const [stockActionError, setStockActionError] = useState('')
+  useEffect(() => { setStockApprovals({}); setStockActionError('') }, [analytics.stockAdditions])
+  const approveStockAddition = async item => {
+    setStockActionError('')
+    try {
+      await api(`/api/stock/${item._id}/approve`, { method: 'POST' })
+      setStockApprovals(map => ({ ...map, [item._id]: true }))
+    } catch (error) {
+      setStockActionError(error.message)
+    }
+  }
+  const stockApprovedNow = item => Boolean(stockApprovals[item._id] ?? item.approved)
+  // Who signed the entry off and when, for the Approved badge's tooltip.
+  // Entries approved during this session before the next fetch only show
+  // that they were signed — the payload refresh brings the full detail.
+  const approvedAtText = date => new Date(date).toLocaleDateString('en-UG', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  const approvedTitle = item => stockApprovedNow(item)
+    ? (!stockApprovals[item._id] && item.approvedByName
+      ? `Approved by ${item.approvedByName}${item.approvedAt ? ` on ${approvedAtText(item.approvedAt)}` : ''}`
+      : stockApprovals[item._id] ? 'Approved just now — reload for the record' : 'Approved')
+    : 'Pending approval'
   const series = (analytics.series || []).map(day => ({
     day: formatDay(day.date),
     sales: day.revenue || 0,
@@ -179,6 +211,7 @@ export function Overview({ hotelName, onNavigate, analytics, currency, onRange, 
       <MetricCard title="Total Sale" value={salesTotal === null ? '—' : money(salesTotal, currency)} icon={TrendingUp} detail={canViewSales ? `${period.label} revenue` : 'Access not granted'} />
       <MetricCard title="Total Profit" value={profit === null ? '—' : money(profit, currency)} icon={Wallet} detail={canViewExpenses ? `${money(expensesTotal || 0, currency)} spent ${dayWording}` : 'Access not granted'} inverse />
       <MetricCard title="Damage" value={canViewExpenses ? money(damagesTotal === null ? analytics.totalDamages || 0 : damagesTotal, currency) : '—'} icon={PackageOpen} detail={canViewExpenses ? (dayWording === 'today' ? 'goods lost today' : 'goods lost in period') : 'Access not granted'} inverse />
+      <MetricCard title="Stock Added" value={stockAdditions.length} icon={Boxes} detail={stockAdditions.length ? `≈ ${Math.round(stockAdditionUnits * 100) / 100} units in ${period.label.toLowerCase()}` : `no new stock ${dayWording}`} />
     </div>
 
     <div className="flex flex-col gap-3.5 xl:flex-row">
@@ -264,6 +297,23 @@ export function Overview({ hotelName, onNavigate, analytics, currency, onRange, 
           </div>
           <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-[#fdece5]"><div className="h-full rounded-full bg-[#e7654b] transition-all" style={{ width: `${Math.max(4, Math.min(100, periodSales ? 100 : 4))}%` }} /></div>
           <button onClick={() => onNavigate('Sales')} className="mt-3 flex w-full items-center justify-center gap-1 text-[10px] font-semibold text-[#d95c43] hover:underline">View More</button>
+        </section>
+
+        <section className="border border-[#f0e8e4] bg-white p-3.5 sm:p-4 lg:col-span-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2"><span className="grid size-7 place-items-center rounded-full bg-[#fff0ea] text-[#d95c43]"><Boxes size={15} /></span><div><h3 className="font-display text-[16px] font-bold text-[#292421]">Stock Added</h3><p className="mt-1 text-[10px] text-[#a19690]">What the kitchen added, {period.label.toLowerCase()}</p></div></div>
+            <button onClick={() => onNavigate('Stock')} className="text-[10px] font-medium text-[#d95c43] hover:underline">Manage stock</button>
+          </div>
+          {stockActionError && <p role="alert" className="mt-2 text-[10px] text-[#c0392b]">{stockActionError}</p>}
+          <div className="mt-4 flex flex-wrap gap-2">
+            {stockAdditions.length ? stockAdditions.map(item => <div key={item._id} className="flex items-center gap-2 rounded-lg border border-[#f0e8e4] px-2.5 py-2">
+              <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#fff3ee] text-[#d95c43]"><Boxes size={14} /></span>
+              <span className="min-w-0"><span className="block max-w-[180px] truncate text-[10px] font-semibold text-[#292421]">{item.name}</span><span className="mt-0.5 block text-[9px] text-[#8d817b]">{item.plates} {stockUnitNoun(item)} · {money(item.price, currency)} each</span></span>
+              <span title={approvedTitle(item)} className={`shrink-0 cursor-help rounded px-1.5 py-0.5 text-[8px] font-semibold ${stockApprovedNow(item) ? 'bg-[#eaf7ef] text-[#55a978]' : 'bg-[#fdf1cf] text-[#c4901c]'}`}>{stockApprovedNow(item) ? 'Approved' : 'Pending'}</span>
+              {!stockApprovedNow(item) && canApproveStock && <button onClick={() => approveStockAddition(item)} title={`Approve ${item.name}`} aria-label={`Approve ${item.name}`} className="shrink-0 rounded-md bg-[#f0fdf4] px-1.5 py-1 text-[8px] font-semibold text-[#16a34a] hover:bg-[#dcfce7]">Approve</button>}
+              {!stockApprovedNow(item) && <button onClick={() => onNavigate('Stock')} title={`Edit ${item.name} on the stock page`} aria-label={`Edit ${item.name}`} className="shrink-0 rounded-md border border-[#eadfd9] px-1.5 py-1 text-[8px] font-semibold text-[#8d817b] hover:border-[#e7654b] hover:text-[#d95c43]">Edit</button>}
+            </div>) : <p className="py-5 text-center text-[10px] text-[#8d817b]">No stock was added {dayWording}.</p>}
+          </div>
         </section>
       </div>
 

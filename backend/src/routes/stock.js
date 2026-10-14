@@ -7,6 +7,7 @@ import { removeUploadedImage, uploadMenuImage } from '../middleware/upload.js'
 import { asyncRoute, idIsValid, safeNumber } from '../utils/http.js'
 import { notifyHotel, checkLowStock, LOW_STOCK_LIMIT } from '../utils/notify.js'
 import { cacheHotelResource } from '../utils/cache.js'
+import { uploadLimiter } from '../middleware/rateLimit.js'
 import { hasPerm } from './owner.js'
 
 const router = express.Router()
@@ -69,8 +70,7 @@ router.get('/', authenticate, authorize('OWNER', 'KITCHEN'), cacheHotelResource(
   const unlinked = dishes.filter(dish => !dish.stockItemId).map(dish => ({ _id: dish._id, name: dish.name }))
   res.json({ items: linked, unlinkedDishes: unlinked })
 }))
-
-router.post('/', authenticate, authorize('OWNER', 'KITCHEN'), uploadMenuImage, asyncRoute(async (req, res) => {
+router.post('/', authenticate, authorize('OWNER', 'KITCHEN'), uploadLimiter, uploadMenuImage, asyncRoute(async (req, res) => {
   if (!requireStockPermission(req, res)) return
   const name = normalizeName(req.body.name)
   const foodType = normalizeFoodType(req.body.foodType)
@@ -157,8 +157,7 @@ router.patch('/:id/adjust', authenticate, authorize('OWNER', 'KITCHEN'), asyncRo
   req.app.get('io').to(`hotel:${scope}`).emit('stock_updated')
   res.json({ item: stock })
 }))
-
-router.patch('/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadMenuImage, asyncRoute(async (req, res) => {
+router.patch('/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadLimiter, uploadMenuImage, asyncRoute(async (req, res) => {
   if (!requireStockPermission(req, res)) return
   if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Stock not found.' })
   const scope = hotelScope(req)

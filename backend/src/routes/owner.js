@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs'
 import express from 'express'
 import mongoose from 'mongoose'
 import { authenticate, authorize, hotelScope } from '../middleware/auth.js'
-import { sensitiveLimiter } from '../middleware/rateLimit.js'
+import { sensitiveLimiter, uploadLimiter } from '../middleware/rateLimit.js'
 import { cacheHotelResource } from '../utils/cache.js'
 import { User } from '../models/User.js'
 import { MenuItem } from '../models/MenuItem.js'
@@ -16,6 +16,7 @@ import { StockItem } from '../models/StockItem.js'
 import { Hotel } from '../models/Hotel.js'
 import { removeUploadedImage, uploadMenuImage } from '../middleware/upload.js'
 import { asyncRoute, idIsValid, safeMenuItem, safeSupport } from '../utils/http.js'
+import { damageBody, expenseBody, expenseCategoryBody, menuBody, menuCategoryBody, saleBody, staffBody, validate } from '../validation/schemas.js'
 import { notifyHotel, checkLowStock, broadcastChange } from '../utils/notify.js'
 import { revealPassword, storePassword, vaultEnabled } from '../utils/passwordVault.js'
 import { isStrongPassword, PASSWORD_RULE_MESSAGE } from '../utils/passwordPolicy.js'
@@ -82,7 +83,7 @@ router.get('/categories', authenticate, authorize('OWNER', 'KITCHEN'), cacheHote
   res.json({ categories: categories.map(category => ({ _id: category._id, name: category.name, foodType: category.foodType || '' })) })
 }))
 
-router.post('/categories', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+router.post('/categories', authenticate, authorize('OWNER', 'KITCHEN'), validate(menuCategoryBody), asyncRoute(async (req, res) => {
   if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_menu')) return res.status(403).json({ message: 'You do not have permission to manage the menu.' })
   const name = String(req.body.name || '').trim().slice(0, 60)
   const foodType = String(req.body.foodType || '').trim().slice(0, 60)
@@ -147,7 +148,7 @@ router.get('/expense-categories', authenticate, authorize('OWNER', 'KITCHEN'), c
   res.json({ categories: categories.map(category => ({ _id: category._id, name: category.name })) })
 }))
 
-router.post('/expense-categories', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+router.post('/expense-categories', authenticate, authorize('OWNER', 'KITCHEN'), validate(expenseCategoryBody), asyncRoute(async (req, res) => {
   if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_expenses')) return res.status(403).json({ message: 'The owner has not granted you permission to manage expenses.' })
   const name = String(req.body.name || '').trim().slice(0, 60)
   if (!name) return res.status(400).json({ message: 'Give the expense category a name, e.g. Cooking gas.' })
@@ -249,7 +250,7 @@ router.get('/expenses', authenticate, authorize('OWNER', 'KITCHEN'), cacheHotelR
   })
 }))
 
-router.post('/expenses', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+router.post('/expenses', authenticate, authorize('OWNER', 'KITCHEN'), validate(expenseBody), asyncRoute(async (req, res) => {
   if (!requireExpenseAccess(req, res)) return
   const amount = Number(req.body.amount)
   const note = String(req.body.note || '').trim().slice(0, 200)
@@ -437,7 +438,7 @@ router.get('/damages', authenticate, authorize('OWNER', 'KITCHEN'), cacheHotelRe
   })
 }))
 
-router.post('/damages', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+router.post('/damages', authenticate, authorize('OWNER', 'KITCHEN'), validate(damageBody), asyncRoute(async (req, res) => {
   if (!requireExpenseAccess(req, res)) return
   const scope = hotelScope(req)
   if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
@@ -785,7 +786,7 @@ router.get('/sales', authenticate, authorize('OWNER', 'KITCHEN'), cacheHotelReso
   })
 }))
 
-router.post('/sales', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
+router.post('/sales', authenticate, authorize('OWNER', 'KITCHEN'), validate(saleBody), asyncRoute(async (req, res) => {
   if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_sales')) return res.status(403).json({ message: 'The owner has not granted you permission to record sales.' })
   const scope = hotelScope(req)
   if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
@@ -1020,7 +1021,7 @@ router.get('/staff/:id/password', authenticate, authorize('OWNER'), sensitiveLim
   res.json({ password })
 }))
 
-router.post('/staff', authenticate, authorize('OWNER'), asyncRoute(async (req, res) => {
+router.post('/staff', authenticate, authorize('OWNER'), validate(staffBody), asyncRoute(async (req, res) => {
   const { name, email, password } = req.body
   const permissions = req.body.permissions === undefined ? ALL_PERMISSIONS : req.body.permissions
   const normalizedEmail = String(email || '').trim().toLowerCase()
@@ -1067,7 +1068,7 @@ router.patch('/staff/:id', authenticate, authorize('OWNER'), asyncRoute(async (r
   res.json({ user: staffUser(user) })
 }))
 
-router.post('/menu', authenticate, authorize('OWNER', 'KITCHEN'), uploadMenuImage, asyncRoute(async (req, res) => {
+router.post('/menu', authenticate, authorize('OWNER', 'KITCHEN'), uploadLimiter, uploadMenuImage, validate(menuBody), asyncRoute(async (req, res) => {
   if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_menu')) return res.status(403).json({ message: 'You do not have permission to manage the menu.' })
   const { name, category, description = '', price, costPrice } = req.body
   const scope = hotelScope(req)
@@ -1097,7 +1098,7 @@ router.post('/menu', authenticate, authorize('OWNER', 'KITCHEN'), uploadMenuImag
   res.status(201).json({ item: req.user.role === 'OWNER' ? item : safeMenuItem(item) })
 }))
 
-router.patch('/menu/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadMenuImage, asyncRoute(async (req, res) => {
+router.patch('/menu/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadLimiter, uploadMenuImage, asyncRoute(async (req, res) => {
   if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_menu')) return res.status(403).json({ message: 'You do not have permission to manage the menu.' })
   if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Menu item not found.' })
   const allowed = req.user.role === 'OWNER'
@@ -1231,6 +1232,15 @@ async function report(req, res) {
     : {}
   // Damages are a loss, priced from the stock's unit value at record time.
   const totalDamages = (damages || []).reduce((sum, damage) => sum + (damage.value || 0), 0)
+  // The owner's per-day view of what the kitchen added to stock in the
+  // selected window — new entries only; count adjustments on older entries
+  // stay in the stock page's own add/reduce history.
+  const stockAdditions = scope
+    ? await StockItem.find({ hotelId: scope, createdAt: { $gte: from, $lte: to } })
+        .sort({ createdAt: -1 }).limit(500).lean()
+        .select('name unit customUnit plates price approved approvedBy approvedAt createdAt imageUrl')
+        .populate('approvedBy', 'name')
+    : []
   res.json({
     from: from.toISOString(),
     to: to.toISOString(),
@@ -1239,6 +1249,19 @@ async function report(req, res) {
     totalExpensesCount: expenseTotals[0]?.totalExpensesCount || 0,
     totalExpenses,
     totalDamages,
+    stockAdditions: stockAdditions.map(item => ({
+      _id: item._id,
+      name: item.name,
+      unit: item.unit || 'plates',
+      customUnit: item.customUnit || '',
+      plates: item.plates,
+      price: item.price,
+      approved: item.approved,
+      approvedByName: item.approvedBy?.name || '',
+      approvedAt: item.approvedAt || null,
+      createdAt: item.createdAt,
+      imageUrl: item.imageUrl || '',
+    })),
     damages: (damages || []).map(damage => ({
       _id: damage._id,
       name: damage.name,
@@ -1254,6 +1277,9 @@ async function report(req, res) {
     netBalanceAfterDamages: canViewSales && canViewExpenses ? totalRevenue - totalExpenses - totalDamages : null,
     canViewSales,
     canViewExpenses,
+    // Whether the requesting user may approve pending stock entries — the
+    // dashboard shows approve actions only to them.
+    canApproveStock: hasPerm(req.user, 'approve_records'),
     series,
     sales: saleRecords,
     expenses,

@@ -31,7 +31,32 @@ if (process.env.TRUST_PROXY) app.set('trust proxy', process.env.TRUST_PROXY === 
 const io = new SocketServer(server, { cors: { origin: origins, credentials: true } })
 app.set('io', io)
 
-app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }))
+// Secure HTTP response headers. HSTS is only sent in production so that
+// local development over plain HTTP is not forced onto https://.
+const isProduction = process.env.NODE_ENV === 'production'
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      // The backend only serves JSON APIs and uploaded images — no scripts,
+      // styles, frames, or plugins should ever load from these responses.
+      scriptSrc: ["'none'"],
+      scriptSrcAttr: ["'none'"],
+      styleSrc: ["'none'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+      formAction: ["'none'"],
+      baseUri: ["'none'"],
+      imgSrc: ["'self'", 'data:'],
+      // Only enforce https:// in production; dev may run plain HTTP.
+      upgradeInsecureRequests: isProduction ? [] : null,
+    },
+  },
+  // Uploaded images must remain loadable from the frontend origins.
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  strictTransportSecurity: isProduction
+    ? { maxAge: 31536000, includeSubDomains: true, preload: true }
+    : false,
+}))
 // Compress responses (gzip) so API payloads transfer faster over the network.
 // Only compressible content types are compressed; uploaded images (JPG/PNG/WebP)
 // and already-compressed responses are left untouched.

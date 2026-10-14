@@ -59,12 +59,10 @@ export default function App() {
   const [live, setLive] = useState(null)
   const [notificationToast, setNotificationToast] = useState(null)
   // The dashboard's selected range, kept in App so the live re-fetch below
-  // and the Overview's filter stay in sync. Defaults to the loaded week.
+  // and the Overview's filter stay in sync. Defaults to the current date.
   const [reportRange, setReportRange] = useState(() => {
-    const end = new Date()
-    const start = new Date()
-    start.setDate(start.getDate() - 6)
-    return { from: dateKey(start), to: dateKey(end) }
+    const today = new Date()
+    return { from: dateKey(today), to: dateKey(today) }
   })
   // Mobile drawer accordion state: sections with children collapse, and at
   // most one of them is expanded at a time.
@@ -77,11 +75,9 @@ export default function App() {
   }, [])
   useEffect(() => {
     if (user && ['OWNER', 'KITCHEN'].includes(user.role)) {
-      const end = new Date()
-      const start = new Date()
-      start.setDate(start.getDate() - 6)
-      const from = dateKey(start)
-      const to = dateKey(end)
+      const today = new Date()
+      const from = dateKey(today)
+      const to = dateKey(today)
       api(`/api/owner/analytics/reports?from=${from}&to=${to}`)
         .then(data => setAnalytics({ ...data, isActual: true }))
         .catch(err => setApiError(err.message))

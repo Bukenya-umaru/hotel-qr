@@ -220,6 +220,8 @@ export function StockPage({ user, canManage = true }) {
               : <span className="rounded bg-[#fef9ee] px-1.5 py-0.5 text-[7px] font-semibold uppercase tracking-[.6px] text-[#b45309] sm:px-2 sm:py-1 sm:text-[9px]">Pending</span>}
           </div>
           <p className="mt-1 hidden text-[10px] text-[#94a3b8] sm:mt-1.5 sm:block">{item.totalAdded} added · {item.totalUsed} served</p>
+          {item.approved && item.approvedByName !== undefined && (item.approvedByName || item.approvedAt) &&
+            <p title={item.approvedAt ? new Date(item.approvedAt).toLocaleDateString('en-UG', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : undefined} className="mt-0.5 hidden text-[9px] leading-3 text-[#16a34a] sm:block">Signed off{item.approvedByName ? ` by ${item.approvedByName}` : ''}{item.approvedAt ? ` · ${new Date(item.approvedAt).toLocaleDateString('en-UG', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}</p>}
         </div>
         <div className="w-full border-t border-dashed border-[#e7ebf0] pt-1 text-center sm:pt-2">
           <div className="flex items-baseline justify-center gap-1 sm:gap-1.5">

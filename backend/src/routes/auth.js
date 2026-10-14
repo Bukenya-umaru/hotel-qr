@@ -1,15 +1,18 @@
 import bcrypt from 'bcryptjs'
 import express from 'express'
 import { authenticate, cookieOptions, COOKIE_NAME, issueToken, publicUser } from '../middleware/auth.js'
-import { loginLimiter, sensitiveLimiter } from '../middleware/rateLimit.js'
+import { accountLimiter, loginLimiter, sensitiveLimiter } from '../middleware/rateLimit.js'
 import { User } from '../models/User.js'
 import { asyncRoute } from '../utils/http.js'
+import { changePasswordBody, loginBody, validate } from '../validation/schemas.js'
 import { storePassword } from '../utils/passwordVault.js'
 import { isStrongPassword, PASSWORD_RULE_MESSAGE } from '../utils/passwordPolicy.js'
 
 const router = express.Router()
 
-router.post('/login', loginLimiter, asyncRoute(async (req, res) => {
+// Per-account shield runs first: an IP rotating against one account is
+// stopped here, and ordinary per-IP brute force by loginLimiter below.
+router.post('/login', accountLimiter, loginLimiter, validate(loginBody), asyncRoute(async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase()
   const password = String(req.body.password || '')
   if (!email || !password) return res.status(400).json({ message: 'Email and password are required.' })
@@ -29,7 +32,7 @@ router.get('/me', authenticate, (req, res) => res.json({ user: publicUser(req.us
 // Any signed-in user (owner, chef, or developer) can change their own
 // password by confirming the current one. A fresh session cookie is issued
 // so the user stays signed in with the new password active immediately.
-router.patch('/change-password', authenticate, sensitiveLimiter, asyncRoute(async (req, res) => {
+router.patch('/change-password', authenticate, sensitiveLimiter, validate(changePasswordBody), asyncRoute(async (req, res) => {
   const currentPassword = String(req.body.currentPassword || '')
   const newPassword = String(req.body.newPassword || '')
   if (!currentPassword || !newPassword) return res.status(400).json({ message: 'Provide your current password and a new password.' })
