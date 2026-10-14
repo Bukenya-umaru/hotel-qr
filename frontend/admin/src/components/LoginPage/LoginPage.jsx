@@ -1,6 +1,7 @@
-import { useState } from 'react'
-import { Eye, EyeOff, ShieldCheck } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Eye, EyeOff, Headset, MessageCircle, Phone, ShieldCheck } from 'lucide-react'
 import { Brand } from '../Brand/Brand.jsx'
+import { api } from '../../lib/api.js'
 
 export function LoginPage({ onLogin }) {
   const [email, setEmail] = useState('')
@@ -8,6 +9,16 @@ export function LoginPage({ onLogin }) {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  // Contact details come straight from the Help & support section, so an
+  // updated number is reflected on this form automatically on refresh.
+  const [support, setSupport] = useState(null)
+
+  useEffect(() => {
+    api('/api/support').then(data => {
+      const support = data?.support
+      setSupport(support?.phone || support?.whatsapp || support?.email ? support : null)
+    }).catch(() => { /* the sign-in flow must not depend on this card */ })
+  }, [])
 
   const submit = async event => {
     event.preventDefault()
@@ -85,6 +96,22 @@ export function LoginPage({ onLogin }) {
         >
           {loading ? 'Signing in…' : 'Log In'}
         </button>
+
+        {support && <div className="mt-4 rounded-[14px] bg-[#fdf6f3] px-4 py-3.5">
+          <div className="flex items-center gap-2 text-[11px] font-semibold text-[#a93216]">
+            <Headset size={14} />
+            Forgot your password?
+          </div>
+          <p className="mt-1 text-[12px] leading-[1.6] text-[#77726e]">Call the number saved in Help &amp; support to reach the business owner or developer.</p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+            {support.phone && <a href={`tel:${support.phone.replace(/[^\d+]/g, '')}`} className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#a93216] hover:underline"><Phone size={13} />{support.phone}</a>}
+            {support.whatsapp && (support.whatsapp.replace(/\D/g, '').startsWith('0')
+              ? <span className="text-[12px] text-[#77726e]">WhatsApp: {support.whatsapp}</span>
+              : <a href={`https://wa.me/${support.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#a93216] hover:underline"><MessageCircle size={13} />WhatsApp: {support.whatsapp}</a>)}
+            {support.email && <span className="text-[12px] text-[#77726e]">{support.email}</span>}
+          </div>
+          {support.hours && <p className="mt-1 text-[11px] text-[#8b8783]">{support.hours}</p>}
+        </div>}
 
         <div className="mt-auto pt-8 text-center text-[12px] text-[#8b8783]">
           Protected with secure, role-based access

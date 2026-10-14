@@ -9,6 +9,10 @@ import { User } from '../models/User.js'
 import { asyncRoute, idIsValid, safeSupport } from '../utils/http.js'
 import { revealPassword, storePassword, vaultEnabled } from '../utils/passwordVault.js'
 import { isStrongPassword, PASSWORD_RULE_MESSAGE } from '../utils/passwordPolicy.js'
+import { ALL_PERMISSIONS, validPermissions } from '../utils/permissions.js'
+import { recordSecurityEvent } from '../utils/securityLog.js'
+import { SecurityEvent } from '../models/SecurityEvent.js'
+import { developerUserBody, validate } from '../validation/schemas.js'
 
 const router = express.Router()
 router.use(authenticate, authorize('DEVELOPER'))
@@ -33,6 +37,61 @@ router.patch('/support', asyncRoute(async (req, res) => {
   if (!Object.keys(updates).length) return res.status(400).json({ message: 'Provide a phone number, WhatsApp number, email, opening hours, or a help message to save.' })
   const hotel = await Hotel.findByIdAndUpdate(business._id, { $set: updates }, { new: true, runValidators: true }).select('support')
   res.json({ support: safeSupport(hotel.support) })
+}))
+
+// The developer creates business accounts directly — an OWNER with full
+// access, or a KITCHEN chef with an optional permission list. Mirrors the
+// owner's POST /api/owner/staff flow but is scoped to the business.
+router.post('/users', validate(developerUserBody), asyncRoute(async (req, res) => {
+  const business = await Hotel.findOne({ isActive: true }).select('_id')
+  if (!business) return res.status(400).json({ message: 'Initialize the business owner setup first, then create accounts.' })
+  const { name, email, password, role } = req.body
+  const permissions = req.body.permissions === undefined ? undefined : req.body.permissions
+  const normalizedEmail = String(email || '').trim().toLowerCase()
+  if (!String(name || '').trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) ||
+      !isStrongPassword(password)) {
+    return res.status(400).json({ message: 'Provide a name, valid email, and a password of at least 6 characters with letters and numbers.' })
+  }
+  if (role === 'KITCHEN' && permissions !== undefined && !validPermissions(permissions)) {
+    return res.status(400).json({ message: 'One or more permissions are not supported.' })
+  }
+  try {
+    const user = await User.create({
+      name: String(name).trim(),
+      email: normalizedEmail,
+      password: await bcrypt.hash(password, 12),
+      role,
+      hotelId: business._id,
+      // Owners always have full access; chefs keep whichever permissions the
+      // developer picked (undefined = every capability, like owner-created
+      // chefs with no restrictions).
+      permissions: role === 'KITCHEN' ? permissions ?? ALL_PERMISSIONS : undefined,
+    })
+    storePassword(user, String(password))
+    await user.save()
+    recordSecurityEvent({ type: 'account_created', severity: 'low', detail: `Created a ${role === 'OWNER' ? 'business owner' : 'chef'} account`, email: normalizedEmail, actorId: req.user._id }, req)
+    res.status(201).json({ user: publicUser(user) })
+  } catch (error) {
+    if (error.code === 11000) return res.status(409).json({ message: 'An account with that email already exists.' })
+    throw error
+  }
+}))
+
+// Security feed: newest suspicious activity first (failed sign-ins, brute
+// force, tampered tokens, forbidden access, password reveals). Optional
+// filters: ?type= and ?limit= capped at 200 rows.
+router.get('/security', asyncRoute(async (req, res) => {
+  const limit = Math.min(Math.max(Number(req.query.limit) || 60, 1), 200)
+  const type = String(req.query.type || '')
+  const filter = SECURITY_LOG_TYPES.includes(type) ? { type } : {}
+  const [events, summary] = await Promise.all([
+    SecurityEvent.find(filter).sort({ createdAt: -1 }).limit(limit).lean(),
+    SecurityEvent.aggregate([{ $group: { _id: '$type', count: { $sum: 1 } } }, { $sort: { count: -1 } }]),
+  ])
+  res.json({
+    events, // _id, type, severity, detail, email, ip, userAgent, actorId, createdAt
+    summary: summary.map(entry => ({ type: entry._id, count: entry.count })),
+  })
 }))
 
 router.get('/users', asyncRoute(async (_req, res) => {
@@ -80,6 +139,8 @@ router.patch('/users/:id', asyncRoute(async (req, res) => {
 // plaintext is decrypted server-side only for authenticated developers and
 // never included in any list or login response.
 router.get('/users/:id/password', sensitiveLimiter, asyncRoute(async (req, res) => {
+  // A reveal hands a real password to the brower, so every decryption is
+  // timestamped with who did it and from where.
   if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Account not found.' })
   const business = await Hotel.findOne({ isActive: true }).select('_id')
   if (!business) return res.status(404).json({ message: 'The business could not be found.' })
@@ -89,8 +150,11 @@ router.get('/users/:id/password', sensitiveLimiter, asyncRoute(async (req, res) 
   if (password === null) {
     return res.status(404).json({ message: 'No viewable password is stored for this account yet. Reset the password once — after that you can view the current password anytime.' })
   }
+  recordSecurityEvent({ type: 'password_revealed', severity: 'high', detail: `Revealed the ${user.role === 'OWNER' ? 'owner' : 'chef'} password of ${user.email}`, email: user.email, actorId: req.user._id }, req)
   res.json({ password })
 }))
+
+const SECURITY_LOG_TYPES = ['login_failed', 'password_change_failed', 'login_bruteforce', 'account_bruteforce', 'rate_limited', 'token_rejected', 'access_denied', 'password_revealed', 'account_created']
 
 router.get('/overview', cacheResponse(() => 'v1:overview'), asyncRoute(async (_req, res) => {
   const business = await Hotel.findOne({ isActive: true }).select('name slug city tableCount currency taxRate')

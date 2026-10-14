@@ -16,6 +16,7 @@ import { User } from './models/User.js'
 import authRoutes from './routes/auth.js'
 import developerRoutes from './routes/developer.js'
 import ownerRoutes from './routes/owner.js'
+import supportRoutes from './routes/support.js'
 import stockRoutes from './routes/stock.js'
 import notificationRoutes from './routes/notifications.js'
 
@@ -83,6 +84,7 @@ app.use('/api/owner', ownerRoutes)
 app.use('/api/stock', stockRoutes)
 app.use('/api/notifications', notificationRoutes)
 app.use('/api/developer', developerRoutes)
+app.use('/api/support', supportRoutes)
 
 app.use('/api', (_req, res) => res.status(404).json({ message: 'API endpoint not found.' }))
 

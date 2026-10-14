@@ -7,7 +7,7 @@ const ALL_KEYS = PERMISSIONS.map(permission => permission.key)
 
 export function AccountsPage({ users, role, passwordViewable, onCreate, onToggle, onReset, onEdit, onView }) {
   const isOwner = role === 'OWNER'
-  const canCreate = isOwner
+  const canCreate = isOwner || role === 'DEVELOPER'
   const accountLabel = user => user.role === 'OWNER' ? 'Business owner' : 'Chef'
   const permissionKeys = user => (user.permissions === undefined ? ALL_KEYS : user.permissions).filter(key => key !== 'manage_tables')
   const permissionSummary = user => permissionKeys(user).map(key => SHORT_LABELS[key] || key).join(' · ') || 'No permissions'
@@ -15,7 +15,7 @@ export function AccountsPage({ users, role, passwordViewable, onCreate, onToggle
   return <div className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <p className="text-[12px] text-[#94a3b8]">{isOwner ? 'Create and manage chefs and choose what each one can do — manage food items, sales, expenses, and stock.' : 'Help the business owner with account access and passwords.'}</p>
-      {canCreate && <button onClick={onCreate} className="flex items-center gap-2 rounded-lg bg-[#f97316] px-3.5 py-2.5 text-[11px] font-semibold text-white"><Plus size={15} />Create chef account</button>}
+      {canCreate && <button onClick={onCreate} className="flex items-center gap-2 rounded-lg bg-[#f97316] px-3.5 py-2.5 text-[11px] font-semibold text-white"><Plus size={15} />{isOwner ? 'Create chef account' : 'Create account'}</button>}
     </div>
     <section className="overflow-hidden rounded-2xl border border-[#e7ebf0] bg-white">
       <div className="divide-y divide-[#f1f5f9] md:hidden">{users.map(user => <article key={user._id || user.email} className="space-y-3 p-4">

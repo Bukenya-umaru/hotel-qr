@@ -6,6 +6,7 @@ import { User } from '../models/User.js'
 import { asyncRoute } from '../utils/http.js'
 import { changePasswordBody, loginBody, validate } from '../validation/schemas.js'
 import { storePassword } from '../utils/passwordVault.js'
+import { recordSecurityEvent } from '../utils/securityLog.js'
 import { isStrongPassword, PASSWORD_RULE_MESSAGE } from '../utils/passwordPolicy.js'
 
 const router = express.Router()
@@ -18,9 +19,15 @@ router.post('/login', accountLimiter, loginLimiter, validate(loginBody), asyncRo
   if (!email || !password) return res.status(400).json({ message: 'Email and password are required.' })
   const user = await User.findOne({ email }).select('+password').populate('hotelId', 'name slug currency taxRate isActive')
   if (!user || !user.isActive || !(await bcrypt.compare(password, user.password))) {
+    // Every wrong credential pair is recorded with the attempted email, IP,
+    // and device signature — the core data the developer needs to identify
+    // a credential-stuffing or brute-force attack.
+    const attemptedEmail = email
+    recordSecurityEvent({ type: 'login_failed', detail: user && !user.isActive ? 'Attempt against a deactivated account' : 'Invalid credentials', email: attemptedEmail }, req)
     return res.status(401).json({ message: 'Invalid email or password.' })
   }
   if (user.role !== 'DEVELOPER' && (!user.hotelId || !user.hotelId.isActive)) {
+    recordSecurityEvent({ type: 'access_denied', severity: 'high', detail: 'Sign-in against a deactivated business', email }, req)
     return res.status(403).json({ message: 'This business is not active.' })
   }
   res.cookie(COOKIE_NAME, issueToken(user), cookieOptions())
@@ -40,6 +47,9 @@ router.patch('/change-password', authenticate, sensitiveLimiter, validate(change
   if (newPassword === currentPassword) return res.status(400).json({ message: 'Choose a password different from your current one.' })
   const user = await User.findById(req.user._id).select('+password')
   if (!user || !(await bcrypt.compare(currentPassword, user.password))) {
+    // Repeated wrong current-password confirmations can mean someone else
+    // already controls the session and is trying to take the account over.
+    recordSecurityEvent({ type: 'password_change_failed', severity: 'high', detail: 'Current password did not match', email: user?.email || req.user.email, actorId: req.user._id }, req)
     return res.status(401).json({ message: 'Your current password is incorrect.' })
   }
   user.password = await bcrypt.hash(newPassword, 12)

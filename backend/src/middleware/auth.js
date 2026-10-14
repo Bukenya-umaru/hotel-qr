@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken'
 import { User } from '../models/User.js'
+import { recordSecurityEvent } from '../utils/securityLog.js'
 
 export const COOKIE_NAME = 'stayserve_session'
 const jwtSecret = () => {
@@ -37,12 +38,20 @@ export async function authenticate(req, res, next) {
       return res.status(401).json({ message: 'Your session is no longer valid.' })
     }
     if (user.role !== 'DEVELOPER' && (!user.hotelId || !user.hotelId.isActive)) {
+      // A signed-in account pointing at a switched-off business is probed
+      // access; record it so the developer sees the attempt.
+      if (req.user === undefined) recordSecurityEvent({ type: 'access_denied', detail: 'Attempt to reach a deactivated business', actorId: user._id }, req)
       return res.status(403).json({ message: 'This business is not active.' })
     }
     req.user = user
     next()
   } catch (error) {
     if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      // Only a malformed signature is a tampering signal — an expired
+      // session is normal usage and would just be noise in the log.
+      if (error.name === 'JsonWebTokenError') {
+        recordSecurityEvent({ type: 'token_rejected', severity: 'high', detail: `Invalid session token: ${error.message}` }, req)
+      }
       return res.status(401).json({ message: 'Your session has expired. Please sign in again.' })
     }
     next(error)
@@ -52,7 +61,12 @@ export async function authenticate(req, res, next) {
 export function authorize(...roles) {
   return (req, res, next) => {
     if (!req.user) return res.status(401).json({ message: 'Authentication required.' })
-    if (!roles.includes(req.user.role)) return res.status(403).json({ message: 'You do not have permission to access this resource.' })
+    if (!roles.includes(req.user.role)) {
+      // A signed-in user probing an endpoint outside their role (e.g. a chef
+      // hitting developer endpoints) is a real escalation attempt.
+      recordSecurityEvent({ type: 'access_denied', severity: 'high', detail: `${req.user.role} attempted a ${roles.join('/')} endpoint: ${req.method} ${req.originalUrl}`, actorId: req.user._id, email: req.user.email }, req)
+      return res.status(403).json({ message: 'You do not have permission to access this resource.' })
+    }
     next()
   }
 }

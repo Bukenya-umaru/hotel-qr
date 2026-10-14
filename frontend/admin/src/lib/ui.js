@@ -1,5 +1,5 @@
 import {
-  Boxes, CircleHelp, LayoutDashboard, Rows3, ShoppingCart, TrendingUp, Users, Utensils,
+  Boxes, CircleHelp, LayoutDashboard, Rows3, ShieldAlert, ShoppingCart, TrendingUp, Users, Utensils,
 } from 'lucide-react'
 
 export const money = (value, currency = 'UGX') => new Intl.NumberFormat('en-UG', {
@@ -94,6 +94,7 @@ export const navItems = {
   ],
   DEVELOPER: [
     { label: 'Platform overview', icon: LayoutDashboard },
+    { label: 'Security', icon: ShieldAlert },
     { label: 'Accounts', icon: Users },
     { label: 'Help & support', icon: CircleHelp },
   ],

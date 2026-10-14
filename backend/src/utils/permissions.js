@@ -12,3 +12,7 @@ export const PERMISSION_LABELS = {
   edit_records: 'Edit expenses & damages until approved',
   approve_records: 'Approve sales, stock & expenses',
 }
+
+// True only for an array of supported permission keys — used by the owner's
+// and the developer's account-creation endpoints.
+export const validPermissions = value => Array.isArray(value) && value.every(perm => ALL_PERMISSIONS.includes(perm))

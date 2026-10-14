@@ -106,3 +106,14 @@ export const staffBody = z.object({
   password: text(200),
   permissions: z.array(text(60)).max(20).optional(),
 })
+
+// — Developer writes —
+// The developer creates business accounts directly: an OWNER (full access,
+// no permissions list) or a KITCHEN chef (optional permission list).
+export const developerUserBody = z.object({
+  name: text(200),
+  email: text(320),
+  password: text(200),
+  role: z.enum(['OWNER', 'KITCHEN']),
+  permissions: z.array(text(60)).max(20).optional(),
+})

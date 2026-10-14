@@ -1,13 +1,16 @@
 import { useState } from 'react'
 import { Modal } from '../Modal/Modal.jsx'
 import { TextField } from '../TextField/TextField.jsx'
-import { isStrongPassword, PASSWORD_RULE, PERMISSIONS } from '../../lib/ui.js'
+import { cx, isStrongPassword, PASSWORD_RULE, PERMISSIONS } from '../../lib/ui.js'
 import { PasswordStrengthMeter } from '../PasswordStrengthMeter/PasswordStrengthMeter.jsx'
 
 const ALL_KEYS = PERMISSIONS.map(permission => permission.key)
 
-export function AccountModal({ onClose, onSubmit }) {
-  const [form, setForm] = useState({ name: '', email: '', password: '', permissions: [...ALL_KEYS] })
+// The owner creates chefs only; the developer creates either a business
+// owner or a chef, so a role selector appears for the developer.
+export function AccountModal({ onClose, onSubmit, viewerRole = 'OWNER' }) {
+  const isDeveloper = viewerRole === 'DEVELOPER'
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'KITCHEN', permissions: [...ALL_KEYS] })
   const [error, setError] = useState('')
   const togglePermission = key => setForm(previous => ({
     ...previous,
@@ -15,13 +18,17 @@ export function AccountModal({ onClose, onSubmit }) {
       ? previous.permissions.filter(permission => permission !== key)
       : [...previous.permissions, key],
   }))
-  return <Modal title="Create a chef account" onClose={onClose}><form className="space-y-3.5" onSubmit={async event => { event.preventDefault(); if (!isStrongPassword(form.password)) { setError(`Temporary password: ${PASSWORD_RULE}.`); return } try { await onSubmit(form) } catch (err) { setError(err.message) } }}>
-    <p className="text-[11px] leading-5 text-[#94a3b8]">Choose whether this chef can manage food items, sales, expenses, and stock. You can change these permissions later.</p>
+  const isChef = form.role !== 'OWNER'
+  return <Modal title={isDeveloper ? 'Create a business account' : 'Create a chef account'} onClose={onClose}><form className="space-y-3.5" onSubmit={async event => { event.preventDefault(); if (!isStrongPassword(form.password)) { setError(`Temporary password: ${PASSWORD_RULE}.`); return } try { await onSubmit(form) } catch (err) { setError(err.message) } }}>
+    <p className="text-[11px] leading-5 text-[#94a3b8]">{isDeveloper
+      ? 'Create the business owner account or a chef account directly. The password is stored encrypted so you can reveal it later to help with access.'
+      : 'Choose whether this chef can manage food items, sales, expenses, and stock. You can change these permissions later.'}</p>
+    {isDeveloper && <fieldset><legend className="mb-1.5 text-[10px] font-semibold text-[#64748b]">Role</legend><div className="grid grid-cols-2 gap-1.5">{[['OWNER', 'Business owner'], ['KITCHEN', 'Chef']].map(([value, label]) => <label key={value} className={cx('flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2', form.role === value ? 'border-[#f97316] bg-[#fff4ec]' : 'border-[#e7ebf0]')}><input type="radio" name="account-role" checked={form.role === value} onChange={() => setForm(previous => ({ ...previous, role: value }))} className="size-3.5 accent-[#f97316]" /><span className="text-[11px] font-medium text-[#334155]">{label}</span></label>)}</div></fieldset>}
     <TextField label="Full name" placeholder="Full name" value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} />
     <TextField label="Email address" type="email" placeholder="name@business.com" value={form.email} onChange={event => setForm({ ...form, email: event.target.value })} />
     <div><TextField label="Temporary password" type="password" placeholder={PASSWORD_RULE} value={form.password} onChange={event => setForm({ ...form, password: event.target.value })} /><PasswordStrengthMeter password={form.password} /></div>
-    <fieldset><legend className="mb-1.5 text-[10px] font-semibold text-[#64748b]">Permissions</legend><div className="grid gap-1.5">{PERMISSIONS.map(permission => <label key={permission.key} className="flex items-center gap-2 rounded-lg border border-[#e7ebf0] px-3 py-2"><input type="checkbox" checked={form.permissions.includes(permission.key)} onChange={() => togglePermission(permission.key)} className="size-3.5 accent-[#f97316]" /><span className="text-[11px] font-medium text-[#334155]">{permission.label}</span></label>)}</div></fieldset>
+    {isChef && <fieldset><legend className="mb-1.5 text-[10px] font-semibold text-[#64748b]">Permissions</legend><div className="grid gap-1.5">{PERMISSIONS.map(permission => <label key={permission.key} className="flex items-center gap-2 rounded-lg border border-[#e7ebf0] px-3 py-2"><input type="checkbox" checked={form.permissions.includes(permission.key)} onChange={() => togglePermission(permission.key)} className="size-3.5 accent-[#f97316]" /><span className="text-[11px] font-medium text-[#334155]">{permission.label}</span></label>)}</div></fieldset>}
     {error && <p className="text-[11px] text-[#dc2626]">{error}</p>}
-    <button className="mt-2 w-full rounded-lg bg-[#f97316] py-2.5 text-[11px] font-semibold text-white">Create chef account</button>
+    <button className="mt-2 w-full rounded-lg bg-[#f97316] py-2.5 text-[11px] font-semibold text-white">{isDeveloper ? 'Create account' : 'Create chef account'}</button>
   </form></Modal>
 }
