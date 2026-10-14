@@ -100,7 +100,7 @@ router.get('/users', asyncRoute(async (_req, res) => {
     ? await User.find({ hotelId: business._id, role: { $in: ['OWNER', 'KITCHEN'] } }).sort({ createdAt: -1 }).select('+passwordVault').lean()
     : []
   res.json({
-    users: users.map(user => ({ ...publicUser(user), hasViewablePassword: Boolean(user.passwordVault) })),
+    users: users.map(user => ({ ...publicUser(user), hasViewablePassword: revealPassword(user) !== null })),
     passwordViewable: vaultEnabled(),
   })
 }))
@@ -148,7 +148,15 @@ router.get('/users/:id/password', sensitiveLimiter, asyncRoute(async (req, res) 
   if (!user) return res.status(404).json({ message: 'Account not found.' })
   const password = revealPassword(user)
   if (password === null) {
-    return res.status(404).json({ message: 'No viewable password is stored for this account yet. Reset the password once — after that you can view the current password anytime.' })
+    // Two different situations read the same on the outside — an account that
+    // was never updated after the vault went live, and one whose stored copy
+    // was encrypted with a vault key that no longer matches (rotated or lost).
+    // Both recover the same way: one password reset re-encrypts under the
+    // current key — but the message must not lie about which happened.
+    const explanation = user.passwordVault
+      ? 'A stored password exists for this account, but it was encrypted with an earlier vault key and cannot be decrypted anymore. Reset the password once — after that you can view the current password anytime.'
+      : 'No viewable password is stored for this account yet. Reset the password once — after that you can view the current password anytime.'
+    return res.status(404).json({ message: explanation })
   }
   recordSecurityEvent({ type: 'password_revealed', severity: 'high', detail: `Revealed the ${user.role === 'OWNER' ? 'owner' : 'chef'} password of ${user.email}`, email: user.email, actorId: req.user._id }, req)
   res.json({ password })

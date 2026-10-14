@@ -13,7 +13,7 @@ const UNITS = [
   { value: 'plates', label: 'Plates', singular: 'plate', plural: 'plates', hint: 'Portions ready to serve, e.g. 20 plates of beef.', step: '1' },
   { value: 'items', label: 'Items', singular: 'item', plural: 'items', hint: 'Counted pieces, e.g. 4 gas cylinders or 200 boxes.', step: '1' },
   { value: 'cups', label: 'Cups', singular: 'cup', plural: 'cups', hint: 'Served by the cup, e.g. 30 cups of milk or porridge.', step: '1' },
-  { value: 'kg', label: 'Weight (KG)', singular: 'kg', plural: 'kg', hint: 'Weighed stock, e.g. 12.5 kg of charcoal.', step: '0.1' },
+  { value: 'kg', label: 'Weight (KG)', singular: 'kg', plural: 'kg', hint: 'Weighed stock, e.g. 12.5 kg of charcoal.', step: '0.01' },
   { value: 'other', label: 'Other', singular: 'unit', plural: 'units', hint: 'Anything else — name the unit yourself, e.g. crate, tray or bottle.', step: '1' },
 ]
 // The 'other' unit takes its name from the entry's customUnit, e.g. "crate".
@@ -127,7 +127,11 @@ export function StockPage({ user, canManage = true }) {
     const unit = unitInfo(adjusting?.item?.unit, adjusting?.item?.customUnit)
     const whole = unit.value === 'kg' ? Math.abs(amount * 100 - Math.round(amount * 100)) < 0.001 : Number.isInteger(amount)
     if (!adjusting || !whole || amount === 0) {
-      setError(`Enter a number of ${unit.plural} to ${adjusting?.mode === 'add' ? 'add' : 'reduce'}.`)
+      // The living units (plates, items, cups, a named other) are counted one
+      // by one — say so plainly; kg’s two decimal places follow the server.
+      setError(unit.value === 'kg'
+        ? `Enter an amount of ${unit.plural} to ${adjusting?.mode === 'add' ? 'add' : 'reduce'} — up to two decimal places.`
+        : `Enter a whole number of ${unit.plural} (e.g. 5 or 20) to ${adjusting?.mode === 'add' ? 'add' : 'reduce'}.`)
       return
     }
     const delta = adjusting.mode === 'add' ? amount : -amount
@@ -241,7 +245,7 @@ export function StockPage({ user, canManage = true }) {
     {adjusting && <Modal title={adjusting.mode === 'add' ? `Add ${adjusting.item.name}` : `Reduce ${adjusting.item.name}`} onClose={() => setAdjusting(null)}>
       {(() => { const unit = unitInfo(adjusting.item.unit, adjusting.item.customUnit); return <form className="space-y-3.5" onSubmit={event => { event.preventDefault(); adjustStock() }}>
         <p className="text-[11px] leading-5 text-[#94a3b8]">{adjusting.mode === 'add' ? `${unit.label} you have just prepared and added.` : `${unit.label} removed from stock — staff meals, waste, or spoilage.`} Current count: <b>{adjusting.item.plates} {unit.plural}</b>, worth <b>{money(stockValue(adjusting.item))}</b> at {money(adjusting.item.price || 0)} per {unit.singular}.</p>
-        <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#64748b]">{unit.label}</span><input autoFocus required type="number" min="0.1" step={unit.step} value={adjustAmount} onChange={event => setAdjustAmount(event.target.value)} className="w-full rounded-lg border border-[#e7ebf0] bg-white px-3 py-2.5 text-[12px]" /></label>
+        <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#64748b]">{unit.label}</span><input autoFocus required type="number" min={unit.step} step={unit.step} value={adjustAmount} onChange={event => setAdjustAmount(event.target.value)} className="w-full rounded-lg border border-[#e7ebf0] bg-white px-3 py-2.5 text-[12px]" /></label>
         <button disabled={busy} className="w-full rounded-lg bg-[#f97316] py-2.5 text-[11px] font-semibold text-white disabled:opacity-60">{adjusting.mode === 'add' ? `Add ${unit.plural}` : `Reduce ${unit.plural}`}</button>
       </form> })()}
     </Modal>}
