@@ -19,10 +19,11 @@ export function issueToken(user) {
 }
 
 export function cookieOptions() {
+  const secure = process.env.COOKIE_SECURE === 'true'
   return {
     httpOnly: true,
-    secure: process.env.COOKIE_SECURE === 'true',
-    sameSite: 'lax',
+    secure,
+    sameSite: secure ? 'none' : 'lax',
     path: '/',
     maxAge: 12 * 60 * 60 * 1000,
   }
