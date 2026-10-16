@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { io } from 'socket.io-client'
 import { Check, ChevronDown, LogOut, Menu, ShieldCheck, X } from 'lucide-react'
 import { api, API_BASE_URL } from '../../lib/api.js'
@@ -149,7 +149,7 @@ export default function App() {
     return () => live.off('notification', onNotification)
   }, [live, user])
 
-  const currentNav = (navItems[role] || navItems.OWNER).flatMap(item => {
+  const currentNav = useMemo(() => (navItems[role] || navItems.OWNER).flatMap(item => {
     if (role !== 'KITCHEN') return [item]
     if (item.label === 'Stock' && !hasPermission(user, 'manage_stock')) return []
     if (item.label === 'Categories') {
@@ -166,7 +166,7 @@ export default function App() {
       return true
     })
     return children.length ? [{ ...item, children }] : []
-  })
+  }), [role, user])
   // Single-open accordion: expanding a section hides the subsections of any
   // other section, and the section owning the current page opens itself.
   // Children may carry their own target page (Purchases > Expenses vs the

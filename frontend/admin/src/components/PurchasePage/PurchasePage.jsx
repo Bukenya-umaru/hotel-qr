@@ -802,18 +802,23 @@ function ExpensesView({ onError, canApprove = false, hotelId }) {
     {byCategory.length > 0 && <div className="mt-2.5 flex flex-wrap gap-1.5">
       {byCategory.map(entry => <span key={entry.category} className="rounded-full bg-[#f8fafc] px-2.5 py-1 text-[9px] font-semibold text-[#64748b]">{entry.category} · {money(entry.total)} ({entry.count})</span>)}
     </div>}
-    {filtered.length > 0 && <ul className="mt-3 divide-y divide-[#f1f5f9]">
-      {filtered.map(expense => <li key={expense._id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[11px] font-semibold text-[#0f172a]">{expense.categoryName}</p>
-          <p className="mt-0.5 truncate text-[9px] text-[#94a3b8]">{expenseTime(expense.createdAt)}{expense.recordedBy && ` · by ${expense.recordedBy}`}{expense.note && ` · ${expense.note}`}</p>
-          {expense.approved && <p className="mt-0.5 flex items-center gap-1 text-[8px] font-bold text-[#16a34a]"><Check size={10} />Approved{expense.approvedByName && ` by ${expense.approvedByName}`}</p>}
+    {filtered.length > 0 && <ul className="mt-4 grid gap-3 md:grid-cols-2">
+      {filtered.map(expense => <li key={expense._id} className="flex min-w-0 flex-col rounded-2xl border border-[#e7ebf0] bg-white p-4 shadow-sm transition hover:border-[#fdba74] hover:shadow-md sm:p-5">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="break-words text-[14px] font-bold leading-5 text-[#0f172a]">{expense.categoryName}</p>
+            <p className="mt-1 text-[11px] leading-4 text-[#64748b]">{expenseTime(expense.createdAt)}{expense.recordedBy && ` · by ${expense.recordedBy}`}</p>
+          </div>
+          <span className="shrink-0 rounded-xl bg-[#fff4ec] px-3 py-2 text-[13px] font-bold text-[#c2410c]">−{money(expense.amount)}</span>
         </div>
-        {!expense.approved && canApprove && <button disabled={busy} onClick={() => approveExpense(expense)} title="Approve expense" className="flex shrink-0 items-center gap-1 rounded-md bg-[#f0fdf4] px-2 py-1 text-[9px] font-bold text-[#16a34a] transition hover:bg-[#dcfce7] disabled:opacity-50"><Check size={11} />Approve</button>}
-        {!expense.approved && <button disabled={busy} onClick={() => setEditing(expense)} title={`Edit ${expense.categoryName} expense`} className="flex shrink-0 items-center gap-1 rounded-md bg-[#fff4ec] px-2 py-1 text-[9px] font-bold text-[#ea580c] transition hover:bg-[#ffedd5] disabled:opacity-50"><Pencil size={11} />Edit</button>}
-        {expense.edits?.length > 0 && <button onClick={() => setHistoryFor(expense)} title="See what changed" className="flex shrink-0 items-center gap-1 rounded-md bg-[#fef9ee] px-2 py-1 text-[9px] font-bold text-[#b45309] transition hover:bg-[#fef3c7]"><History size={11} />Edited</button>}
-        <span className="shrink-0 text-[11px] font-bold text-[#dc2626]">−{money(expense.amount)}</span>
-        <button disabled={busy || expense.approved} onClick={() => removeExpense(expense)} title={expense.approved ? 'Approved — cannot be changed' : `Remove ${expense.categoryName} expense`} className="shrink-0 rounded-md p-1 text-[#f87171] hover:bg-[#fef2f2] hover:text-[#dc2626] disabled:opacity-50"><Trash2 size={13} /></button>
+        {expense.note && <p className="mt-3 break-words rounded-lg bg-[#f8fafc] px-3 py-2 text-[12px] leading-5 text-[#475569]">{expense.note}</p>}
+        {expense.approved && <p className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-[#15803d]"><Check size={13} />Approved{expense.approvedByName && ` by ${expense.approvedByName}`}</p>}
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[#f1f5f9] pt-3">
+          {!expense.approved && canApprove && <button disabled={busy} onClick={() => approveExpense(expense)} title="Approve expense" className="flex items-center gap-1.5 rounded-lg bg-[#f0fdf4] px-3 py-2 text-[11px] font-semibold text-[#15803d] transition hover:bg-[#dcfce7] disabled:opacity-50"><Check size={13} />Approve</button>}
+          {!expense.approved && <button disabled={busy} onClick={() => setEditing(expense)} title={`Edit ${expense.categoryName} expense`} className="flex items-center gap-1.5 rounded-lg bg-[#fff4ec] px-3 py-2 text-[11px] font-semibold text-[#c2410c] transition hover:bg-[#ffedd5] disabled:opacity-50"><Pencil size={13} />Edit</button>}
+          {expense.edits?.length > 0 && <button onClick={() => setHistoryFor(expense)} title="See what changed" className="flex items-center gap-1.5 rounded-lg bg-[#fef9ee] px-3 py-2 text-[11px] font-semibold text-[#a16207] transition hover:bg-[#fef3c7]"><History size={13} />Edited</button>}
+          <button disabled={busy || expense.approved} onClick={() => removeExpense(expense)} title={expense.approved ? 'Approved — cannot be changed' : `Remove ${expense.categoryName} expense`} className="ml-auto rounded-lg p-2 text-[#f87171] transition hover:bg-[#fef2f2] hover:text-[#dc2626] disabled:opacity-50"><Trash2 size={15} /></button>
+        </div>
       </li>)}
     </ul>}
     {!filtered.length && <p className="mt-3 rounded-xl border border-dashed border-[#e7ebf0] px-3 py-6 text-center text-[10px] text-[#94a3b8]">{hasFilter ? 'No expenses in the selected dates — pick another range or choose All.' : 'No expenses recorded yet — click “Record expense” above to record your first one.'}</p>}

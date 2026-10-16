@@ -67,12 +67,12 @@ export function CategoriesPage({ initialView = 'menu' }) {
     </div>
     {error && <div role="alert" className="flex items-center justify-between gap-3 rounded-lg bg-[#fef2f2] px-3 py-2.5 text-[11px] text-[#dc2626]"><span>{error}</span><button onClick={() => setError('')} aria-label="Dismiss error">×</button></div>}
 
-    {view === 'menu' && <div className="grid gap-3 sm:grid-cols-2">
-      {SUBSECTIONS.map(({ key, icon: Icon, title, description, stat }) => <button key={key} onClick={() => setView(key)} className="group flex flex-col items-start gap-2 rounded-2xl border border-[#e7ebf0] bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-[#fdba74] hover:shadow-md">
-        <span className="grid size-10 place-items-center rounded-xl bg-[#fff4ec] text-[#f97316]"><Icon size={19} /></span>
-        <span className="flex items-center gap-1 text-[13px] font-bold text-[#0f172a]">{title}<ChevronRight size={14} className="text-[#94a3b8] transition-transform group-hover:translate-x-0.5" /></span>
-        <span className="text-[10px] leading-4 text-[#94a3b8]">{description}</span>
-        <span className="mt-1 rounded-full bg-[#f1f4f9] px-2 py-0.5 text-[9px] font-semibold text-[#64748b]">{stat}</span>
+    {view === 'menu' && <div className="grid gap-4 sm:grid-cols-2">
+      {SUBSECTIONS.map(({ key, icon: Icon, title, description, stat }) => <button key={key} onClick={() => setView(key)} className="group flex min-h-48 flex-col items-start rounded-2xl border border-[#e7ebf0] bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#fdba74] hover:shadow-lg sm:p-6">
+        <span className="grid size-12 place-items-center rounded-2xl bg-[#fff4ec] text-[#f97316]"><Icon size={21} /></span>
+        <span className="mt-4 flex items-center gap-1.5 text-[15px] font-bold text-[#0f172a]">{title}<ChevronRight size={16} className="text-[#94a3b8] transition-transform group-hover:translate-x-0.5" /></span>
+        <span className="mt-1.5 text-[12px] leading-5 text-[#64748b]">{description}</span>
+        <span className="mt-auto pt-4"><span className="inline-flex rounded-full bg-[#f1f4f9] px-2.5 py-1 text-[11px] font-semibold text-[#475569]">{stat}</span></span>
       </button>)}
     </div>}
 
@@ -156,20 +156,20 @@ function FoodTypeView({ categories, busy, setBusy, onError, reload }) {
       <input autoFocus value={newCategory} onChange={event => setNewCategory(event.target.value)} maxLength="60" placeholder="Category name, e.g. Grills" aria-label="New food type category name" className="min-w-0 flex-1 rounded-lg border border-[#e7ebf0] bg-white px-3 py-2 text-[11px] outline-none focus:border-[#fdba74] focus:ring-2 focus:ring-[#fff4ec]" />
       <button disabled={busy || !newCategory.trim()} className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#f97316] px-3 py-2 text-[10px] font-semibold text-white hover:bg-[#ea580c] disabled:cursor-not-allowed disabled:opacity-50"><Plus size={13} />Add</button>
     </form>
-    {categories.length > 0 && <ul className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">{categories.map(category => <li key={category._id} className="group flex min-w-0 flex-col items-center justify-center gap-2 rounded-xl border border-[#e7ebf0] bg-[#f8fafc] px-2 py-3 text-center transition hover:border-[#fdba74] hover:bg-[#fff8f0]">
+    {categories.length > 0 && <ul className="mt-5 grid grid-cols-[repeat(auto-fill,minmax(145px,1fr))] gap-3">{categories.map(category => <li key={category._id} className="group flex min-h-36 min-w-0 flex-col items-center justify-center gap-3 rounded-2xl border border-[#e7ebf0] bg-white px-3 py-4 text-center shadow-sm transition hover:-translate-y-0.5 hover:border-[#fdba74] hover:bg-[#fffaf5] hover:shadow-md">
       {renaming === category._id ? <>
-        <input autoFocus value={renameValue} onChange={event => setRenameValue(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') renameCategory(); if (event.key === 'Escape') setRenaming(null) }} maxLength="60" aria-label={`Rename ${category.name}`} className="w-full min-w-0 rounded-md border border-[#fdba74] bg-white px-1.5 py-1 text-center text-[10px] outline-none" />
-        <span className="flex items-center gap-1">
-          <button disabled={busy} onClick={renameCategory} title="Save name" className="rounded-md p-1 text-[#ea580c] hover:bg-[#fff4ec]"><Check size={12} /></button>
-          <button onClick={() => setRenaming(null)} title="Cancel" className="rounded-md p-1 text-[#94a3b8] hover:bg-[#f1f5f9]"><X size={12} /></button>
+        <input autoFocus value={renameValue} onChange={event => setRenameValue(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') renameCategory(); if (event.key === 'Escape') setRenaming(null) }} maxLength="60" aria-label={`Rename ${category.name}`} className="w-full min-w-0 rounded-lg border border-[#fdba74] bg-white px-2.5 py-2 text-center text-[12px] outline-none focus:ring-2 focus:ring-[#fff4ec]" />
+        <span className="flex items-center gap-2">
+          <button disabled={busy} onClick={renameCategory} title="Save name" aria-label={`Save ${category.name}`} className="rounded-lg bg-[#fff4ec] p-2 text-[#ea580c] hover:bg-[#ffedd5]"><Check size={15} /></button>
+          <button onClick={() => setRenaming(null)} title="Cancel" aria-label={`Cancel renaming ${category.name}`} className="rounded-lg p-2 text-[#64748b] hover:bg-[#f1f5f9]"><X size={15} /></button>
         </span>
       </> : <>
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-[#fff4ec] text-[#f97316]"><Utensils size={15} /></span>
-        <span className="w-full break-words text-[10px] font-semibold leading-[13px] text-[#0f172a]">{category.name}</span>
-        {category.foodType && <span className="w-full truncate rounded bg-[#ffedd5] px-1 py-0.5 text-[7px] font-semibold uppercase tracking-[.6px] text-[#ea580c]">{category.foodType}</span>}
-        <span className="flex items-center gap-0.5">
-          <button onClick={() => { setRenaming(category._id); setRenameValue(category.name) }} title={`Edit ${category.name}`} className="rounded-md p-1 text-[#94a3b8] hover:bg-white hover:text-[#64748b]"><Settings2 size={12} /></button>
-          <button disabled={busy} onClick={() => removeCategory(category)} title={`Remove ${category.name}`} className="rounded-md p-1 text-[#f87171] hover:bg-[#fef2f2] hover:text-[#dc2626]"><X size={12} /></button>
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#fff4ec] text-[#f97316]"><Utensils size={18} /></span>
+        <span className="w-full break-words text-[13px] font-semibold leading-5 text-[#0f172a]">{category.name}</span>
+        {category.foodType && <span className="w-full truncate rounded-md bg-[#ffedd5] px-2 py-1 text-[9px] font-semibold uppercase tracking-[.6px] text-[#c2410c]">{category.foodType}</span>}
+        <span className="mt-auto flex w-full items-center justify-center gap-2 border-t border-[#f1f5f9] pt-2">
+          <button onClick={() => { setRenaming(category._id); setRenameValue(category.name) }} title={`Edit ${category.name}`} aria-label={`Edit ${category.name}`} className="rounded-lg p-2 text-[#64748b] transition hover:bg-white hover:text-[#ea580c]"><Settings2 size={15} /></button>
+          <button disabled={busy} onClick={() => removeCategory(category)} title={`Remove ${category.name}`} aria-label={`Remove ${category.name}`} className="rounded-lg p-2 text-[#ef4444] transition hover:bg-[#fef2f2]"><X size={15} /></button>
         </span>
       </>}
     </li>)}</ul>}
@@ -256,19 +256,19 @@ function ExpensesView({ busy, setBusy, onError }) {
       <input autoFocus value={newName} onChange={event => setNewName(event.target.value)} maxLength="60" placeholder="Category name, e.g. Cooking gas" aria-label="New expense category name" className="min-w-0 flex-1 rounded-lg border border-[#e7ebf0] bg-white px-3 py-2 text-[11px] outline-none focus:border-[#fdba74] focus:ring-2 focus:ring-[#fff4ec]" />
       <button disabled={busy || !newName.trim()} className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#f97316] px-3 py-2 text-[10px] font-semibold text-white hover:bg-[#ea580c] disabled:cursor-not-allowed disabled:opacity-50"><Plus size={13} />Add</button>
     </form>
-    {categories.length > 0 && <ul className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">{categories.map(category => <li key={category._id} className="group flex min-w-0 flex-col items-center justify-center gap-2 rounded-xl border border-[#e7ebf0] bg-[#f8fafc] px-2 py-3 text-center transition hover:border-[#fdba74] hover:bg-[#fff8f0]">
+    {categories.length > 0 && <ul className="mt-5 grid grid-cols-[repeat(auto-fill,minmax(145px,1fr))] gap-3">{categories.map(category => <li key={category._id} className="group flex min-h-36 min-w-0 flex-col items-center justify-center gap-3 rounded-2xl border border-[#e7ebf0] bg-white px-3 py-4 text-center shadow-sm transition hover:-translate-y-0.5 hover:border-[#fdba74] hover:bg-[#fffaf5] hover:shadow-md sm:px-4">
       {renaming === category._id ? <>
-        <input autoFocus value={renameValue} onChange={event => setRenameValue(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') renameCategory(); if (event.key === 'Escape') setRenaming(null) }} maxLength="60" aria-label={`Rename ${category.name}`} className="w-full min-w-0 rounded-md border border-[#fdba74] bg-white px-1.5 py-1 text-center text-[10px] outline-none" />
-        <span className="flex items-center gap-1">
-          <button disabled={busy} onClick={renameCategory} title="Save name" className="rounded-md p-1 text-[#ea580c] hover:bg-[#fff4ec]"><Check size={12} /></button>
-          <button onClick={() => setRenaming(null)} title="Cancel" className="rounded-md p-1 text-[#94a3b8] hover:bg-[#f1f5f9]"><X size={12} /></button>
+        <input autoFocus value={renameValue} onChange={event => setRenameValue(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') renameCategory(); if (event.key === 'Escape') setRenaming(null) }} maxLength="60" aria-label={`Rename ${category.name}`} className="w-full min-w-0 rounded-lg border border-[#fdba74] bg-white px-2.5 py-2 text-center text-[12px] outline-none focus:ring-2 focus:ring-[#fff4ec]" />
+        <span className="flex items-center gap-2">
+          <button disabled={busy} onClick={renameCategory} title="Save name" aria-label={`Save ${category.name}`} className="rounded-lg bg-[#fff4ec] p-2 text-[#ea580c] hover:bg-[#ffedd5]"><Check size={15} /></button>
+          <button onClick={() => setRenaming(null)} title="Cancel" aria-label={`Cancel renaming ${category.name}`} className="rounded-lg p-2 text-[#64748b] hover:bg-[#f1f5f9]"><X size={15} /></button>
         </span>
       </> : <>
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-[#fff4ec] text-[#f97316]"><Wallet size={15} /></span>
-        <span className="w-full break-words text-[10px] font-semibold leading-[13px] text-[#0f172a]">{category.name}</span>
-        <span className="flex items-center gap-0.5">
-          <button onClick={() => { setRenaming(category._id); setRenameValue(category.name) }} title={`Edit ${category.name}`} className="rounded-md p-1 text-[#94a3b8] hover:bg-white hover:text-[#64748b]"><Settings2 size={12} /></button>
-          <button disabled={busy} onClick={() => removeCategory(category)} title={`Remove ${category.name}`} className="rounded-md p-1 text-[#f87171] hover:bg-[#fef2f2] hover:text-[#dc2626]"><X size={12} /></button>
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#fff4ec] text-[#f97316]"><Wallet size={18} /></span>
+        <span className="w-full break-words text-[13px] font-semibold leading-5 text-[#0f172a]">{category.name}</span>
+        <span className="mt-auto flex w-full items-center justify-center gap-2 border-t border-[#f1f5f9] pt-2">
+          <button onClick={() => { setRenaming(category._id); setRenameValue(category.name) }} title={`Edit ${category.name}`} aria-label={`Edit ${category.name}`} className="rounded-lg p-2 text-[#64748b] transition hover:bg-white hover:text-[#ea580c]"><Settings2 size={15} /></button>
+          <button disabled={busy} onClick={() => removeCategory(category)} title={`Remove ${category.name}`} aria-label={`Remove ${category.name}`} className="rounded-lg p-2 text-[#ef4444] transition hover:bg-[#fef2f2]"><X size={15} /></button>
         </span>
       </>}
     </li>)}</ul>}
