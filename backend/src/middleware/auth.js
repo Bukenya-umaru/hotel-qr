@@ -25,7 +25,7 @@ export function cookieOptions() {
   return {
     httpOnly: true,
     secure,
-    sameSite: secure ? 'none' : 'lax',
+    sameSite: 'lax',
     path: '/',
     maxAge: SESSION_MAX_AGE_MS,
   }

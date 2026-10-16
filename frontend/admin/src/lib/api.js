@@ -1,9 +1,10 @@
 export const API_BASE_URL = (import.meta.env?.VITE_API_URL || '').replace(/\/+$/, '')
+const API_REQUEST_BASE_URL = import.meta.env?.DEV ? API_BASE_URL : ''
 
 export function apiAssetUrl(path) {
-  return API_BASE_URL && path?.startsWith('/') && !path.startsWith('//')
-    ? `${API_BASE_URL}${path}`
-    : path
+  if (!path?.startsWith('/') || path.startsWith('//')) return path
+  if (API_BASE_URL) return `${API_BASE_URL}${path}`
+  return import.meta.env?.DEV ? path : `/api/proxy${path}`
 }
 
 async function readResponse(response) {
@@ -30,7 +31,7 @@ export async function api(path, options = {}) {
   }
   let response
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, { credentials: 'include', ...options, headers })
+    response = await fetch(`${API_REQUEST_BASE_URL}${path}`, { credentials: 'include', ...options, headers })
   } catch (error) {
     if (error instanceof TypeError) {
       throw new Error('Unable to reach the server. Check that the backend is running and try again.')
