@@ -50,11 +50,11 @@ backend/
     utils/
 ```
 
-Food photos are uploaded to `backend/uploads/` (JPG, PNG or WebP, up to 5 MB). Passwords use bcrypt, sessions use HttpOnly JWT cookies, and role and business access checks protect management APIs. Customer menu, table, and ordering APIs are not enabled. The developer support dashboard can view the current password of any business owner or chef account for 15 seconds, and the business owner can do the same for their chef accounts; viewable passwords are AES-256-GCM encrypted using `PASSWORD_VAULT_KEY` (falling back to `JWT_SECRET`), and accounts created before that feature need one password reset to become viewable.
+Food photos are uploaded to `backend/uploads/` (JPG, PNG or WebP, up to 5 MB). Passwords use bcrypt, sessions use HttpOnly JWT cookies that renew for six hours after each authenticated API request, and role and business access checks protect management APIs. Customer menu, table, and ordering APIs are not enabled. The developer support dashboard can view the current password of any business owner or chef account for 15 seconds, and the business owner can do the same for their chef accounts; viewable passwords are AES-256-GCM encrypted using `PASSWORD_VAULT_KEY` (falling back to `JWT_SECRET`), and accounts created before that feature need one password reset to become viewable.
 
 ### Deploying on Render and Vercel
 
-For the Render backend, set `MONGODB_URI`, a `JWT_SECRET` of at least 32 characters, `COOKIE_SECURE=true`, and `CLIENT_URLS` to the exact HTTPS origin of the Vercel dashboard (for example, `https://your-dashboard.vercel.app`, with no trailing slash). The secure cookie uses `SameSite=None` so sign-in sessions can be sent from the Vercel site to the separate Render API.
+For the Render backend, set `MONGODB_URI`, a `JWT_SECRET` of at least 32 characters, and `CLIENT_URLS` to the exact HTTPS origin of the Vercel dashboard (for example, `https://your-dashboard.vercel.app`, with no trailing slash). Production automatically uses a secure cookie with `SameSite=None` so sign-in sessions can be sent from the Vercel site to the separate Render API. Authenticated activity renews the six-hour session; it expires after six hours without an authenticated API request. `COOKIE_SECURE=true` can still be set explicitly if needed.
 
 For the Vercel admin frontend, set `VITE_API_URL` to the Render backend origin (for example, `https://your-api.onrender.com`, with no trailing slash), then redeploy so the value is included in the frontend build. If you use a custom domain, allow that exact dashboard origin in `CLIENT_URLS` as well. Keep the backend secrets in Render's environment settings; never put them in Vercel's frontend environment.
 

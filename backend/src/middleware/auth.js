@@ -3,6 +3,8 @@ import { User } from '../models/User.js'
 import { recordSecurityEvent } from '../utils/securityLog.js'
 
 export const COOKIE_NAME = 'stayserve_session'
+const SESSION_DURATION = '6h'
+const SESSION_MAX_AGE_MS = 6 * 60 * 60 * 1000
 const jwtSecret = () => {
   if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
     throw new Error('JWT_SECRET must be configured with at least 32 characters.')
@@ -14,18 +16,18 @@ export function issueToken(user) {
   return jwt.sign(
     { userId: user._id.toString(), role: user.role, hotelId: user.hotelId?.toString() || null },
     jwtSecret(),
-    { expiresIn: '12h', issuer: 'stayserve' },
+    { expiresIn: SESSION_DURATION, issuer: 'stayserve' },
   )
 }
 
 export function cookieOptions() {
-  const secure = process.env.COOKIE_SECURE === 'true'
+  const secure = process.env.COOKIE_SECURE === 'true' || process.env.NODE_ENV === 'production'
   return {
     httpOnly: true,
     secure,
     sameSite: secure ? 'none' : 'lax',
     path: '/',
-    maxAge: 12 * 60 * 60 * 1000,
+    maxAge: SESSION_MAX_AGE_MS,
   }
 }
 
@@ -45,6 +47,7 @@ export async function authenticate(req, res, next) {
       return res.status(403).json({ message: 'This business is not active.' })
     }
     req.user = user
+    res.cookie(COOKIE_NAME, issueToken(user), cookieOptions())
     next()
   } catch (error) {
     if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
