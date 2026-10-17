@@ -8,9 +8,9 @@ const ALL_KEYS = PERMISSIONS.map(permission => permission.key)
 
 // The owner creates chefs only; the developer creates either a business
 // owner or a chef, so a role selector appears for the developer.
-export function AccountModal({ onClose, onSubmit, viewerRole = 'OWNER' }) {
+export function AccountModal({ onClose, onSubmit, viewerRole = 'OWNER', businessConfigured = true }) {
   const isDeveloper = viewerRole === 'DEVELOPER'
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'KITCHEN', permissions: [...ALL_KEYS] })
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'KITCHEN', permissions: [...ALL_KEYS], businessName: '', businessCity: '' })
   const [error, setError] = useState('')
   const togglePermission = key => setForm(previous => ({
     ...previous,
@@ -19,11 +19,18 @@ export function AccountModal({ onClose, onSubmit, viewerRole = 'OWNER' }) {
       : [...previous.permissions, key],
   }))
   const isChef = form.role !== 'OWNER'
+  const needsBusinessSetup = isDeveloper && !businessConfigured && form.role === 'OWNER'
   return <Modal title={isDeveloper ? 'Create a business account' : 'Create a chef account'} onClose={onClose}><form className="space-y-3.5" onSubmit={async event => { event.preventDefault(); if (!isStrongPassword(form.password)) { setError(`Temporary password: ${PASSWORD_RULE}.`); return } try { await onSubmit(form) } catch (err) { setError(err.message) } }}>
     <p className="text-[11px] leading-5 text-[#94a3b8]">{isDeveloper
-      ? 'Create the business owner account or a chef account directly. The password is stored encrypted so you can reveal it later to help with access.'
+      ? needsBusinessSetup
+        ? 'Creating the first owner also sets up the business. The owner can then add their own chefs.'
+        : 'Create a business owner or chef account. The owner can also add chefs from their account.'
       : 'Choose whether this chef can manage food items, sales, expenses, and stock. You can change these permissions later.'}</p>
     {isDeveloper && <fieldset><legend className="mb-1.5 text-[10px] font-semibold text-[#64748b]">Role</legend><div className="grid grid-cols-2 gap-1.5">{[['OWNER', 'Business owner'], ['KITCHEN', 'Chef']].map(([value, label]) => <label key={value} className={cx('flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2', form.role === value ? 'border-[#f97316] bg-[#fff4ec]' : 'border-[#e7ebf0]')}><input type="radio" name="account-role" checked={form.role === value} onChange={() => setForm(previous => ({ ...previous, role: value }))} className="size-3.5 accent-[#f97316]" /><span className="text-[11px] font-medium text-[#334155]">{label}</span></label>)}</div></fieldset>}
+    {needsBusinessSetup && <>
+      <TextField label="Business name" placeholder="Business name" value={form.businessName} onChange={event => setForm({ ...form, businessName: event.target.value })} />
+      <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#64748b]">Business city (optional)</span><input value={form.businessCity} onChange={event => setForm({ ...form, businessCity: event.target.value })} placeholder="City" className="w-full rounded-lg border border-[#e7ebf0] bg-white px-3 py-2.5 text-[12px] outline-none transition placeholder:text-[#a8b3c4] focus:border-[#fb923c] focus:ring-2 focus:ring-[#fff4ec]" /></label>
+    </>}
     <TextField label="Full name" placeholder="Full name" value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} />
     <TextField label="Email address" type="email" placeholder="name@business.com" value={form.email} onChange={event => setForm({ ...form, email: event.target.value })} />
     <div><TextField label="Temporary password" type="password" placeholder={PASSWORD_RULE} value={form.password} onChange={event => setForm({ ...form, password: event.target.value })} /><PasswordStrengthMeter password={form.password} /></div>

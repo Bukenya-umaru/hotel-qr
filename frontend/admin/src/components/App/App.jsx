@@ -199,6 +199,14 @@ export default function App() {
     const endpoint = user.role === 'DEVELOPER' ? '/api/developer/users' : '/api/owner/staff'
     const data = await api(endpoint, { method: 'POST', body: JSON.stringify(form) })
     setUsers(previous => [data.user, ...previous])
+    if (user.role === 'DEVELOPER' && data.business) {
+      setPlatformOverview(previous => ({
+        ...previous,
+        business: data.business,
+        businessCount: 1,
+        userCount: Number(previous.userCount || 0) + 1,
+      }))
+    }
     setModal('')
     setToast(form.role === 'OWNER' && user.role === 'DEVELOPER' ? 'Business owner account created' : 'Chef account created successfully')
   }
@@ -281,7 +289,7 @@ export default function App() {
               : <button key={item.label} onClick={() => { setPage(item.label); setMobileNav(false) }} className={cx('flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-[12px]', page === item.label ? 'bg-[#fff4ec] text-[#ea580c]' : 'text-[#64748b]')}><item.icon size={17} />{item.label === 'Overview' ? 'Dashboard' : item.label}</button>)}</nav><div className="mt-auto space-y-1 pt-5">{user ? <button onClick={() => { setMobileNav(false); logout() }} className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-[12px] text-[#64748b] hover:bg-[#f8fafc]"><LogOut size={16} />Sign out</button> : <button onClick={() => { setMobileNav(false); setModal('login') }} className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-[12px] text-[#64748b] hover:bg-[#f8fafc]"><ShieldCheck size={16} />Sign in</button>}</div></div></div>}
     <div className="min-h-screen min-w-0 lg:pl-[210px]"><div className="flex items-center border-b border-[#eee4df] bg-white px-3 sm:px-4 lg:hidden"><button onClick={() => setMobileNav(true)} className="mr-2 grid size-10 shrink-0 place-items-center text-[#786d67]" aria-label="Open navigation"><Menu size={19} /></button><Brand /></div>    <Header role={role} page={page} onLogin={() => setModal('login')} user={user} hotelName={hotelName} titleOverride={page === 'Purchase expenses' ? 'Expenses' : page === 'Purchase damages' ? 'Damage' : undefined} onNavigate={setPage} live={live} theme={theme} onToggleTheme={flipTheme} />
     <main className="mx-auto min-w-0 max-w-[1200px] px-3 py-3 sm:px-5 sm:py-4 lg:px-6 lg:py-5">{apiError && user && <div className="mb-4 flex items-center justify-between rounded-lg bg-[#fff7e8] px-3 py-2.5 text-[10px] text-[#a85f18]"><span className="min-w-0 break-words">{apiError}</span><button onClick={() => setApiError('')} className="ml-2 shrink-0"><X size={14} /></button></div>}{content}</main></div>
-    {modal === 'account' && ['OWNER', 'DEVELOPER'].includes(role) && <AccountModal viewerRole={role} onClose={() => setModal('')} onSubmit={createAccount} />}
+    {modal === 'account' && ['OWNER', 'DEVELOPER'].includes(role) && <AccountModal viewerRole={role} businessConfigured={Boolean(platformOverview.business)} onClose={() => setModal('')} onSubmit={createAccount} />}
     {modal === 'reset' && resettingUser && <ResetPasswordModal account={resettingUser} onClose={() => { setModal(''); setResettingUser(null) }} onSubmit={resetUserPassword} />}
     {modal === 'view-password' && viewingUser && <ViewPasswordModal account={viewingUser} endpoint={role === 'DEVELOPER' ? `/api/developer/users/${viewingUser._id}/password` : `/api/owner/staff/${viewingUser._id}/password`} onClose={() => { setModal(''); setViewingUser(null) }} />}
     {modal === 'edit-account' && editingUser && <AccountEditModal account={editingUser} viewerRole={role} onClose={() => { setModal(''); setEditingUser(null) }} onSubmit={updateAccount} />}

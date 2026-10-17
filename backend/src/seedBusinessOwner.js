@@ -38,6 +38,10 @@ try {
       isActive: true,
     })
     console.log(`Single business initialized: ${business.name}.`)
+  } else if (!business.isActive) {
+    business.isActive = true
+    await business.save()
+    console.log(`Business reactivated: ${business.name}.`)
   }
 
   const email = OWNER_EMAIL.trim().toLowerCase()

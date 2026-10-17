@@ -18,12 +18,17 @@ export function SupportPage({ role = 'OWNER' }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
+  const [businessConfigured, setBusinessConfigured] = useState(true)
 
   useEffect(() => {
     let active = true
     setLoading(true)
     api(isOwner ? '/api/owner/support' : '/api/developer/support')
-      .then(data => { if (active) setForm({ ...EMPTY, ...data.support }) })
+      .then(data => {
+        if (!active) return
+        setForm({ ...EMPTY, ...data.support })
+        setBusinessConfigured(data.businessConfigured !== false)
+      })
       .catch(err => { if (active) setError(err.message) })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
@@ -70,7 +75,11 @@ export function SupportPage({ role = 'OWNER' }) {
     {saved && <div className="flex items-center gap-2 rounded-lg bg-[#f0fdf4] px-3 py-2.5 text-[11px] font-medium text-[#16a34a]"><CircleCheck size={15} />Help & support details updated — customers see them right away.</div>}
     {error && <div role="alert" className="flex items-center justify-between gap-3 rounded-lg bg-[#fef2f2] px-3 py-2.5 text-[11px] text-[#dc2626]"><span>{error}</span><button onClick={() => setError('')} aria-label="Dismiss error">×</button></div>}
 
-    <form onSubmit={save} className="space-y-4">
+    {!businessConfigured
+      ? <div className="rounded-xl border border-[#e7ebf0] bg-white p-5 text-[12px] leading-6 text-[#64748b]">
+          No business is active yet, so support details cannot be edited. Go to Accounts and create the business owner; that will set up the business without a database seed.
+        </div>
+      : <form onSubmit={save} className="space-y-4">
       <section className="grid gap-4 rounded-2xl border border-[#e7ebf0] bg-white p-4 sm:grid-cols-2 sm:p-5">
         {FIELDS.map(({ key, label, placeholder, icon: Icon }) => <label key={key} className="block text-[10px] font-semibold text-[#64748b]">
           <span className="flex items-center gap-1.5"><Icon size={13} className="text-[#f97316]" />{label}</span>
@@ -102,6 +111,6 @@ export function SupportPage({ role = 'OWNER' }) {
       <div className="flex items-center justify-end gap-3">
         <button type="submit" disabled={saving} className="flex items-center gap-2 rounded-lg bg-[#f97316] px-4 py-2.5 text-[11px] font-semibold text-white disabled:opacity-60"><Save size={14} />{saving ? 'Saving…' : 'Save details'}</button>
       </div>
-    </form>
+    </form>}
   </div>
 }

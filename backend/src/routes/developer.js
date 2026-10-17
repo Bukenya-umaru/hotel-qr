@@ -20,13 +20,12 @@ router.use(authenticate, authorize('DEVELOPER'))
 // Business contact details the developer maintains for the information page.
 router.get('/support', asyncRoute(async (_req, res) => {
   const hotel = await Hotel.findOne({ isActive: true }).select('support')
-  if (!hotel) return res.status(404).json({ message: 'No active business is configured yet.' })
-  res.json({ support: safeSupport(hotel.support) })
+  res.json({ support: safeSupport(hotel?.support), businessConfigured: Boolean(hotel) })
 }))
 
 router.patch('/support', asyncRoute(async (req, res) => {
   const business = await Hotel.findOne({ isActive: true }).select('_id')
-  if (!business) return res.status(404).json({ message: 'No active business is configured yet.' })
+  if (!business) return res.status(409).json({ message: 'Initialize the business owner setup before updating support details.' })
   const input = req.body.support && typeof req.body.support === 'object' ? req.body.support : req.body
   const limits = { phone: 40, whatsapp: 40, email: 120, hours: 200, message: 400 }
   const updates = {}
@@ -43,8 +42,6 @@ router.patch('/support', asyncRoute(async (req, res) => {
 // access, or a KITCHEN chef with an optional permission list. Mirrors the
 // owner's POST /api/owner/staff flow but is scoped to the business.
 router.post('/users', validate(developerUserBody), asyncRoute(async (req, res) => {
-  const business = await Hotel.findOne({ isActive: true }).select('_id')
-  if (!business) return res.status(400).json({ message: 'Initialize the business owner setup first, then create accounts.' })
   const { name, email, password, role } = req.body
   const permissions = req.body.permissions === undefined ? undefined : req.body.permissions
   const normalizedEmail = String(email || '').trim().toLowerCase()
@@ -52,8 +49,46 @@ router.post('/users', validate(developerUserBody), asyncRoute(async (req, res) =
       !isStrongPassword(password)) {
     return res.status(400).json({ message: 'Provide a name, valid email, and a password of at least 6 characters with letters and numbers.' })
   }
+  if (await User.exists({ email: normalizedEmail })) {
+    return res.status(409).json({ message: 'An account with that email already exists.' })
+  }
   if (role === 'KITCHEN' && permissions !== undefined && !validPermissions(permissions)) {
     return res.status(400).json({ message: 'One or more permissions are not supported.' })
+  }
+  let business = await Hotel.findOne({ isActive: true }).select('_id name slug city')
+  if (!business) {
+    if (role !== 'OWNER') {
+      return res.status(409).json({ message: 'Create the business owner account before adding chef accounts.' })
+    }
+    const businessName = String(req.body.businessName || '').trim()
+    if (!businessName) return res.status(400).json({ message: 'Provide the business name to create its owner account.' })
+    const businessCity = String(req.body.businessCity || '').trim()
+    business = await Hotel.findOne().sort({ createdAt: 1 })
+    if (business) {
+      business.name = businessName
+      business.city = businessCity
+      business.isActive = true
+      await business.save()
+    } else {
+      try {
+        business = await Hotel.create({
+          name: businessName,
+          slug: 'waga-bits',
+          city: businessCity,
+          tableCount: 24,
+          currency: 'UGX',
+          taxRate: 0,
+          isActive: true,
+        })
+      } catch (error) {
+        if (error.code !== 11000) throw error
+        business = await Hotel.findOne({ isActive: true }).select('_id name slug city')
+        if (!business) throw error
+      }
+    }
+  }
+  if (role === 'KITCHEN' && !(await User.exists({ hotelId: business._id, role: 'OWNER', isActive: true }))) {
+    return res.status(409).json({ message: 'Create an active business owner account before adding chef accounts.' })
   }
   try {
     const user = await User.create({
@@ -70,7 +105,10 @@ router.post('/users', validate(developerUserBody), asyncRoute(async (req, res) =
     storePassword(user, String(password))
     await user.save()
     recordSecurityEvent({ type: 'account_created', severity: 'low', detail: `Created a ${role === 'OWNER' ? 'business owner' : 'chef'} account`, email: normalizedEmail, actorId: req.user._id }, req)
-    res.status(201).json({ user: publicUser(user) })
+    res.status(201).json({
+      user: publicUser(user),
+      business: { _id: business._id, name: business.name, slug: business.slug, city: business.city },
+    })
   } catch (error) {
     if (error.code === 11000) return res.status(409).json({ message: 'An account with that email already exists.' })
     throw error
