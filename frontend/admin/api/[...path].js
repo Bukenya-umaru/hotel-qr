@@ -36,7 +36,7 @@ export default function handler(req, res) {
   try {
     const origin = backendOrigin()
     const incoming = new URL(req.url, 'https://vercel.invalid')
-    if (incoming.pathname === '/api/proxy') {
+    if (incoming.pathname === '/api/forward' || incoming.pathname === '/api/proxy') {
       const forwardedPath = incoming.searchParams.get('path')
       if (!forwardedPath || !forwardedPath.startsWith('/api/')) {
         return res.status(400).json({ message: 'Invalid API path.' })
