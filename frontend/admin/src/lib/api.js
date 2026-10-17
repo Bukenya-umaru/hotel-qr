@@ -16,10 +16,7 @@ async function readResponse(response) {
   try {
     return JSON.parse(body)
   } catch {
-    if (body.trimStart().startsWith('<')) {
-      throw new Error(`The server returned a webpage instead of API data. Check that the backend is running and VITE_API_URL points to it${API_BASE_URL ? ` (${API_BASE_URL})` : ''}.`)
-    }
-    throw new Error('The server returned an invalid response. Please try again.')
+    throw new Error('The service could not complete that request. Please try again shortly.')
   }
 }
 
