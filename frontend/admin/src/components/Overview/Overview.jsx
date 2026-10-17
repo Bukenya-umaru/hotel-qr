@@ -8,6 +8,7 @@ import { money } from '../../lib/ui.js'
 import { api, apiAssetUrl } from '../../lib/api.js'
 import { MetricCard } from '../MetricCard/MetricCard.jsx'
 import { DateCalendar } from '../DateCalendar/DateCalendar.jsx'
+import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
 
 const formatDay = value => new Date(`${value}T12:00:00`).toLocaleDateString('en-UG', { weekday: 'short' })
 const formatTime = value => new Date(value).toLocaleTimeString('en-UG', { hour: 'numeric', minute: '2-digit' })
@@ -70,6 +71,7 @@ export function Overview({ hotelName, onNavigate, analytics, currency, onRange, 
   // period is active.
   const [customRange, setCustomRange] = useState(() => initialPeriod().custom)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [loadingRange, setLoadingRange] = useState('')
   const menuRef = useRef(null)
   const onRangeRef = useRef(onRange)
   onRangeRef.current = onRange
@@ -78,13 +80,15 @@ export function Overview({ hotelName, onNavigate, analytics, currency, onRange, 
     // Skip the initial mount: App already loaded today's range.
     if (firstRender.current) { firstRender.current = false; return }
     const { from, to } = periodDates(periodKey)
-    onRangeRef.current?.(from, to)
+    setLoadingRange(periodKey)
+    Promise.resolve(onRangeRef.current?.(from, to)).finally(() => setLoadingRange(''))
   }, [periodKey])
   // Calendar picking: one click applies that exact date; two clicks apply
   // the from→to span. Both go through the same fetch as the preset periods.
   const applyRange = (from, to) => {
     setCustomRange({ from, to })
-    onRangeRef.current?.(from, to)
+    setLoadingRange('custom')
+    return Promise.resolve(onRangeRef.current?.(from, to)).finally(() => setLoadingRange(''))
   }
   useEffect(() => {
     if (!menuOpen) return undefined
@@ -130,14 +134,19 @@ export function Overview({ hotelName, onNavigate, analytics, currency, onRange, 
   const canApproveStock = analytics.canApproveStock !== false
   const [stockApprovals, setStockApprovals] = useState({})
   const [stockActionError, setStockActionError] = useState('')
+  const [busyStockApproval, setBusyStockApproval] = useState('')
   useEffect(() => { setStockApprovals({}); setStockActionError('') }, [analytics.stockAdditions])
   const approveStockAddition = async item => {
+    if (busyStockApproval) return
+    setBusyStockApproval(String(item._id))
     setStockActionError('')
     try {
       await api(`/api/stock/${item._id}/approve`, { method: 'POST' })
       setStockApprovals(map => ({ ...map, [item._id]: true }))
     } catch (error) {
       setStockActionError(error.message)
+    } finally {
+      setBusyStockApproval('')
     }
   }
   const stockApprovedNow = item => Boolean(stockApprovals[item._id] ?? item.approved)
@@ -195,7 +204,7 @@ export function Overview({ hotelName, onNavigate, analytics, currency, onRange, 
         </button>
         {menuOpen && <div className="absolute right-0 top-full z-40 mt-2 w-[280px] space-y-1 overflow-hidden rounded-lg border border-[#f0e8e4] bg-white py-2 shadow-[0_12px_40px_rgba(53,42,36,.14)]">
           <div className="flex gap-1 px-2">
-            {PERIODS.map(item => <button key={item.key} onClick={() => { setCustomRange(null); setPeriodKey(item.key) }} className={`flex-1 rounded-md px-1 py-1.5 text-[9px] font-medium transition ${item.key === periodKey && !customRange ? 'bg-[#fde3da] font-semibold text-[#d95c43]' : 'text-[#655a54] hover:bg-[#fff8f5]'}`}>{item.label}</button>)}
+            {PERIODS.map(item => <button key={item.key} disabled={Boolean(loadingRange)} onClick={() => { setCustomRange(null); setPeriodKey(item.key) }} className={`flex-1 rounded-md px-1 py-1.5 text-[9px] font-medium transition disabled:cursor-wait disabled:opacity-50 ${item.key === periodKey && !customRange ? 'bg-[#fde3da] font-semibold text-[#d95c43]' : 'text-[#655a54] hover:bg-[#fff8f5]'}`}>{loadingRange === item.key ? <ActionProgress>Loading…</ActionProgress> : item.label}</button>)}
           </div>
           <div className="border-t border-[#f1eae6] pt-1">
             <DateCalendar from={customRange?.from || periodFrom} to={customRange?.to || periodTo} onApply={applyRange} onClose={() => setMenuOpen(false)} />
@@ -310,7 +319,7 @@ export function Overview({ hotelName, onNavigate, analytics, currency, onRange, 
               <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#fff3ee] text-[#d95c43]"><Boxes size={14} /></span>
               <span className="min-w-0"><span className="block max-w-[180px] truncate text-[10px] font-semibold text-[#292421]">{item.name}</span><span className="mt-0.5 block text-[9px] text-[#8d817b]">{item.plates} {stockUnitNoun(item)} · {money(item.price, currency)} each</span></span>
               <span title={approvedTitle(item)} className={`shrink-0 cursor-help rounded px-1.5 py-0.5 text-[8px] font-semibold ${stockApprovedNow(item) ? 'bg-[#eaf7ef] text-[#55a978]' : 'bg-[#fdf1cf] text-[#c4901c]'}`}>{stockApprovedNow(item) ? 'Approved' : 'Pending'}</span>
-              {!stockApprovedNow(item) && canApproveStock && <button onClick={() => approveStockAddition(item)} title={`Approve ${item.name}`} aria-label={`Approve ${item.name}`} className="shrink-0 rounded-md bg-[#f0fdf4] px-1.5 py-1 text-[8px] font-semibold text-[#16a34a] hover:bg-[#dcfce7]">Approve</button>}
+              {!stockApprovedNow(item) && canApproveStock && <button onClick={() => approveStockAddition(item)} disabled={Boolean(busyStockApproval)} title={`Approve ${item.name}`} aria-label={busyStockApproval === String(item._id) ? `Approving ${item.name}` : `Approve ${item.name}`} className="shrink-0 rounded-md bg-[#f0fdf4] px-1.5 py-1 text-[8px] font-semibold text-[#16a34a] hover:bg-[#dcfce7] disabled:cursor-wait disabled:opacity-50">{busyStockApproval === String(item._id) ? <ActionProgress>Approving…</ActionProgress> : 'Approve'}</button>}
               {!stockApprovedNow(item) && <button onClick={() => onNavigate('Stock')} title={`Edit ${item.name} on the stock page`} aria-label={`Edit ${item.name}`} className="shrink-0 rounded-md border border-[#eadfd9] px-1.5 py-1 text-[8px] font-semibold text-[#8d817b] hover:border-[#e7654b] hover:text-[#d95c43]">Edit</button>}
             </div>) : <p className="py-5 text-center text-[10px] text-[#8d817b]">No stock was added {dayWording}.</p>}
           </div>

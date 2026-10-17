@@ -8,7 +8,7 @@ const VIEW_SECONDS = 15
 // Reveals an account's actual password for 15 seconds, then hides it and
 // closes. Used by the developer (any account) and by the business owner for
 // their own chefs; `endpoint` decides which API reveal route to call.
-export function ViewPasswordModal({ account, endpoint, onClose }) {
+export function ViewPasswordModal({ account, endpoint, onClose, onLoaded }) {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -19,7 +19,7 @@ export function ViewPasswordModal({ account, endpoint, onClose }) {
     api(endpoint)
       .then(data => { if (active) setPassword(data.password) })
       .catch(err => { if (active) setError(err.message) })
-      .finally(() => { if (active) setLoading(false) })
+      .finally(() => { if (active) { setLoading(false); onLoaded?.() } })
     return () => { active = false }
   }, [account._id, endpoint])
 

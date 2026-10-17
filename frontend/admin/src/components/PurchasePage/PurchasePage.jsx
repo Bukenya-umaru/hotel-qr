@@ -6,6 +6,7 @@ import {
 import { api, apiAssetUrl, API_BASE_URL } from '../../lib/api.js'
 import { money, cx, UNIT_OPTIONS, unitDisplay } from '../../lib/ui.js'
 import { Modal } from '../Modal/Modal.jsx'
+import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
 
 // Sales and expense records each open their own workspace, like the
 // Food type and expense-category sections in Categories.
@@ -160,6 +161,7 @@ function SalesView({ onError, canApprove = false, hotelId }) {
   const [sales, setSales] = useState([])
   const [stats, setStats] = useState({ total: 0, count: 0, todayTotal: 0, todayCount: 0 })
   const [busy, setBusy] = useState(false)
+  const [busyAction, setBusyAction] = useState('')
   const [range, setRange] = useState({ from: '', to: '' }) // Date filter: empty from/to = everything.
   const [editing, setEditing] = useState(null) // Unapproved sale being edited.
   const [historyFor, setHistoryFor] = useState(null) // Sale whose change trail is open.
@@ -188,8 +190,10 @@ function SalesView({ onError, canApprove = false, hotelId }) {
   }, [])
 
   const removeSale = async sale => {
+    if (busy) return
     if (!window.confirm(`Remove the sale "${sale.name}" (${money(sale.amount)})?`)) return
     setBusy(true)
+    setBusyAction(`delete:${sale._id}`)
     try {
       await api(`/api/owner/sales/${sale._id}`, { method: 'DELETE' })
       onError('')
@@ -198,13 +202,16 @@ function SalesView({ onError, canApprove = false, hotelId }) {
       onError(err.message)
     } finally {
       setBusy(false)
+      setBusyAction('')
     }
   }
 
   // The owner — or staff granted the approval permission — signs a sale off.
   // Approved sales are locked: they can no longer be removed.
   const approveSale = async sale => {
+    if (busy) return
     setBusy(true)
+    setBusyAction(`approve:${sale._id}`)
     try {
       await api(`/api/owner/sales/${sale._id}/approve`, { method: 'POST' })
       onError('')
@@ -213,6 +220,7 @@ function SalesView({ onError, canApprove = false, hotelId }) {
       onError(err.message)
     } finally {
       setBusy(false)
+      setBusyAction('')
     }
   }
 
@@ -253,11 +261,11 @@ function SalesView({ onError, canApprove = false, hotelId }) {
           </p>
           {sale.approved && <p className="mt-0.5 flex items-center gap-1 text-[8px] font-bold text-[#16a34a]"><Check size={10} />Approved{sale.approvedByName && ` by ${sale.approvedByName}`}</p>}
         </div>
-        {!sale.approved && canApprove && <button disabled={busy} onClick={() => approveSale(sale)} title={`Approve ${sale.saleId}`} className="flex shrink-0 items-center gap-1 rounded-md bg-[#f0fdf4] px-2 py-1 text-[9px] font-bold text-[#16a34a] transition hover:bg-[#dcfce7] disabled:opacity-50"><Check size={11} />Approve</button>}
+        {!sale.approved && canApprove && <button disabled={busy} onClick={() => approveSale(sale)} title={`Approve ${sale.saleId}`} className="flex shrink-0 items-center gap-1 rounded-md bg-[#f0fdf4] px-2 py-1 text-[9px] font-bold text-[#16a34a] transition hover:bg-[#dcfce7] disabled:opacity-50">{busyAction === `approve:${sale._id}` ? <ActionProgress>Approving…</ActionProgress> : <><Check size={11} />Approve</>}</button>}
         {sale.edits?.length > 0 && <button onClick={() => setHistoryFor(sale)} title="See what changed" className="flex shrink-0 items-center gap-1 rounded-md bg-[#fef9ee] px-2 py-1 text-[9px] font-bold text-[#b45309] transition hover:bg-[#fef9ee]"><History size={11} />Edited</button>}
         <span className="shrink-0 text-[11px] font-bold text-[#16a34a]">{money(sale.amount)}</span>
         {!sale.approved && <button disabled={busy} onClick={() => setEditing(sale)} title={`Edit ${sale.saleId}`} className="shrink-0 rounded-md p-1 text-[#94a3b8] transition hover:bg-[#f1f4f9] hover:text-[#0f172a]"><Pencil size={13} /></button>}
-        <button disabled={busy || sale.approved} onClick={() => removeSale(sale)} title={sale.approved ? 'Approved — cannot be changed' : `Remove ${sale.name}`} className="shrink-0 rounded-md p-1 text-[#f87171] hover:bg-[#fef2f2] hover:text-[#dc2626] disabled:opacity-50"><Trash2 size={13} /></button>
+        <button disabled={busy || sale.approved} onClick={() => removeSale(sale)} title={sale.approved ? 'Approved — cannot be changed' : `Remove ${sale.name}`} aria-label={busyAction === `delete:${sale._id}` ? `Deleting ${sale.name}` : `Remove ${sale.name}`} className="shrink-0 rounded-md p-1 text-[#f87171] hover:bg-[#fef2f2] hover:text-[#dc2626] disabled:opacity-50">{busyAction === `delete:${sale._id}` ? <ActionProgress><span className="sr-only">Deleting sale…</span></ActionProgress> : <Trash2 size={13} />}</button>
       </li>)}
     </ul>}
     {!filtered.length && <p className="mt-3 rounded-xl border border-dashed border-[#e7ebf0] px-3 py-6 text-center text-[10px] text-[#94a3b8]">{hasFilter ? 'No sales in the selected dates — pick another range or choose All.' : 'No sales made yet — open “Make sale” to record the first one.'}</p>}
@@ -315,6 +323,7 @@ function EditSaleModal({ sale, onClose, onSaved }) {
 
   const submit = async event => {
     event.preventDefault()
+    if (busy) return
     const payload = []
     for (const [index, item] of items.entries()) {
       const qty = item.quantity === '' ? 1 : Number(item.quantity)
@@ -389,7 +398,7 @@ function EditSaleModal({ sale, onClose, onSaved }) {
       {error && <p className="text-[11px] text-[#dc2626]">{error}</p>}
       <div className="flex items-center justify-between border-t border-[#f1f5f9] pt-3">
         <span className="text-[10px] font-semibold text-[#64748b]">New total <b className="ml-1 text-[13px] font-bold text-[#0f172a]">{money(total)}</b></span>
-        <button disabled={busy} className="rounded-lg bg-[#f97316] px-4 py-2 text-[10px] font-semibold text-white hover:bg-[#ea580c] disabled:opacity-60">{busy ? 'Saving…' : 'Save changes'}</button>
+        <button disabled={busy} className="rounded-lg bg-[#f97316] px-4 py-2 text-[10px] font-semibold text-white hover:bg-[#ea580c] disabled:opacity-60">{busy ? <ActionProgress>Updating sale…</ActionProgress> : 'Save changes'}</button>
       </div>
     </form>
   </Modal>
@@ -555,6 +564,7 @@ function MakeSaleView({ onError, onViewSales }) {
 
   const submit = async event => {
     event.preventDefault()
+    if (busy) return
     const payload = []
     // A fully empty trailing draft row is just the adder — skip it.
     const entries = items.filter(item => item.stockId || item.committed || item.pendingStockId || item.name.trim() || item.price.trim() || String(item.amount).trim())
@@ -704,7 +714,7 @@ function MakeSaleView({ onError, onViewSales }) {
       {error && <p className="mt-2 text-[11px] text-[#dc2626]">{error}</p>}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[#f1f5f9] pt-3">
         <span className="text-[10px] font-semibold text-[#64748b]">Sale total <b className="ml-1 text-[13px] font-bold text-[#0f172a]">{money(runningTotal)}</b></span>
-        <button disabled={busy} className="rounded-lg bg-[#f97316] px-4 py-2 text-[10px] font-semibold text-white transition hover:bg-[#ea580c] disabled:cursor-not-allowed disabled:opacity-60">{busy ? 'Recording…' : 'Record sale'}</button>
+        <button disabled={busy} className="rounded-lg bg-[#f97316] px-4 py-2 text-[10px] font-semibold text-white transition hover:bg-[#ea580c] disabled:cursor-not-allowed disabled:opacity-60">{busy ? <ActionProgress>Recording sale…</ActionProgress> : 'Record sale'}</button>
       </div>
     </form>
   </div>
@@ -718,6 +728,7 @@ function ExpensesView({ onError, canApprove = false, hotelId }) {
   const [byCategory, setByCategory] = useState([])
   const [stats, setStats] = useState({ total: 0, count: 0, todayTotal: 0, todayCount: 0 })
   const [busy, setBusy] = useState(false)
+  const [busyAction, setBusyAction] = useState('')
   const [showPopup, setShowPopup] = useState(false)
   const [editing, setEditing] = useState(null)
   const [historyFor, setHistoryFor] = useState(null)
@@ -748,9 +759,11 @@ function ExpensesView({ onError, canApprove = false, hotelId }) {
   }, [])
 
   const removeExpense = async expense => {
+    if (busy) return
     const label = expense.note ? `${expense.categoryName} — ${expense.note}` : expense.categoryName
     if (!window.confirm(`Remove the ${money(expense.amount)} expense for ${label}?`)) return
     setBusy(true)
+    setBusyAction(`delete:${expense._id}`)
     try {
       await api(`/api/owner/expenses/${expense._id}`, { method: 'DELETE' })
       onError('')
@@ -759,13 +772,16 @@ function ExpensesView({ onError, canApprove = false, hotelId }) {
       onError(err.message)
     } finally {
       setBusy(false)
+      setBusyAction('')
     }
   }
 
   // The owner — or staff granted the approval permission — signs an expense
   // off. Approved expenses are locked: they can no longer be removed.
   const approveExpense = async expense => {
+    if (busy) return
     setBusy(true)
+    setBusyAction(`approve:${expense._id}`)
     try {
       await api(`/api/owner/expenses/${expense._id}/approve`, { method: 'POST' })
       onError('')
@@ -774,6 +790,7 @@ function ExpensesView({ onError, canApprove = false, hotelId }) {
       onError(err.message)
     } finally {
       setBusy(false)
+      setBusyAction('')
     }
   }
 
@@ -814,10 +831,10 @@ function ExpensesView({ onError, canApprove = false, hotelId }) {
         {expense.note && <p className="mt-3 break-words rounded-lg bg-[#f8fafc] px-3 py-2 text-[12px] leading-5 text-[#475569]">{expense.note}</p>}
         {expense.approved && <p className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-[#15803d]"><Check size={13} />Approved{expense.approvedByName && ` by ${expense.approvedByName}`}</p>}
         <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[#f1f5f9] pt-3">
-          {!expense.approved && canApprove && <button disabled={busy} onClick={() => approveExpense(expense)} title="Approve expense" className="flex items-center gap-1.5 rounded-lg bg-[#f0fdf4] px-3 py-2 text-[11px] font-semibold text-[#15803d] transition hover:bg-[#dcfce7] disabled:opacity-50"><Check size={13} />Approve</button>}
+          {!expense.approved && canApprove && <button disabled={busy} onClick={() => approveExpense(expense)} title="Approve expense" className="flex items-center gap-1.5 rounded-lg bg-[#f0fdf4] px-3 py-2 text-[11px] font-semibold text-[#15803d] transition hover:bg-[#dcfce7] disabled:opacity-50">{busyAction === `approve:${expense._id}` ? <ActionProgress>Approving…</ActionProgress> : <><Check size={13} />Approve</>}</button>}
           {!expense.approved && <button disabled={busy} onClick={() => setEditing(expense)} title={`Edit ${expense.categoryName} expense`} className="flex items-center gap-1.5 rounded-lg bg-[#fff4ec] px-3 py-2 text-[11px] font-semibold text-[#c2410c] transition hover:bg-[#ffedd5] disabled:opacity-50"><Pencil size={13} />Edit</button>}
           {expense.edits?.length > 0 && <button onClick={() => setHistoryFor(expense)} title="See what changed" className="flex items-center gap-1.5 rounded-lg bg-[#fef9ee] px-3 py-2 text-[11px] font-semibold text-[#a16207] transition hover:bg-[#fef3c7]"><History size={13} />Edited</button>}
-          <button disabled={busy || expense.approved} onClick={() => removeExpense(expense)} title={expense.approved ? 'Approved — cannot be changed' : `Remove ${expense.categoryName} expense`} className="ml-auto rounded-lg p-2 text-[#f87171] transition hover:bg-[#fef2f2] hover:text-[#dc2626] disabled:opacity-50"><Trash2 size={15} /></button>
+          <button disabled={busy || expense.approved} onClick={() => removeExpense(expense)} title={expense.approved ? 'Approved — cannot be changed' : `Remove ${expense.categoryName} expense`} aria-label={busyAction === `delete:${expense._id}` ? `Deleting ${expense.categoryName} expense` : `Remove ${expense.categoryName} expense`} className="ml-auto rounded-lg p-2 text-[#f87171] transition hover:bg-[#fef2f2] hover:text-[#dc2626] disabled:opacity-50">{busyAction === `delete:${expense._id}` ? <ActionProgress><span className="sr-only">Deleting expense…</span></ActionProgress> : <Trash2 size={15} />}</button>
         </div>
       </li>)}
     </ul>}
@@ -838,6 +855,7 @@ function DamagesView({ onError, canApprove = false, hotelId }) {
   const [damages, setDamages] = useState([])
   const [stats, setStats] = useState({ total: 0, count: 0, todayTotal: 0, todayCount: 0 })
   const [busy, setBusy] = useState(false)
+  const [busyAction, setBusyAction] = useState('')
   const [showPopup, setShowPopup] = useState(false)
   const [editing, setEditing] = useState(null)
   const [historyFor, setHistoryFor] = useState(null)
@@ -866,9 +884,11 @@ function DamagesView({ onError, canApprove = false, hotelId }) {
   }, [])
 
   const removeDamage = async damage => {
+    if (busy) return
     const label = damage.note ? `${damage.name} — ${damage.note}` : damage.name
     if (!window.confirm(`Remove the damage record for ${label}?${damage.stockItem ? ' The stock count it drew down will be restored.' : ''}`)) return
     setBusy(true)
+    setBusyAction(`delete:${damage._id}`)
     try {
       await api(`/api/owner/damages/${damage._id}`, { method: 'DELETE' })
       onError('')
@@ -877,13 +897,16 @@ function DamagesView({ onError, canApprove = false, hotelId }) {
       onError(err.message)
     } finally {
       setBusy(false)
+      setBusyAction('')
     }
   }
 
   // The owner — or staff granted the approval permission — signs a damage
   // off. Once approved it is locked: no more edits or removals.
   const approveDamage = async damage => {
+    if (busy) return
     setBusy(true)
+    setBusyAction(`approve:${damage._id}`)
     try {
       await api(`/api/owner/damages/${damage._id}/approve`, { method: 'POST' })
       onError('')
@@ -892,6 +915,7 @@ function DamagesView({ onError, canApprove = false, hotelId }) {
       onError(err.message)
     } finally {
       setBusy(false)
+      setBusyAction('')
     }
   }
 
@@ -930,11 +954,11 @@ function DamagesView({ onError, canApprove = false, hotelId }) {
           <p className="mt-0.5 truncate text-[9px] text-[#94a3b8]">{damageTime(damage.createdAt)}{damage.recordedBy && ` · by ${damage.recordedBy}`}{damage.stockItem && ` · from stock: ${damage.stockItem.name}`}{damage.note && ` · ${damage.note}`}</p>
           {damage.approved && <p className="mt-0.5 flex items-center gap-1 text-[8px] font-bold text-[#16a34a]"><Check size={10} />Approved{damage.approvedByName && ` by ${damage.approvedByName}`}</p>}
         </div>
-        {!damage.approved && canApprove && <button disabled={busy} onClick={() => approveDamage(damage)} title="Approve damage record" className="flex shrink-0 items-center gap-1 rounded-md bg-[#f0fdf4] px-2 py-1 text-[9px] font-bold text-[#16a34a] transition hover:bg-[#dcfce7] disabled:opacity-50"><Check size={11} />Approve</button>}
+        {!damage.approved && canApprove && <button disabled={busy} onClick={() => approveDamage(damage)} title="Approve damage record" className="flex shrink-0 items-center gap-1 rounded-md bg-[#f0fdf4] px-2 py-1 text-[9px] font-bold text-[#16a34a] transition hover:bg-[#dcfce7] disabled:opacity-50">{busyAction === `approve:${damage._id}` ? <ActionProgress>Approving…</ActionProgress> : <><Check size={11} />Approve</>}</button>}
       {!damage.approved && <button disabled={busy} onClick={() => setEditing(damage)} title={`Edit ${damage.name} damage`} className="flex shrink-0 items-center gap-1 rounded-md bg-[#fff4ec] px-2 py-1 text-[9px] font-bold text-[#ea580c] transition hover:bg-[#ffedd5] disabled:opacity-50"><Pencil size={11} />Edit</button>}
       {damage.edits?.length > 0 && <button onClick={() => setHistoryFor(damage)} title="See what changed" className="flex shrink-0 items-center gap-1 rounded-md bg-[#fef9ee] px-2 py-1 text-[9px] font-bold text-[#b45309] transition hover:bg-[#fef3c7]"><History size={11} />Edited</button>}
       <span className="shrink-0 text-[11px] font-bold text-[#dc2626]">−{money(damage.value)}</span>
-      <button disabled={busy || damage.approved} onClick={() => removeDamage(damage)} title={damage.approved ? 'Approved — cannot be changed' : 'Remove record'} className="shrink-0 rounded-md p-1 text-[#f87171] hover:bg-[#fef2f2] hover:text-[#dc2626] disabled:opacity-50"><Trash2 size={13} /></button>
+      <button disabled={busy || damage.approved} onClick={() => removeDamage(damage)} title={damage.approved ? 'Approved — cannot be changed' : 'Remove record'} aria-label={busyAction === `delete:${damage._id}` ? `Deleting ${damage.name}` : `Remove ${damage.name}`} className="shrink-0 rounded-md p-1 text-[#f87171] hover:bg-[#fef2f2] hover:text-[#dc2626] disabled:opacity-50">{busyAction === `delete:${damage._id}` ? <ActionProgress><span className="sr-only">Deleting damage record…</span></ActionProgress> : <Trash2 size={13} />}</button>
     </li>)}
   </ul>}
   {!filtered.length && <p className="mt-3 rounded-xl border border-dashed border-[#e7ebf0] px-3 py-6 text-center text-[10px] text-[#94a3b8]">{hasFilter ? 'No damage records in the selected dates — pick another range or choose All.' : 'No damage recorded yet — click “Record damage” above to record your first one.'}</p>}
@@ -997,6 +1021,7 @@ function RecordDamageModal({ onClose, onSaved }) {
 
   const submit = async event => {
     event.preventDefault()
+    if (busy) return
     const qty = quantity === '' ? 1 : Number(quantity)
     const label = pickedStock ? pickedStock.name : name
     if (!label.trim()) { setError('Give the damaged item a name, e.g. Beef plates.'); return }
@@ -1079,7 +1104,7 @@ function RecordDamageModal({ onClose, onSaved }) {
       </label>
 
       {error && <p className="text-[11px] text-[#dc2626]">{error}</p>}
-      <button disabled={busy || mode === null || (mode === 'stock' && !pickedStock)} className="w-full rounded-lg bg-[#f97316] py-2.5 text-[11px] font-semibold text-white hover:bg-[#ea580c] disabled:cursor-not-allowed disabled:opacity-60">{busy ? 'Recording…' : 'Record damage'}</button>
+      <button disabled={busy || mode === null || (mode === 'stock' && !pickedStock)} className="w-full rounded-lg bg-[#f97316] py-2.5 text-[11px] font-semibold text-white hover:bg-[#ea580c] disabled:cursor-not-allowed disabled:opacity-60">{busy ? <ActionProgress>Recording damage…</ActionProgress> : 'Record damage'}</button>
     </form>
   </Modal>
 }
@@ -1117,6 +1142,7 @@ function RecordExpenseModal({ onClose, onSaved }) {
 
   const submit = async event => {
     event.preventDefault()
+    if (busy) return
     const value = Number(amount)
     if (!Number.isFinite(value) || value <= 0) { setError('Enter the amount the hotel spent.'); return }
     if (mode === 'new' && !newName.trim()) { setError('Name the category, e.g. Cooking gas.'); return }
@@ -1168,7 +1194,7 @@ function RecordExpenseModal({ onClose, onSaved }) {
       </div>
 
       {error && <p className="text-[11px] text-[#dc2626]">{error}</p>}
-      <button disabled={busy || mode === null} className="w-full rounded-lg bg-[#f97316] py-2.5 text-[11px] font-semibold text-white hover:bg-[#ea580c] disabled:cursor-not-allowed disabled:opacity-60">{busy ? 'Recording…' : 'Record expense'}</button>
+      <button disabled={busy || mode === null} className="w-full rounded-lg bg-[#f97316] py-2.5 text-[11px] font-semibold text-white hover:bg-[#ea580c] disabled:cursor-not-allowed disabled:opacity-60">{busy ? <ActionProgress>Recording expense…</ActionProgress> : 'Record expense'}</button>
     </form>
   </Modal>
 }
@@ -1202,6 +1228,7 @@ function EditExpenseModal({ expense, onClose, onSaved }) {
 
   const submit = async event => {
     event.preventDefault()
+    if (busy) return
     const value = Number(amount)
     if (!Number.isFinite(value) || value <= 0) { setError('Enter an expense amount greater than zero.'); return }
     const body = { amount: value, note: note.trim() }
@@ -1250,7 +1277,7 @@ function EditExpenseModal({ expense, onClose, onSaved }) {
         <input value={note} onChange={event => setNote(event.target.value)} maxLength="200" placeholder="e.g. gas refill" className={inputClass} />
       </label>
       {error && <p className="text-[11px] text-[#dc2626]">{error}</p>}
-      <button disabled={busy} className="w-full rounded-lg bg-[#f97316] py-2.5 text-[11px] font-semibold text-white hover:bg-[#ea580c] disabled:opacity-60">{busy ? 'Saving…' : 'Save changes'}</button>
+      <button disabled={busy} className="w-full rounded-lg bg-[#f97316] py-2.5 text-[11px] font-semibold text-white hover:bg-[#ea580c] disabled:opacity-60">{busy ? <ActionProgress>Updating expense…</ActionProgress> : 'Save changes'}</button>
     </form>
   </Modal>
 }
@@ -1320,6 +1347,7 @@ function EditDamageModal({ damage, onClose, onSaved }) {
 
   const submit = async event => {
     event.preventDefault()
+    if (busy) return
     const qty = quantity === '' ? 1 : Number(quantity)
     if (!Number.isFinite(qty) || qty <= 0) { setError('Enter the quantity that was damaged.'); return }
     const body = { name: name.trim() || damage.name, quantity: qty, note: note.trim() }
@@ -1387,7 +1415,7 @@ function EditDamageModal({ damage, onClose, onSaved }) {
       </label>
 
       {error && <p className="text-[11px] text-[#dc2626]">{error}</p>}
-      <button disabled={busy} className="w-full rounded-lg bg-[#f97316] py-2.5 text-[11px] font-semibold text-white hover:bg-[#ea580c] disabled:opacity-60">{busy ? 'Saving…' : 'Save changes'}</button>
+      <button disabled={busy} className="w-full rounded-lg bg-[#f97316] py-2.5 text-[11px] font-semibold text-white hover:bg-[#ea580c] disabled:opacity-60">{busy ? <ActionProgress>Updating damage record…</ActionProgress> : 'Save changes'}</button>
     </form>
   </Modal>
 }

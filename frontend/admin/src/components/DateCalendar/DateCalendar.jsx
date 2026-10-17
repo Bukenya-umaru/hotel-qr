@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
 
 // Small standalone month-grid date picker for the dashboard filter.
 // One click picks a single day; two clicks pick a from→to range. No
@@ -17,6 +18,7 @@ export function DateCalendar({ from, to, onApply, onClose }) {
   // Picking model: first click sets the start (and applies a single-day
   // range immediately), second click completes the range.
   const [draftStart, setDraftStart] = useState(from)
+  const [applyingDay, setApplyingDay] = useState('')
 
   const grid = useMemo(() => {
     const first = new Date(view.year, view.month, 1)
@@ -36,15 +38,20 @@ export function DateCalendar({ from, to, onApply, onClose }) {
     return { year: next.getFullYear(), month: next.getMonth() }
   })
 
-  const pick = day => {
+  const pick = async day => {
+    if (applyingDay) return
     if (!draftStart || day <= draftStart) {
       setDraftStart(day)
-      onApply(day, day) // single-day: show that exact date's numbers
+      setApplyingDay(day)
+      try { await onApply(day, day) } finally { setApplyingDay('') }
       return
     }
-    onApply(draftStart, day)
-    setDraftStart(null)
-    onClose()
+    setApplyingDay(day)
+    try {
+      await onApply(draftStart, day)
+      setDraftStart(null)
+      onClose()
+    } finally { setApplyingDay('') }
   }
 
   const monthLabel = new Date(view.year, view.month, 1)
@@ -60,7 +67,7 @@ export function DateCalendar({ from, to, onApply, onClose }) {
     <div className="grid grid-cols-7 gap-y-0.5 border-t border-[#f1eae6] pt-2">
       {['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map(day => <span key={day} className="grid h-5 place-items-center text-[8px] font-semibold text-[#a19690]">{day}</span>)}
       {grid.map((day, index) => day
-        ? <button key={day} type="button" onClick={() => pick(day)} className={`mx-auto grid size-6 place-items-center rounded-md text-[9px] transition ${day === today ? 'bg-[#fde3da] font-bold text-[#d95c43]' : inDraft(day) ? 'bg-[#fff0ea] text-[#d95c43]' : 'text-[#655a54] hover:bg-[#fff8f5]'}`}>{Number(day.slice(-2))}</button>
+        ? <button key={day} type="button" disabled={Boolean(applyingDay)} onClick={() => pick(day)} aria-label={applyingDay === day ? `Loading ${day}` : undefined} className={`mx-auto grid size-6 place-items-center rounded-md text-[9px] transition disabled:cursor-wait disabled:opacity-60 ${day === today ? 'bg-[#fde3da] font-bold text-[#d95c43]' : inDraft(day) ? 'bg-[#fff0ea] text-[#d95c43]' : 'text-[#655a54] hover:bg-[#fff8f5]'}`}>{applyingDay === day ? <ActionProgress><span className="sr-only">Loading date…</span></ActionProgress> : Number(day.slice(-2))}</button>
         : <span key={`gap-${index}`} />)}
     </div>
     <p className="mt-2 border-t border-[#f1eae6] pt-2 text-center text-[8px] text-[#a19690]">Tap a day for that date · tap two days for a range</p>

@@ -4,6 +4,7 @@ import {
 } from 'lucide-react'
 import { api } from '../../lib/api.js'
 import { cx } from '../../lib/ui.js'
+import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
 
 const ICONS = {
   new_sale: { icon: ShoppingBag, bg: 'bg-[#fff0ea]', color: 'text-[#e7654b]' },
@@ -99,8 +100,8 @@ export function NotificationsMenu({ hotelId, live }) {
       <div className="flex items-center justify-between border-b border-[#f1eae6] px-4 py-3">
         <div><p className="text-[12px] font-bold text-[#292421]">Notifications</p><p className="mt-0.5 text-[9px] text-[#938780]">{unread ? `${unread} unread` : 'You are all caught up'}</p></div>
         <div className="flex items-center gap-1">
-          <button onClick={load} aria-label="Refresh notifications" className="grid size-7 place-items-center rounded-md text-[#8d817b] transition hover:bg-[#fbf5f2] hover:text-[#d95c43]"><RefreshCw size={13} className={loading ? 'animate-spin' : ''} /></button>
-          {unread > 0 && <button onClick={markAll} disabled={busy === 'all'} className="rounded-md px-2 py-1 text-[9px] font-semibold text-[#d95c43] transition hover:bg-[#fff7f4] disabled:opacity-50">{busy === 'all' ? 'Clearing…' : 'Mark all read'}</button>}
+          <button onClick={load} disabled={loading} aria-label={loading ? 'Refreshing notifications' : 'Refresh notifications'} title={loading ? 'Refreshing notifications…' : 'Refresh notifications'} className="grid size-7 place-items-center rounded-md text-[#8d817b] transition hover:bg-[#fbf5f2] hover:text-[#d95c43] disabled:cursor-wait disabled:opacity-50">{loading ? <ActionProgress><span className="sr-only">Refreshing notifications…</span></ActionProgress> : <RefreshCw size={13} />}</button>
+          {unread > 0 && <button onClick={markAll} disabled={busy === 'all'} className="rounded-md px-2 py-1 text-[9px] font-semibold text-[#d95c43] transition hover:bg-[#fff7f4] disabled:opacity-50">{busy === 'all' ? <ActionProgress>Marking read…</ActionProgress> : 'Mark all read'}</button>}
         </div>
       </div>
       <div className="max-h-[340px] space-y-1 overflow-y-auto p-2">
@@ -112,7 +113,7 @@ export function NotificationsMenu({ hotelId, live }) {
           return <div key={item._id} className={cx('group flex items-start gap-2.5 rounded-lg border p-2.5 transition', fresh ? 'border-[#f6c9ba] bg-[#fff8f5]' : 'border-transparent hover:bg-[#fbf8f6]')}>
             <span className={cx('mt-0.5 grid size-7 shrink-0 place-items-center rounded-full', meta.bg, meta.color)}><Icon size={14} /></span>
             <div className="min-w-0 flex-1"><p className="text-[11px] font-semibold leading-4 text-[#292421]">{item.title}</p>{item.body && <p className="mt-0.5 truncate text-[9px] text-[#8d817b]">{item.body}</p>}<p className="mt-1 text-[8px] text-[#a19690]">{ageOf(item.createdAt)}</p></div>
-            <button onClick={() => markOne(item._id)} disabled={busy === String(item._id)} aria-label="Dismiss notification" className={cx('grid size-5 shrink-0 place-items-center rounded-full text-[#c9bcb5] transition hover:bg-[#fdece5] hover:text-[#d95c43]', busy === String(item._id) && 'opacity-40')}><X size={11} /></button>
+            <button onClick={() => markOne(item._id)} disabled={busy === String(item._id)} aria-label={busy === String(item._id) ? 'Marking notification as read' : 'Dismiss notification'} className={cx('grid size-5 shrink-0 place-items-center rounded-full text-[#c9bcb5] transition hover:bg-[#fdece5] hover:text-[#d95c43]', busy === String(item._id) && 'opacity-40')}>{busy === String(item._id) ? <ActionProgress><span className="sr-only">Marking notification as read…</span></ActionProgress> : <X size={11} />}</button>
           </div>
         })}
       </div>

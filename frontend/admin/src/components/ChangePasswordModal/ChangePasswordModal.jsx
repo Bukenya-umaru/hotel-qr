@@ -4,6 +4,7 @@ import { isStrongPassword, PASSWORD_RULE } from '../../lib/ui.js'
 import { Modal } from '../Modal/Modal.jsx'
 import { TextField } from '../TextField/TextField.jsx'
 import { PasswordStrengthMeter } from '../PasswordStrengthMeter/PasswordStrengthMeter.jsx'
+import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
 
 // Lets any signed-in user (owner, chef, or developer) change their own
 // password. The current password must be confirmed first.
@@ -32,6 +33,7 @@ export function ChangePasswordModal({ onClose, onSubmit }) {
   return <Modal title="Change your password" onClose={onClose}>
     <form className="space-y-3.5" onSubmit={async event => {
       event.preventDefault()
+      if (saving) return
       if (!isStrongPassword(form.next)) { setError(`New password: ${PASSWORD_RULE}.`); return }
       if (form.next !== form.confirm) { setError('The new passwords do not match.'); return }
       setSaving(true)
@@ -47,7 +49,7 @@ export function ChangePasswordModal({ onClose, onSubmit }) {
       {passwordField('Confirm new password', 'confirm', 'Repeat the new password')}
       {error && <p className="text-[11px] text-[#dc2626]">{error}</p>}
       <button disabled={saving} className="w-full rounded-lg bg-[#f97316] py-2.5 text-[11px] font-semibold text-white disabled:opacity-60">
-        {saving ? 'Updating…' : 'Update password'}
+        {saving ? <ActionProgress>Updating password…</ActionProgress> : 'Update password'}
       </button>
     </form>
   </Modal>

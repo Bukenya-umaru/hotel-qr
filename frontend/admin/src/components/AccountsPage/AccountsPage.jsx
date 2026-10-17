@@ -1,16 +1,29 @@
 import { Plus } from 'lucide-react'
 import { Badge } from '../Badge/Badge.jsx'
 import { PERMISSIONS } from '../../lib/ui.js'
+import { useState } from 'react'
+import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
 
 const SHORT_LABELS = { view_sales: 'Sales', manage_menu: 'Food items', manage_stock: 'Stock', manage_expenses: 'Expenses', manage_sales: 'Record sales' }
 const ALL_KEYS = PERMISSIONS.map(permission => permission.key)
 
-export function AccountsPage({ users, role, passwordViewable, onCreate, onToggle, onReset, onEdit, onView }) {
+export function AccountsPage({ users, role, passwordViewable, passwordLoadingId = '', onCreate, onToggle, onReset, onEdit, onView }) {
+  const [togglingId, setTogglingId] = useState('')
+  const [togglingVerb, setTogglingVerb] = useState('')
   const isOwner = role === 'OWNER'
   const canCreate = isOwner || role === 'DEVELOPER'
   const accountLabel = user => user.role === 'OWNER' ? 'Business owner' : 'Chef'
   const permissionKeys = user => (user.permissions === undefined ? ALL_KEYS : user.permissions).filter(key => key !== 'manage_tables')
   const permissionSummary = user => permissionKeys(user).map(key => SHORT_LABELS[key] || key).join(' · ') || 'No permissions'
+  const toggleAccount = async user => {
+    if (togglingId) return
+    setTogglingId(String(user._id))
+    setTogglingVerb(toggleLabel(user))
+    try { await onToggle(user) } finally { setTogglingId(''); setTogglingVerb('') }
+  }
+  const toggleLabel = user => user.isActive === false ? 'Reactivate' : 'Deactivate'
+  const toggleProgress = user => (togglingId === String(user._id) ? togglingVerb : toggleLabel(user)) === 'Deactivate' ? 'Deactivating…' : 'Reactivating…'
+  const viewPasswordButton = user => <button onClick={() => onView(user)} disabled={!user.hasViewablePassword || passwordLoadingId === String(user._id)} title={user.hasViewablePassword ? undefined : 'Reset the password once to make it viewable'} aria-label={passwordLoadingId === String(user._id) ? `Loading ${user.name}'s password` : `View ${user.name}'s password`} className="text-[10px] font-semibold text-[#ea580c] disabled:text-[#e2e8f0] disabled:opacity-60">{passwordLoadingId === String(user._id) ? <ActionProgress>Loading password…</ActionProgress> : user.hasViewablePassword ? 'View password' : 'View password*'}</button>
 
   return <div className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -24,9 +37,9 @@ export function AccountsPage({ users, role, passwordViewable, onCreate, onToggle
         <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-[#f1f5f9] pt-3">
           {isOwner ? <>
             {user.role === 'KITCHEN' && <button onClick={() => onEdit(user)} className="text-[10px] font-semibold text-[#ea580c]">Permissions</button>}
-            {user.role === 'KITCHEN' && passwordViewable && <button onClick={() => onView(user)} disabled={!user.hasViewablePassword} title={user.hasViewablePassword ? undefined : 'Reset the password once to make it viewable'} className="text-[10px] font-semibold text-[#ea580c] disabled:text-[#e2e8f0] disabled:opacity-60">{user.hasViewablePassword ? 'View password' : 'View password*'}</button>}
-            <button onClick={() => onToggle(user)} className="text-[10px] font-semibold text-[#ea580c]">{user.isActive === false ? 'Reactivate' : 'Deactivate'}</button>
-          </> : <><button onClick={() => onEdit(user)} className="text-[10px] font-semibold text-[#ea580c]">Edit account</button>{passwordViewable && <button onClick={() => onView(user)} disabled={!user.hasViewablePassword} title={user.hasViewablePassword ? undefined : 'Reset the password once to make it viewable'} className="text-[10px] font-semibold text-[#ea580c] disabled:text-[#e2e8f0] disabled:opacity-60">{user.hasViewablePassword ? 'View password' : 'View password*'}</button>}<button onClick={() => onReset(user)} className="text-[10px] font-semibold text-[#ea580c]">Reset password</button><button onClick={() => onToggle(user)} className="text-[10px] font-semibold text-[#ea580c]">{user.isActive === false ? 'Reactivate' : 'Deactivate'}</button></>}
+            {user.role === 'KITCHEN' && passwordViewable && viewPasswordButton(user)}
+            <button disabled={Boolean(togglingId)} onClick={() => toggleAccount(user)} aria-label={togglingId === String(user._id) ? `${toggleProgress(user).replace('…', '')} ${user.name}` : `${toggleLabel(user)} ${user.name}`} className="text-[10px] font-semibold text-[#ea580c] disabled:cursor-wait disabled:opacity-50">{togglingId === String(user._id) ? <ActionProgress>{toggleProgress(user)}</ActionProgress> : toggleLabel(user)}</button>
+          </> : <><button onClick={() => onEdit(user)} className="text-[10px] font-semibold text-[#ea580c]">Edit account</button>{passwordViewable && viewPasswordButton(user)}<button onClick={() => onReset(user)} className="text-[10px] font-semibold text-[#ea580c]">Reset password</button><button disabled={Boolean(togglingId)} onClick={() => toggleAccount(user)} aria-label={togglingId === String(user._id) ? `${toggleProgress(user).replace('…', '')} ${user.name}` : `${toggleLabel(user)} ${user.name}`} className="text-[10px] font-semibold text-[#ea580c] disabled:cursor-wait disabled:opacity-50">{togglingId === String(user._id) ? <ActionProgress>{toggleProgress(user)}</ActionProgress> : toggleLabel(user)}</button></>}
         </div>
       </article>)}</div>
       <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[620px] text-left"><thead><tr className="border-b border-[#f1f5f9] text-[9px] font-semibold uppercase tracking-[.8px] text-[#94a3b8]"><th className="px-5 py-3">Account</th><th className="px-4 py-3">Role</th><th className="px-4 py-3">Permissions</th><th className="px-4 py-3">Status</th><th className="px-5 py-3 text-right">Actions</th></tr></thead><tbody>{users.map(user => <tr key={user._id || user.email} className="border-b border-[#f1f4f9] last:border-0">
@@ -36,9 +49,9 @@ export function AccountsPage({ users, role, passwordViewable, onCreate, onToggle
         <td className="px-4 py-3.5"><Badge tone={user.isActive === false ? 'gray' : 'green'}>{user.isActive === false ? 'Inactive' : 'Active'}</Badge></td>
         <td className="space-x-3 px-5 py-3.5 text-right">{isOwner ? <>
           {user.role === 'KITCHEN' && <button onClick={() => onEdit(user)} className="text-[10px] font-semibold text-[#ea580c]">Permissions</button>}
-          {user.role === 'KITCHEN' && passwordViewable && <button onClick={() => onView(user)} disabled={!user.hasViewablePassword} title={user.hasViewablePassword ? undefined : 'Reset the password once to make it viewable'} className="text-[10px] font-semibold text-[#ea580c] disabled:text-[#e2e8f0] disabled:opacity-60">{user.hasViewablePassword ? 'View password' : 'View password*'}</button>}
-          <button onClick={() => onToggle(user)} className="text-[10px] font-semibold text-[#ea580c]">{user.isActive === false ? 'Reactivate' : 'Deactivate'}</button>
-        </> : <><button onClick={() => onEdit(user)} className="text-[10px] font-semibold text-[#ea580c]">Edit</button>{passwordViewable && <button onClick={() => onView(user)} disabled={!user.hasViewablePassword} title={user.hasViewablePassword ? undefined : 'Reset the password once to make it viewable'} className="text-[10px] font-semibold text-[#ea580c] disabled:text-[#e2e8f0] disabled:opacity-60">{user.hasViewablePassword ? 'View password' : 'View password*'}</button>}<button onClick={() => onReset(user)} className="text-[10px] font-semibold text-[#ea580c]">Reset password</button><button onClick={() => onToggle(user)} className="text-[10px] font-semibold text-[#ea580c]">{user.isActive === false ? 'Reactivate' : 'Deactivate'}</button></>}</td>
+          {user.role === 'KITCHEN' && passwordViewable && viewPasswordButton(user)}
+          <button disabled={Boolean(togglingId)} onClick={() => toggleAccount(user)} aria-label={togglingId === String(user._id) ? `${toggleProgress(user).replace('…', '')} ${user.name}` : `${toggleLabel(user)} ${user.name}`} className="text-[10px] font-semibold text-[#ea580c] disabled:cursor-wait disabled:opacity-50">{togglingId === String(user._id) ? <ActionProgress>{toggleProgress(user)}</ActionProgress> : toggleLabel(user)}</button>
+        </> : <><button onClick={() => onEdit(user)} className="text-[10px] font-semibold text-[#ea580c]">Edit</button>{passwordViewable && viewPasswordButton(user)}<button onClick={() => onReset(user)} className="text-[10px] font-semibold text-[#ea580c]">Reset password</button><button disabled={Boolean(togglingId)} onClick={() => toggleAccount(user)} aria-label={togglingId === String(user._id) ? `${toggleProgress(user).replace('…', '')} ${user.name}` : `${toggleLabel(user)} ${user.name}`} className="text-[10px] font-semibold text-[#ea580c] disabled:cursor-wait disabled:opacity-50">{togglingId === String(user._id) ? <ActionProgress>{toggleProgress(user)}</ActionProgress> : toggleLabel(user)}</button></>}</td>
       </tr>)}</tbody></table></div>
       {!users.length && <p className="px-5 py-10 text-center text-[11px] text-[#94a3b8]">{isOwner ? 'No chef accounts yet. Create one to manage food items, sales, expenses, and stock.' : 'No accounts are available to support yet.'}</p>}
       {users.length > 0 && passwordViewable && <p className="px-5 py-3 text-[10px] text-[#94a3b8]">* Reset the password once for an account to make its current password viewable.</p>}

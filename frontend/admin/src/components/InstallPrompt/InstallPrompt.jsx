@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Download, X } from 'lucide-react'
+import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
 
 // Browsers fire beforeinstallprompt once they judge the app installable; we
 // hold the event so a custom popup — shown as the site opens — can trigger
@@ -15,6 +16,7 @@ const alreadyInstalled = () => window.matchMedia('(display-mode: standalone)').m
 export function InstallPrompt() {
   const [event, setEvent] = useState(null)
   const [visible, setVisible] = useState(false)
+  const [installing, setInstalling] = useState(false)
 
   useEffect(() => {
     const available = !alreadyInstalled() && localStorage.getItem(DISMISS_KEY) !== '1'
@@ -35,9 +37,14 @@ export function InstallPrompt() {
   if (!visible || !event) return null
 
   const install = async () => {
-    setVisible(false)
+    if (installing) return
+    setInstalling(true)
     try { await event.prompt(); await event.userChoice } catch { /* the dialog was closed — the popup simply stays away */ }
-    setEvent(null)
+    finally {
+      setEvent(null)
+      setVisible(false)
+      setInstalling(false)
+    }
   }
   const dismiss = () => {
     try { localStorage.setItem(DISMISS_KEY, '1') } catch { /* private mode may block storage — still hide the popup */ }
@@ -50,10 +57,10 @@ export function InstallPrompt() {
       <p className="text-[12px] font-bold text-[#292421]">Install WAGA BITES</p>
       <p className="mt-1 text-[11px] leading-5 text-[#786d67]">Add the dashboard to your home screen — it opens instantly, full screen, like the app it is.</p>
       <div className="mt-3 flex items-center gap-2">
-        <button onClick={install} className="rounded-full bg-[#a93216] px-4 py-2 text-[11px] font-semibold text-white transition hover:bg-[#922b13]">Install</button>
-        <button onClick={dismiss} className="rounded-full px-3 py-2 text-[11px] font-medium text-[#8d817b] transition hover:text-[#292421]">Not now</button>
+        <button disabled={installing} onClick={install} className="rounded-full bg-[#a93216] px-4 py-2 text-[11px] font-semibold text-white transition hover:bg-[#922b13] disabled:cursor-wait disabled:opacity-60">{installing ? <ActionProgress>Opening install prompt…</ActionProgress> : 'Install'}</button>
+        <button disabled={installing} onClick={dismiss} className="rounded-full px-3 py-2 text-[11px] font-medium text-[#8d817b] transition hover:text-[#292421] disabled:opacity-50">Not now</button>
       </div>
     </div>
-    <button onClick={dismiss} aria-label="Dismiss install prompt" className="shrink-0 rounded-full p-1 text-[#c9bcb5] transition hover:text-[#a93216]"><X size={14} /></button>
+    <button disabled={installing} onClick={dismiss} aria-label="Dismiss install prompt" className="shrink-0 rounded-full p-1 text-[#c9bcb5] transition hover:text-[#a93216] disabled:opacity-50"><X size={14} /></button>
   </div>
 }

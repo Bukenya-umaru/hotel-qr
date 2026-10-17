@@ -22,6 +22,7 @@ import { CategoriesPage } from '../CategoriesPage/CategoriesPage.jsx'
 import { PurchasePage } from '../PurchasePage/PurchasePage.jsx'
 import { SupportPage } from '../SupportPage/SupportPage.jsx'
 import { SecurityPage } from '../SecurityPage/SecurityPage.jsx'
+import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
 
 const dateKey = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 
@@ -53,7 +54,9 @@ export default function App() {
   const [editingUser, setEditingUser] = useState(null)
   const [resettingUser, setResettingUser] = useState(null)
   const [viewingUser, setViewingUser] = useState(null)
+  const [passwordLoadingId, setPasswordLoadingId] = useState('')
   const [toast, setToast] = useState('')
+  const [loggingOut, setLoggingOut] = useState(false)
   const [apiError, setApiError] = useState('')
   const [mobileNav, setMobileNav] = useState(false)
   const [theme, setTheme] = useState(readTheme)
@@ -205,11 +208,15 @@ export default function App() {
     setToast(`Welcome back, ${data.user.name.split(' ')[0]}`)
   }
   const logout = async () => {
+    if (loggingOut) return
+    setLoggingOut(true)
     try {
       await api('/api/auth/logout', { method: 'POST' })
       setUser(null)
     } catch (err) {
       setToast(err.message)
+    } finally {
+      setLoggingOut(false)
     }
   }
   const changeOwnPassword = async ({ currentPassword, newPassword }) => {
@@ -265,7 +272,7 @@ export default function App() {
         const data = await api(`/api/owner/staff/${editingUser._id}`, { method: 'PATCH', body: JSON.stringify(details) })
         setUsers(previous => previous.map(entry => entry._id === editingUser._id ? { ...entry, ...data.user } : entry))
         setToast('Chef account updated')
-      } catch (err) { setToast(err.message); return }
+      } catch (err) { setToast(err.message); throw err }
     } else {
       if (user.role !== 'DEVELOPER') throw new Error('Log in as a developer to manage accounts.')
       try {
@@ -276,7 +283,7 @@ export default function App() {
             : entry,
         ))
         setToast('Account updated')
-      } catch (err) { setToast(err.message); return }
+      } catch (err) { setToast(err.message); throw err }
     }
     setEditingUser(null)
     setModal('')
@@ -291,7 +298,7 @@ export default function App() {
   }
 
   if (sessionLoading) return <main className="flex min-h-screen items-center justify-center bg-[#eeeeed] px-4"><p role="status" className="text-[13px] text-[#85817e]">Checking your session…</p></main>
-  if (sessionError) return <main className="flex min-h-screen items-center justify-center bg-[#eeeeed] px-4"><section className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-sm"><p role="alert" className="text-[13px] text-[#77726e]">Unable to check your saved session: {sessionError}</p><button onClick={() => setSessionCheckAttempt(attempt => attempt + 1)} className="mt-5 rounded-full bg-[#a93216] px-5 py-2.5 text-[13px] font-medium text-white">Try again</button></section></main>
+  if (sessionError) return <main className="flex min-h-screen items-center justify-center bg-[#eeeeed] px-4"><section className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-sm"><p role="alert" className="text-[13px] text-[#77726e]">Unable to check your saved session: {sessionError}</p><button disabled={sessionLoading} onClick={() => { setSessionError(''); setSessionLoading(true); setSessionCheckAttempt(attempt => attempt + 1) }} className="mt-5 rounded-full bg-[#a93216] px-5 py-2.5 text-[13px] font-medium text-white disabled:cursor-wait disabled:opacity-60">{sessionLoading ? <ActionProgress>Checking session…</ActionProgress> : 'Try again'}</button></section></main>
   if (!user) return <LoginPage onLogin={login} />
 
   let content
@@ -305,20 +312,20 @@ export default function App() {
   else if (page === 'Help & support' && role === 'DEVELOPER') content = <SupportPage />
   else if (page === 'Security' && role === 'DEVELOPER') content = <SecurityPage />
   else if (page === 'Reports') content = <Reports analytics={analytics} currency="UGX" onRange={loadReportRange} hotelName={hotelName} reportRange={reportRange} />
-  else if (page === 'Accounts' || page === 'Chefs') content = <AccountsPage users={users} role={role} passwordViewable={platformOverview.passwordViewable} onCreate={() => setModal('account')} onToggle={toggleUser} onReset={account => { setResettingUser(account); setModal('reset') }} onEdit={account => { setEditingUser(account); setModal('edit-account') }} onView={account => { setViewingUser(account); setModal('view-password') }} />
+  else if (page === 'Accounts' || page === 'Chefs') content = <AccountsPage users={users} role={role} passwordViewable={platformOverview.passwordViewable} passwordLoadingId={passwordLoadingId} onCreate={() => setModal('account')} onToggle={toggleUser} onReset={account => { setResettingUser(account); setModal('reset') }} onEdit={account => { setEditingUser(account); setModal('edit-account') }} onView={account => { setViewingUser(account); setPasswordLoadingId(String(account._id)); setModal('view-password') }} />
   else if (role === 'DEVELOPER') content = <DeveloperDashboard users={users} onNavigate={setPage} overview={platformOverview} />
   else content = <Overview hotelName={hotelName} onNavigate={setPage} analytics={analytics} currency="UGX" onRange={loadReportRange} reportRange={reportRange} />
 
   return <div className="min-h-screen bg-[#fbf8f6]">
-    <Sidebar role={role} page={page} setPage={setPage} user={user} onLogin={() => setModal('login')} onLogout={logout} onChangePassword={() => setModal('change-password')} hotelName={hotelName} items={currentNav} />
+    <Sidebar role={role} page={page} setPage={setPage} user={user} onLogin={() => setModal('login')} onLogout={logout} loggingOut={loggingOut} onChangePassword={() => setModal('change-password')} hotelName={hotelName} items={currentNav} />
     {mobileNav && <div className="fixed inset-0 z-30 bg-[#0f172a]/30 lg:hidden" onMouseDown={e => { if (e.target === e.currentTarget) setMobileNav(false) }}><div className="flex h-full max-h-[100dvh] w-[min(270px,85vw)] flex-col overflow-y-auto bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" onClick={e => e.stopPropagation()}><div className="flex items-center justify-between px-2 py-2"><Brand /><button onClick={() => setMobileNav(false)} aria-label="Close navigation" className="grid size-9 place-items-center rounded-lg hover:bg-[#f8fafc]"><X size={18} /></button></div><div className="mt-5 rounded-xl border border-[#e7ebf0] p-3"><p className="truncate text-[11px] font-semibold">{hotelName}</p><p className="mt-1 text-[10px] text-[#94a3b8]">{user?.name || 'WAGA BITES'}</p></div><p className="mb-2 mt-6 px-2 text-[10px] font-bold uppercase tracking-[1.3px] text-[#94a3b8]">{role === 'DEVELOPER' ? 'Developer support' : role === 'KITCHEN' ? 'Chef portal' : 'Owner portal'}</p><nav className="space-y-1">{currentNav.map(item => item.children
               ? <div key={item.label}><button onClick={() => toggleMobileGroup(item.label)} className={cx('flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-[12px] font-semibold transition', item.children.some(child => (child.target || child.label) === page) ? 'bg-[#fff4ec] text-[#ea580c]' : 'text-[#64748b] hover:bg-[#f8fafc] hover:text-[#1e293b]')}><item.icon size={17} /><span className="flex-1">{item.label}</span><ChevronDown size={14} className={cx('shrink-0 text-[#94a3b8] transition-transform', openMobileGroups.has(item.label) ? '' : '-rotate-90')} /></button>{openMobileGroups.has(item.label) && <div className="ml-[26px] border-l border-[#e7ebf0] pl-3">{item.children.map(child => <button key={child.label} onClick={() => { setPage(child.target || child.label); setMobileNav(false) }} className={cx('flex w-full items-center rounded-lg px-3 py-2.5 text-left text-[12px]', page === (child.target || child.label) ? 'bg-[#fff4ec] text-[#ea580c]' : 'text-[#64748b]')}>{child.label}</button>)}</div>}</div>
-              : <button key={item.label} onClick={() => { setPage(item.label); setMobileNav(false) }} className={cx('flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-[12px]', page === item.label ? 'bg-[#fff4ec] text-[#ea580c]' : 'text-[#64748b]')}><item.icon size={17} />{item.label === 'Overview' ? 'Dashboard' : item.label}</button>)}</nav><div className="mt-auto space-y-1 pt-5">{user ? <button onClick={() => { setMobileNav(false); logout() }} className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-[12px] text-[#64748b] hover:bg-[#f8fafc]"><LogOut size={16} />Sign out</button> : <button onClick={() => { setMobileNav(false); setModal('login') }} className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-[12px] text-[#64748b] hover:bg-[#f8fafc]"><ShieldCheck size={16} />Sign in</button>}</div></div></div>}
+              : <button key={item.label} onClick={() => { setPage(item.label); setMobileNav(false) }} className={cx('flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-[12px]', page === item.label ? 'bg-[#fff4ec] text-[#ea580c]' : 'text-[#64748b]')}><item.icon size={17} />{item.label === 'Overview' ? 'Dashboard' : item.label}</button>)}</nav><div className="mt-auto space-y-1 pt-5">{user ? <button disabled={loggingOut} onClick={async () => { await logout(); setMobileNav(false) }} className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-[12px] text-[#64748b] hover:bg-[#f8fafc] disabled:cursor-wait disabled:opacity-60">{loggingOut ? <ActionProgress>Signing out…</ActionProgress> : <><LogOut size={16} />Sign out</>}</button> : <button onClick={() => { setMobileNav(false); setModal('login') }} className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-[12px] text-[#64748b] hover:bg-[#f8fafc]"><ShieldCheck size={16} />Sign in</button>}</div></div></div>}
     <div className="min-h-screen min-w-0 lg:pl-[210px]"><div className="flex items-center border-b border-[#eee4df] bg-white px-3 sm:px-4 lg:hidden"><button onClick={() => setMobileNav(true)} className="mr-2 grid size-10 shrink-0 place-items-center text-[#786d67]" aria-label="Open navigation"><Menu size={19} /></button><Brand /></div>    <Header role={role} page={page} onLogin={() => setModal('login')} user={user} hotelName={hotelName} titleOverride={page === 'Purchase expenses' ? 'Expenses' : page === 'Purchase damages' ? 'Damage' : undefined} onNavigate={setPage} live={live} theme={theme} onToggleTheme={flipTheme} />
     <main className="mx-auto min-w-0 max-w-[1200px] px-3 py-3 sm:px-5 sm:py-4 lg:px-6 lg:py-5">{apiError && user && <div className="mb-4 flex items-center justify-between rounded-lg bg-[#fff7e8] px-3 py-2.5 text-[10px] text-[#a85f18]"><span className="min-w-0 break-words">{apiError}</span><button onClick={() => setApiError('')} className="ml-2 shrink-0"><X size={14} /></button></div>}{content}</main></div>
     {modal === 'account' && ['OWNER', 'DEVELOPER'].includes(role) && <AccountModal viewerRole={role} businessConfigured={Boolean(platformOverview.business)} onClose={() => setModal('')} onSubmit={createAccount} />}
     {modal === 'reset' && resettingUser && <ResetPasswordModal account={resettingUser} onClose={() => { setModal(''); setResettingUser(null) }} onSubmit={resetUserPassword} />}
-    {modal === 'view-password' && viewingUser && <ViewPasswordModal account={viewingUser} endpoint={role === 'DEVELOPER' ? `/api/developer/users/${viewingUser._id}/password` : `/api/owner/staff/${viewingUser._id}/password`} onClose={() => { setModal(''); setViewingUser(null) }} />}
+    {modal === 'view-password' && viewingUser && <ViewPasswordModal account={viewingUser} endpoint={role === 'DEVELOPER' ? `/api/developer/users/${viewingUser._id}/password` : `/api/owner/staff/${viewingUser._id}/password`} onLoaded={() => setPasswordLoadingId('')} onClose={() => { setModal(''); setViewingUser(null); setPasswordLoadingId('') }} />}
     {modal === 'edit-account' && editingUser && <AccountEditModal account={editingUser} viewerRole={role} onClose={() => { setModal(''); setEditingUser(null) }} onSubmit={updateAccount} />}
     {modal === 'change-password' && <ChangePasswordModal onClose={() => setModal('')} onSubmit={changeOwnPassword} />}
     {toast && <div className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] left-3 right-3 z-[60] flex items-center justify-center gap-2 rounded-xl bg-[#0f172a] px-4 py-3 text-center text-[11px] font-medium text-white shadow-lg sm:bottom-5 sm:left-auto sm:right-5"><Check className="shrink-0 text-[#fdba74]" size={15} />{toast}</div>}

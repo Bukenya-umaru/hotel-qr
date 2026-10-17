@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Eye, EyeOff, Headset, MessageCircle, Phone, ShieldCheck } from 'lucide-react'
 import { Brand } from '../Brand/Brand.jsx'
 import { api } from '../../lib/api.js'
+import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
 
 export function LoginPage({ onLogin }) {
   const [email, setEmail] = useState('')
@@ -22,6 +23,7 @@ export function LoginPage({ onLogin }) {
 
   const submit = async event => {
     event.preventDefault()
+    if (loading) return
     setLoading(true)
     setError('')
     try {
@@ -94,7 +96,7 @@ export function LoginPage({ onLogin }) {
           disabled={loading}
           className="mt-6 h-11 w-full rounded-full bg-[#a93216] text-[14px] font-medium text-white transition hover:bg-[#922b13] disabled:cursor-wait disabled:opacity-60"
         >
-          {loading ? 'Signing in…' : 'Log In'}
+          {loading ? <ActionProgress>Signing in…</ActionProgress> : 'Log In'}
         </button>
 
         {support && <div className="mt-4 rounded-[14px] bg-[#fdf6f3] px-4 py-3.5">

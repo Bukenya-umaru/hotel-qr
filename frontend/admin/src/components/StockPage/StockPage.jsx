@@ -4,6 +4,7 @@ import { Boxes, Check, ImagePlus, Pencil, Plus, Trash2, Wallet } from 'lucide-re
 import { API_BASE_URL, api, apiAssetUrl } from '../../lib/api.js'
 import { hasPermission, money, cx } from '../../lib/ui.js'
 import { Modal } from '../Modal/Modal.jsx'
+import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
 
 // Stock is not always counted in plates — gas cylinders, charcoal and boxes
 // are counted as items, milk is served by the cup, and anything else can be
@@ -34,6 +35,7 @@ export function StockPage({ user, canManage = true }) {
   const [showForm, setShowForm] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [busyAction, setBusyAction] = useState('')
   const [adjusting, setAdjusting] = useState(null) // { item, mode: 'add' | 'reduce' }
   const [adjustAmount, setAdjustAmount] = useState('')
   const [editing, setEditing] = useState(null) // stock entry being edited; null = creating a new one
@@ -98,7 +100,9 @@ export function StockPage({ user, canManage = true }) {
 
   const submitStock = async event => {
     event.preventDefault()
+    if (busy) return
     setBusy(true)
+    setBusyAction('save')
     try {
       const data = new FormData()
       data.append('name', form.name)
@@ -119,10 +123,12 @@ export function StockPage({ user, canManage = true }) {
       setError(err.message)
     } finally {
       setBusy(false)
+      setBusyAction('')
     }
   }
 
   const adjustStock = async () => {
+    if (busy) return
     const amount = Number(adjustAmount)
     const unit = unitInfo(adjusting?.item?.unit, adjusting?.item?.customUnit)
     const whole = unit.value === 'kg' ? Math.abs(amount * 100 - Math.round(amount * 100)) < 0.001 : Number.isInteger(amount)
@@ -136,6 +142,7 @@ export function StockPage({ user, canManage = true }) {
     }
     const delta = adjusting.mode === 'add' ? amount : -amount
     setBusy(true)
+    setBusyAction('adjust')
     try {
       await api(`/api/stock/${adjusting.item._id}/adjust`, { method: 'PATCH', body: JSON.stringify({ delta }) })
       setAdjusting(null)
@@ -145,12 +152,15 @@ export function StockPage({ user, canManage = true }) {
       setError(err.message)
     } finally {
       setBusy(false)
+      setBusyAction('')
     }
   }
 
   const removeStock = async stock => {
+    if (busy) return
     if (!window.confirm(`Remove "${stock.name}" from stock tracking?`)) return
     setBusy(true)
+    setBusyAction(`delete:${stock._id}`)
     try {
       await api(`/api/stock/${stock._id}`, { method: 'DELETE' })
       await loadStock()
@@ -158,13 +168,16 @@ export function StockPage({ user, canManage = true }) {
       setError(err.message)
     } finally {
       setBusy(false)
+      setBusyAction('')
     }
   }
 
   // Signs the stock's current count off. Approved entries lock: no more
   // edits or removals, and newly added stock goes back to pending.
   const approveStock = async stock => {
+    if (busy) return
     setBusy(true)
+    setBusyAction(`approve:${stock._id}`)
     try {
       await api(`/api/stock/${stock._id}/approve`, { method: 'POST' })
       setError('')
@@ -173,6 +186,7 @@ export function StockPage({ user, canManage = true }) {
       setError(err.message)
     } finally {
       setBusy(false)
+      setBusyAction('')
     }
   }
 
@@ -236,17 +250,17 @@ export function StockPage({ user, canManage = true }) {
           <p className="mt-0.5 hidden text-[9px] leading-3 text-[#94a3b8] sm:mt-0.5 sm:block">{money(item.price || 0)} per {unit.singular}</p>
         </div>
         {canManage && <div className="flex w-full items-center justify-center gap-1 sm:gap-1.5">
-          {canApprove && !item.approved && <button disabled={busy} onClick={() => approveStock(item)} aria-label={`Approve ${item.name}`} title="Approve this stock" className="grid size-6 place-items-center rounded-md bg-[#f0fdf4] text-[#16a34a] disabled:opacity-50 sm:size-9 sm:rounded-lg"><Check size={12} className="sm:size-4" /></button>}
+          {canApprove && !item.approved && <button disabled={busy} onClick={() => approveStock(item)} aria-label={busyAction === `approve:${item._id}` ? `Approving ${item.name}` : `Approve ${item.name}`} title="Approve this stock" className="grid size-6 place-items-center rounded-md bg-[#f0fdf4] text-[#16a34a] disabled:opacity-50 sm:size-9 sm:rounded-lg">{busyAction === `approve:${item._id}` ? <ActionProgress><span className="sr-only">Approving stock…</span></ActionProgress> : <Check size={12} className="sm:size-4" />}</button>}
           <button disabled={busy} onClick={() => { setAdjusting({ item, mode: 'add' }); setAdjustAmount('') }} aria-label={`Add ${unit.plural} to ${item.name}`} title={`Add ${unit.plural}`} className="grid size-6 place-items-center rounded-md bg-[#fff4ec] text-[#ea580c] disabled:opacity-60 sm:size-9 sm:rounded-lg"><Plus size={12} className="sm:size-[18px]" /></button>
           <button disabled={busy || item.plates === 0} onClick={() => { setAdjusting({ item, mode: 'reduce' }); setAdjustAmount('') }} aria-label={`Reduce ${unit.plural} from ${item.name}`} title={`Reduce ${unit.plural}`} className="grid size-6 place-items-center rounded-md border border-[#e7ebf0] text-[12px] leading-none text-[#64748b] disabled:opacity-60 sm:size-9 sm:rounded-lg sm:text-[17px]">−</button>
-          <button disabled={busy || item.approved} onClick={() => removeStock(item)} aria-label={`Remove ${item.name}`} title={item.approved ? 'Approved — cannot be changed' : `Remove ${item.name}`} className="grid size-6 place-items-center rounded-md border border-[#e7ebf0] text-[#dc2626] disabled:opacity-50 sm:size-9 sm:rounded-lg"><Trash2 size={11} className="sm:size-4" /></button>
+          <button disabled={busy || item.approved} onClick={() => removeStock(item)} aria-label={busyAction === `delete:${item._id}` ? `Deleting ${item.name}` : `Remove ${item.name}`} title={item.approved ? 'Approved — cannot be changed' : `Remove ${item.name}`} className="grid size-6 place-items-center rounded-md border border-[#e7ebf0] text-[#dc2626] disabled:opacity-50 sm:size-9 sm:rounded-lg">{busyAction === `delete:${item._id}` ? <ActionProgress><span className="sr-only">Deleting stock…</span></ActionProgress> : <Trash2 size={11} className="sm:size-4" />}</button>
         </div>}
       </article> })}</div>}
     {adjusting && <Modal title={adjusting.mode === 'add' ? `Add ${adjusting.item.name}` : `Reduce ${adjusting.item.name}`} onClose={() => setAdjusting(null)}>
       {(() => { const unit = unitInfo(adjusting.item.unit, adjusting.item.customUnit); return <form className="space-y-3.5" onSubmit={event => { event.preventDefault(); adjustStock() }}>
         <p className="text-[11px] leading-5 text-[#94a3b8]">{adjusting.mode === 'add' ? `${unit.label} you have just prepared and added.` : `${unit.label} removed from stock — staff meals, waste, or spoilage.`} Current count: <b>{adjusting.item.plates} {unit.plural}</b>, worth <b>{money(stockValue(adjusting.item))}</b> at {money(adjusting.item.price || 0)} per {unit.singular}.</p>
         <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#64748b]">{unit.label}</span><input autoFocus required type="number" min={unit.step} step={unit.step} value={adjustAmount} onChange={event => setAdjustAmount(event.target.value)} className="w-full rounded-lg border border-[#e7ebf0] bg-white px-3 py-2.5 text-[12px]" /></label>
-        <button disabled={busy} className="w-full rounded-lg bg-[#f97316] py-2.5 text-[11px] font-semibold text-white disabled:opacity-60">{adjusting.mode === 'add' ? `Add ${unit.plural}` : `Reduce ${unit.plural}`}</button>
+        <button disabled={busy} className="w-full rounded-lg bg-[#f97316] py-2.5 text-[11px] font-semibold text-white disabled:opacity-60">{busyAction === 'adjust' ? <ActionProgress>{adjusting.mode === 'add' ? 'Adding stock…' : 'Reducing stock…'}</ActionProgress> : adjusting.mode === 'add' ? `Add ${unit.plural}` : `Reduce ${unit.plural}`}</button>
       </form> })()}
     </Modal>}
     {showForm && <Modal title={editing ? `Edit ${editing.name}` : 'Add stock'} onClose={() => { setShowForm(false); setEditing(null) }}>
@@ -289,7 +303,7 @@ export function StockPage({ user, canManage = true }) {
           <span className="mt-1 block text-[9px] text-[#94a3b8]">{editing ? 'JPG, PNG or WebP — maximum 5 MB. Leave empty to keep the current photo.' : 'JPG, PNG or WebP — maximum 5 MB. Optional.'}</span>
         </label>
         {error && <p className="text-[11px] text-[#dc2626]">{error}</p>}
-        <button disabled={busy || (!editing && !foodTypes.length)} className="w-full rounded-lg bg-[#f97316] py-2.5 text-[11px] font-semibold text-white disabled:opacity-60">{busy ? 'Saving…' : editing ? 'Save changes' : 'Add stock'}</button>
+        <button disabled={busy || (!editing && !foodTypes.length)} className="w-full rounded-lg bg-[#f97316] py-2.5 text-[11px] font-semibold text-white disabled:opacity-60">{busyAction === 'save' ? <ActionProgress>{image ? 'Uploading stock image…' : editing ? 'Updating stock…' : 'Adding stock…'}</ActionProgress> : editing ? 'Save changes' : 'Add stock'}</button>
       </form>
     </Modal>}
   </div>

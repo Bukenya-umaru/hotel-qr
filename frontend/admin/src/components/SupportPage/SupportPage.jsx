@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { CircleCheck, CircleHelp, Mail, MessageCircle, Phone, Save, Clock3 } from 'lucide-react'
 import { api } from '../../lib/api.js'
+import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
 
 const FIELDS = [
   { key: 'phone', label: 'Phone number', placeholder: 'e.g. +256 700 123 456', icon: Phone },
@@ -43,6 +44,7 @@ export function SupportPage() {
 
   const save = async event => {
     event.preventDefault()
+    if (saving) return
     setSaving(true)
     setError('')
     try {
@@ -106,7 +108,7 @@ export function SupportPage() {
       </section>
 
       <div className="flex items-center justify-end gap-3">
-        <button type="submit" disabled={saving} className="flex items-center gap-2 rounded-lg bg-[#f97316] px-4 py-2.5 text-[11px] font-semibold text-white disabled:opacity-60"><Save size={14} />{saving ? 'Saving…' : 'Save details'}</button>
+        <button type="submit" disabled={saving} className="flex items-center gap-2 rounded-lg bg-[#f97316] px-4 py-2.5 text-[11px] font-semibold text-white disabled:opacity-60">{saving ? <ActionProgress>Saving details…</ActionProgress> : <><Save size={14} />Save details</>}</button>
       </div>
     </form>}
   </div>

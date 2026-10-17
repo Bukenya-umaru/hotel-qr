@@ -5,6 +5,7 @@ import { money } from '../../lib/ui.js'
 import { apiAssetUrl } from '../../lib/api.js'
 import { downloadReportCsv, downloadReportPdf } from '../../lib/reportExport.js'
 import { MetricCard } from '../MetricCard/MetricCard.jsx'
+import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
 
 const dateText = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 const initialRange = () => {
@@ -24,6 +25,12 @@ export function Reports({ analytics, currency, onRange, hotelName = 'Your busine
   // persisted in App (reportRange), so leaving and coming back to Reports
   // shows the applied range instead of resetting to the default week.
   const [range, setRange] = useState(reportRange || initialRange)
+  const [loadingRange, setLoadingRange] = useState('')
+  const applyRange = async (from, to, action) => {
+    if (loadingRange) return
+    setLoadingRange(action)
+    try { await onRange(from, to) } finally { setLoadingRange('') }
+  }
   const setPreset = preset => {
     const to = new Date()
     const from = new Date(to)
@@ -32,7 +39,7 @@ export function Reports({ analytics, currency, onRange, hotelName = 'Your busine
     if (preset === 'Yearly') from.setMonth(0, 1)
     const nextRange = { from: dateText(from), to: dateText(to) }
     setRange(nextRange)
-    onRange(nextRange.from, nextRange.to)
+    applyRange(nextRange.from, nextRange.to, preset.toLowerCase())
   }
   const series = (analytics.series || []).map(day => ({
     day: new Date(`${day.date}T12:00:00`).toLocaleDateString('en-UG', { weekday: 'short', month: 'short', day: 'numeric' }),
@@ -51,12 +58,12 @@ export function Reports({ analytics, currency, onRange, hotelName = 'Your busine
         <button onClick={() => downloadReportPdf({ analytics, currency, from: range.from, to: range.to, hotelName })} title="Save a designed PDF report to this device" className="flex items-center gap-1.5 rounded-lg bg-[#e7654b] px-3 py-2 text-[10px] font-semibold text-white hover:bg-[#d95c43]"><Printer size={13} />Export report</button>
       </div>
       <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-        {['Daily', 'Monthly', 'Yearly'].map(preset => <button key={preset} onClick={() => setPreset(preset)} className="rounded-lg border border-[#eee4df] bg-white px-3 py-2 text-[10px] font-semibold text-[#655a54] hover:border-[#e7654b]">{preset}</button>)}
+        {['Daily', 'Monthly', 'Yearly'].map(preset => <button key={preset} disabled={Boolean(loadingRange)} onClick={() => setPreset(preset)} className="rounded-lg border border-[#eee4df] bg-white px-3 py-2 text-[10px] font-semibold text-[#655a54] hover:border-[#e7654b] disabled:cursor-wait disabled:opacity-50">{loadingRange === preset.toLowerCase() ? <ActionProgress>Loading {preset.toLowerCase()} report…</ActionProgress> : preset}</button>)}
       </div>
       <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-end">
         <label className="min-w-0 text-[9px] font-semibold text-[#a19690]">From<input type="date" value={range.from} max={range.to} onChange={event => setRange({ ...range, from: event.target.value })} className="mt-1 block w-full min-w-0 rounded-lg border border-[#eee4df] bg-white px-2 py-2 text-[10px] text-[#655a54] sm:mt-0 sm:inline-block sm:ml-2 sm:w-auto" /></label>
         <label className="min-w-0 text-[9px] font-semibold text-[#a19690]">To<input type="date" value={range.to} min={range.from} max={dateText(new Date())} onChange={event => setRange({ ...range, to: event.target.value })} className="mt-1 block w-full min-w-0 rounded-lg border border-[#eee4df] bg-white px-2 py-2 text-[10px] text-[#655a54] sm:mt-0 sm:inline-block sm:ml-2 sm:w-auto" /></label>
-        <button onClick={() => onRange(range.from, range.to)} className="col-span-2 rounded-lg bg-[#e7654b] px-3 py-2 text-[10px] font-semibold text-white sm:col-span-1">Apply</button>
+        <button disabled={Boolean(loadingRange)} onClick={() => applyRange(range.from, range.to, 'custom')} className="col-span-2 rounded-lg bg-[#e7654b] px-3 py-2 text-[10px] font-semibold text-white disabled:cursor-wait disabled:opacity-60 sm:col-span-1">{loadingRange === 'custom' ? <ActionProgress>Applying range…</ActionProgress> : 'Apply'}</button>
       </div>
     </div>
 

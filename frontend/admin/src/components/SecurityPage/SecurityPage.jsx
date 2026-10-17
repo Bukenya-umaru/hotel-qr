@@ -3,6 +3,7 @@ import { Activity, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { Badge } from '../Badge/Badge.jsx'
 import { api } from '../../lib/api.js'
 import { cx } from '../../lib/ui.js'
+import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
 
 // How each recorded event reads on screen. Types come from the backend's
 // SecurityEvent enum; unknown types still show their raw key.
@@ -44,7 +45,7 @@ export function SecurityPage() {
   return <div className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <p className="text-[12px] text-[#94a3b8]">Every failed sign-in, brute-force flood, tampered token, and forbidden access attempt is recorded here the moment it is blocked.</p>
-      <button onClick={load} className="flex items-center gap-2 rounded-lg border border-[#f0e8e4] px-3.5 py-2.5 text-[11px] font-semibold text-[#ea580c]"><RefreshCw size={14} className={cx(loading && 'animate-spin')} />Refresh</button>
+      <button onClick={load} disabled={loading} aria-label={loading ? 'Refreshing security activity' : 'Refresh security activity'} className="flex items-center gap-2 rounded-lg border border-[#f0e8e4] px-3.5 py-2.5 text-[11px] font-semibold text-[#ea580c] disabled:cursor-wait disabled:opacity-60">{loading ? <ActionProgress>Refreshing…</ActionProgress> : <><RefreshCw size={14} className={cx(loading && 'animate-spin')} />Refresh</>}</button>
     </div>
     {error && <div role="alert" className="rounded-lg bg-[#fef2f2] px-3 py-2.5 text-[11px] text-[#dc2626]">{error}</div>}
     <div className="grid grid-cols-1 gap-2.5 min-[360px]:grid-cols-2 min-[360px]:gap-3 xl:grid-cols-4">

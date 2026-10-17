@@ -11,8 +11,9 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianG
 import { api } from '../../lib/api.js'
 import { money, today, cx, navItems } from '../../lib/ui.js'
 import { Brand } from '../Brand/Brand.jsx'
+import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
 
-export function Sidebar({ role, page, setPage, user, onLogin, onLogout, onChangePassword, items: itemsProp }) {
+export function Sidebar({ role, page, setPage, user, onLogin, onLogout, loggingOut = false, onChangePassword, items: itemsProp }) {
   const items = itemsProp || navItems[role] || navItems.OWNER
   const labels = { OWNER: 'Menu', KITCHEN: 'Kitchen menu', DEVELOPER: 'Support' }
   // The Categories accordion opens by itself when one of its subsections is
@@ -56,7 +57,7 @@ export function Sidebar({ role, page, setPage, user, onLogin, onLogout, onChange
       </div>
       <div className="mt-2.5 space-y-0.5">
         {user && <button onClick={onChangePassword} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[12px] text-[#786d67] hover:bg-[#fff8f5]"><KeyRound size={15} />Change password</button>}
-        {user ? <button onClick={onLogout} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[12px] text-[#786d67] hover:bg-[#fff8f5]"><LogOut size={15} />Sign out</button> : <button onClick={onLogin} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[12px] text-[#786d67] hover:bg-[#fff8f5]"><ShieldCheck size={15} />Sign in</button>}
+        {user ? <button disabled={loggingOut} onClick={onLogout} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[12px] text-[#786d67] hover:bg-[#fff8f5] disabled:cursor-wait disabled:opacity-60">{loggingOut ? <ActionProgress>Signing out…</ActionProgress> : <><LogOut size={15} />Sign out</>}</button> : <button onClick={onLogin} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[12px] text-[#786d67] hover:bg-[#fff8f5]"><ShieldCheck size={15} />Sign in</button>}
       </div>
     </div>
   </aside>
