@@ -249,13 +249,13 @@ router.post('/expenses', authenticate, authorize('OWNER', 'KITCHEN'), validate(e
     approvedBy: null,
     approvedAt: null,
   })
-  await notifyHotel(req.app.get('io'), scope, {
+  broadcastChange(req.app.get('io'), scope, 'expenses_changed')
+  void notifyHotel(req.app.get('io'), scope, {
     type: 'new_expense',
     title: `New expense recorded — ${category.name}`,
     body: `${expense.amount} · ${note || 'no note'} · by ${req.user.name} · awaiting approval`,
     refId: expense._id,
   })
-  broadcastChange(req.app.get('io'), scope, 'expenses_changed')
   res.status(201).json({ expense: { ...expense.toObject(), recordedBy: req.user.name } })
 }))
 
@@ -342,13 +342,13 @@ router.post('/expenses/:expenseId/approve', authenticate, authorize('OWNER', 'KI
     { new: true },
   )
   if (!expense) return res.status(404).json({ message: 'Expense not found.' })
-  await notifyHotel(req.app.get('io'), String(hotelScope(req)), {
+  broadcastChange(req.app.get('io'), String(hotelScope(req)), 'expenses_changed')
+  void notifyHotel(req.app.get('io'), String(hotelScope(req)), {
     type: 'expense_approved',
     title: `Expense approved — ${expense.categoryName}`,
     body: `Signed off by ${req.user.name}`,
     refId: expense._id,
   })
-  broadcastChange(req.app.get('io'), String(hotelScope(req)), 'expenses_changed')
   res.json({ expense: { ...expense.toObject(), approvedByName: req.user.name } })
 }))
 
@@ -443,15 +443,15 @@ router.post('/damages', authenticate, authorize('OWNER', 'KITCHEN'), validate(da
   if (stockItem) {
     await StockItem.updateOne({ _id: stockItem._id, plates: { $gte: quantity } }, { $inc: { plates: -quantity, totalUsed: quantity } }).catch(() => {})
     req.app.get('io').to(`hotel:${scope}`).emit('stock_updated')
-    await checkLowStock(req.app.get('io'), scope, [String(stockItem._id)])
+    void checkLowStock(req.app.get('io'), scope, [String(stockItem._id)])
   }
-  await notifyHotel(req.app.get('io'), scope, {
+  broadcastChange(req.app.get('io'), scope, 'damages_changed')
+  void notifyHotel(req.app.get('io'), scope, {
     type: 'new_damage',
     title: `Damage recorded — ${damage.name}`,
     body: `${damage.quantity} ${damage.unit || 'units'} · ${damage.value} value · by ${req.user.name} · awaiting approval`,
     refId: damage._id,
   })
-  broadcastChange(req.app.get('io'), scope, 'damages_changed')
   res.status(201).json({ damage: { ...damage.toObject(), recordedBy: req.user.name } })
 }))
 
@@ -556,7 +556,7 @@ router.patch('/damages/:damageId', authenticate, authorize('OWNER', 'KITCHEN'), 
   }
   if (adjusted.size) {
     req.app.get('io').to(`hotel:${scope}`).emit('stock_updated')
-    await checkLowStock(req.app.get('io'), scope, [...adjusted])
+    void checkLowStock(req.app.get('io'), scope, [...adjusted])
   }
   broadcastChange(req.app.get('io'), String(scope), 'damages_changed')
   res.json({ damage: { ...damage.toObject(), editedByName: req.user.name } })
@@ -574,13 +574,13 @@ router.post('/damages/:damageId/approve', authenticate, authorize('OWNER', 'KITC
     { new: true },
   )
   if (!damage) return res.status(404).json({ message: 'Damage record not found.' })
-  await notifyHotel(req.app.get('io'), String(hotelScope(req)), {
+  broadcastChange(req.app.get('io'), String(hotelScope(req)), 'damages_changed')
+  void notifyHotel(req.app.get('io'), String(hotelScope(req)), {
     type: 'damage_approved',
     title: `Damage approved — ${damage.name}`,
     body: `Signed off by ${req.user.name}`,
     refId: damage._id,
   })
-  broadcastChange(req.app.get('io'), String(hotelScope(req)), 'damages_changed')
   res.json({ damage: { ...damage.toObject(), approvedByName: req.user.name } })
 }))
 
@@ -826,14 +826,14 @@ router.post('/sales', authenticate, authorize('OWNER', 'KITCHEN'), validate(sale
       { $inc: { plates: -qty, totalUsed: qty } },
     ).catch(() => {})
   }
-  await notifyHotel(req.app.get('io'), scope, {
+  broadcastChange(req.app.get('io'), scope, 'sales_changed')
+  void notifyHotel(req.app.get('io'), scope, {
     type: 'new_sale',
     title: `New sale #${displaySaleId(sale)} recorded`,
     body: `${items[0].name} — ${sale.amount} · by ${req.user.name}${sale.approved ? '' : ' · awaiting approval'}`,
     refId: sale._id,
   })
-  await checkLowStock(req.app.get('io'), scope, [...stockUsage.keys()])
-  broadcastChange(req.app.get('io'), scope, 'sales_changed')
+  void checkLowStock(req.app.get('io'), scope, [...stockUsage.keys()])
   res.status(201).json({ sale: { ...sale.toObject(), saleId: displaySaleId(sale), items: saleItems(sale), recordedBy: req.user.name } })
 }))
 
@@ -948,13 +948,13 @@ router.post('/sales/:saleId/approve', authenticate, authorize('OWNER', 'KITCHEN'
     { new: true },
   )
   if (!sale) return res.status(404).json({ message: 'Sale not found.' })
-  await notifyHotel(req.app.get('io'), String(hotelScope(req)), {
+  broadcastChange(req.app.get('io'), String(hotelScope(req)), 'sales_changed')
+  void notifyHotel(req.app.get('io'), String(hotelScope(req)), {
     type: 'sale_approved',
     title: `Sale #${displaySaleId(sale)} approved`,
     body: `Signed off by ${req.user.name}`,
     refId: sale._id,
   })
-  broadcastChange(req.app.get('io'), String(hotelScope(req)), 'sales_changed')
   res.json({ sale: { ...sale.toObject(), saleId: displaySaleId(sale), items: saleItems(sale), approvedByName: req.user.name } })
 }))
 

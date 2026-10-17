@@ -109,7 +109,7 @@ router.post('/', authenticate, authorize('OWNER', 'KITCHEN'), uploadLimiter, upl
     approvedAt: null,
   })
   if (!stock.approved) {
-    await notifyHotel(req.app.get('io'), String(scope), {
+    void notifyHotel(req.app.get('io'), String(scope), {
       type: 'stock_pending',
       title: `Stock awaits confirmation — ${stock.name}`,
       body: `${quantity} ${noun(stock)} added by ${req.user.name}`,
@@ -151,15 +151,15 @@ router.patch('/:id/adjust', authenticate, authorize('OWNER', 'KITCHEN'), asyncRo
   // count — the money value of the entry moves on its own (price × count).
   await stock.save()
   if (delta > 0) {
-    await notifyHotel(req.app.get('io'), String(scope), {
+    void notifyHotel(req.app.get('io'), String(scope), {
       type: 'stock_pending',
       title: `Stock awaits confirmation — ${stock.name}`,
       body: `${delta} ${noun} added by ${req.user.name} · awaiting approval`,
       refId: stock._id,
     })
   }
-  if (delta < 0) await checkLowStock(req.app.get('io'), String(scope), [stock._id])
   req.app.get('io').to(`hotel:${scope}`).emit('stock_updated')
+  if (delta < 0) void checkLowStock(req.app.get('io'), String(scope), [stock._id])
   res.json({ item: stock })
 }))
 router.patch('/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadLimiter, uploadMenuImage, asyncRoute(async (req, res) => {
@@ -219,7 +219,7 @@ router.patch('/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadLimiter,
   if (req.file && current.imageUrl) await removeUploadedImage(current.imageUrl)
   // Editing the count down is the same as reducing it — alert the staff when
   // the edited count has dipped to the low-stock limit.
-  if (stock.plates < current.plates) await checkLowStock(req.app.get('io'), String(scope), [stock._id])
+  if (stock.plates < current.plates) void checkLowStock(req.app.get('io'), String(scope), [stock._id])
   req.app.get('io').to(`hotel:${scope}`).emit('stock_updated')
   res.json({ item: stock })
 }))
@@ -253,7 +253,7 @@ router.post('/:id/approve', authenticate, authorize('OWNER', 'KITCHEN'), asyncRo
     { new: true },
   ).populate('approvedBy', 'name')
   if (!stock) return res.status(404).json({ message: 'Stock not found.' })
-  await notifyHotel(req.app.get('io'), String(scope), {
+  void notifyHotel(req.app.get('io'), String(scope), {
     type: 'stock_confirmed',
     title: `Stock confirmed — ${stock.name}`,
     body: `${stock.plates} ${noun(stock)} signed off by ${req.user.name}`,

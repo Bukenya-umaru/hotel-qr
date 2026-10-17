@@ -194,11 +194,13 @@ function SalesView({ onError, canApprove = false, hotelId }) {
     if (!window.confirm(`Remove the sale "${sale.name}" (${money(sale.amount)})?`)) return
     setBusy(true)
     setBusyAction(`delete:${sale._id}`)
+    setSales(previous => previous.filter(entry => entry._id !== sale._id))
     try {
       await api(`/api/owner/sales/${sale._id}`, { method: 'DELETE' })
       onError('')
-      await load()
+      void load()
     } catch (err) {
+      setSales(previous => [...previous, sale].sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt)))
       onError(err.message)
     } finally {
       setBusy(false)
@@ -212,11 +214,14 @@ function SalesView({ onError, canApprove = false, hotelId }) {
     if (busy) return
     setBusy(true)
     setBusyAction(`approve:${sale._id}`)
+    const approvedSale = { ...sale, approved: true, approvedByName: '', approvedAt: new Date().toISOString() }
+    setSales(previous => previous.map(entry => entry._id === sale._id ? approvedSale : entry))
     try {
-      await api(`/api/owner/sales/${sale._id}/approve`, { method: 'POST' })
+      const data = await api(`/api/owner/sales/${sale._id}/approve`, { method: 'POST' })
+      setSales(previous => previous.map(entry => entry._id === sale._id ? { ...entry, ...data.sale } : entry))
       onError('')
-      await load()
     } catch (err) {
+      setSales(previous => previous.map(entry => entry._id === sale._id ? sale : entry))
       onError(err.message)
     } finally {
       setBusy(false)
@@ -271,7 +276,10 @@ function SalesView({ onError, canApprove = false, hotelId }) {
       </li>)}
     </ul>}
     {!filtered.length && <p className="mt-3 rounded-xl border border-dashed border-[#e7ebf0] px-3 py-6 text-center text-[10px] text-[#94a3b8]">{hasFilter ? 'No sales in the selected dates — pick another range or choose All.' : 'No sales made yet — open “Make sale” to record the first one.'}</p>}
-    {editing && <EditSaleModal sale={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load() }} />}
+    {editing && <EditSaleModal sale={editing} onClose={() => setEditing(null)} onSaved={sale => {
+      setEditing(null)
+      setSales(previous => previous.map(entry => entry._id === sale._id ? { ...entry, ...sale } : entry))
+    }} />}
     {historyFor && <SaleHistoryModal sale={historyFor} onClose={() => setHistoryFor(null)} />}
   </div>
 }
@@ -338,13 +346,13 @@ function EditSaleModal({ sale, onClose, onSaved }) {
     if (!payload.length) { setError('The sale needs at least one item.'); return }
     setBusy(true)
     try {
-      await api(`/api/owner/sales/${sale._id}`, { method: 'PATCH', body: JSON.stringify({
+      const data = await api(`/api/owner/sales/${sale._id}`, { method: 'PATCH', body: JSON.stringify({
         items: payload,
         customerName: customerName.trim(),
         customerContact: customerContact.trim(),
         note: note.trim(),
       }) })
-      onSaved()
+      onSaved(data.sale)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -766,11 +774,13 @@ function ExpensesView({ onError, canApprove = false, hotelId }) {
     if (!window.confirm(`Remove the ${money(expense.amount)} expense for ${label}?`)) return
     setBusy(true)
     setBusyAction(`delete:${expense._id}`)
+    setExpenses(previous => previous.filter(entry => entry._id !== expense._id))
     try {
       await api(`/api/owner/expenses/${expense._id}`, { method: 'DELETE' })
       onError('')
-      await load()
+      void load()
     } catch (err) {
+      setExpenses(previous => [...previous, expense].sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt)))
       onError(err.message)
     } finally {
       setBusy(false)
@@ -784,11 +794,15 @@ function ExpensesView({ onError, canApprove = false, hotelId }) {
     if (busy) return
     setBusy(true)
     setBusyAction(`approve:${expense._id}`)
+    setExpenses(previous => previous.map(entry => entry._id === expense._id
+      ? { ...entry, approved: true, approvedByName: '', approvedAt: new Date().toISOString() }
+      : entry))
     try {
-      await api(`/api/owner/expenses/${expense._id}/approve`, { method: 'POST' })
+      const data = await api(`/api/owner/expenses/${expense._id}/approve`, { method: 'POST' })
+      setExpenses(previous => previous.map(entry => entry._id === expense._id ? { ...entry, ...data.expense } : entry))
       onError('')
-      await load()
     } catch (err) {
+      setExpenses(previous => previous.map(entry => entry._id === expense._id ? expense : entry))
       onError(err.message)
     } finally {
       setBusy(false)
@@ -843,8 +857,31 @@ function ExpensesView({ onError, canApprove = false, hotelId }) {
       </li>)}
     </ul>}
     {!filtered.length && <p className="mt-3 rounded-xl border border-dashed border-[#e7ebf0] px-3 py-6 text-center text-[10px] text-[#94a3b8]">{hasFilter ? 'No expenses in the selected dates — pick another range or choose All.' : 'No expenses recorded yet — click “Record expense” above to record your first one.'}</p>}
-    {showPopup && <RecordExpenseModal onClose={() => setShowPopup(false)} onSaved={() => { setShowPopup(false); load() }} />}
-    {editing && <EditExpenseModal expense={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load() }} />}
+    {showPopup && <RecordExpenseModal onClose={() => setShowPopup(false)} onSaved={expense => {
+      setShowPopup(false)
+      setExpenses(previous => [expense, ...previous])
+      const today = new Date().toDateString() === new Date(expense.createdAt).toDateString()
+      setStats(previous => ({
+        total: previous.total + expense.amount,
+        count: previous.count + 1,
+        todayTotal: previous.todayTotal + (today ? expense.amount : 0),
+        todayCount: previous.todayCount + (today ? 1 : 0),
+      }))
+      setByCategory(previous => {
+        const existing = previous.find(entry => entry.category === expense.categoryName)
+        return existing
+          ? previous.map(entry => entry === existing ? { ...entry, total: entry.total + expense.amount, count: entry.count + 1 } : entry)
+          : [...previous, { category: expense.categoryName, total: expense.amount, count: 1 }]
+      })
+    }} />}
+    {editing && <EditExpenseModal expense={editing} onClose={() => setEditing(null)} onSaved={expense => {
+      setEditing(null)
+      setExpenses(previous => previous.map(entry => entry._id === expense._id
+        ? { ...entry, ...expense, recordedBy: entry.recordedBy }
+        : entry))
+      const difference = expense.amount - editing.amount
+      setStats(previous => ({ ...previous, total: previous.total + difference, todayTotal: previous.todayTotal + (new Date(editing.createdAt).toDateString() === new Date().toDateString() ? difference : 0) }))
+    }} />}
     {historyFor && <ExpenseHistoryModal expense={historyFor} onClose={() => setHistoryFor(null)} />}
   </div>
 }
@@ -893,11 +930,13 @@ function DamagesView({ onError, canApprove = false, hotelId }) {
     if (!window.confirm(`Remove the damage record for ${label}?${damage.stockItem ? ' The stock count it drew down will be restored.' : ''}`)) return
     setBusy(true)
     setBusyAction(`delete:${damage._id}`)
+    setDamages(previous => previous.filter(entry => entry._id !== damage._id))
     try {
       await api(`/api/owner/damages/${damage._id}`, { method: 'DELETE' })
       onError('')
-      await load()
+      void load()
     } catch (err) {
+      setDamages(previous => [...previous, damage].sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt)))
       onError(err.message)
     } finally {
       setBusy(false)
@@ -911,11 +950,15 @@ function DamagesView({ onError, canApprove = false, hotelId }) {
     if (busy) return
     setBusy(true)
     setBusyAction(`approve:${damage._id}`)
+    setDamages(previous => previous.map(entry => entry._id === damage._id
+      ? { ...entry, approved: true, approvedByName: '', approvedAt: new Date().toISOString() }
+      : entry))
     try {
-      await api(`/api/owner/damages/${damage._id}/approve`, { method: 'POST' })
+      const data = await api(`/api/owner/damages/${damage._id}/approve`, { method: 'POST' })
+      setDamages(previous => previous.map(entry => entry._id === damage._id ? { ...entry, ...data.damage } : entry))
       onError('')
-      await load()
     } catch (err) {
+      setDamages(previous => previous.map(entry => entry._id === damage._id ? damage : entry))
       onError(err.message)
     } finally {
       setBusy(false)
@@ -968,8 +1011,23 @@ function DamagesView({ onError, canApprove = false, hotelId }) {
     </li>)}
   </ul>}
   {!filtered.length && <p className="mt-3 rounded-xl border border-dashed border-[#e7ebf0] px-3 py-6 text-center text-[10px] text-[#94a3b8]">{hasFilter ? 'No damage records in the selected dates — pick another range or choose All.' : 'No damage recorded yet — click “Record damage” above to record your first one.'}</p>}
-  {showPopup && <RecordDamageModal onClose={() => setShowPopup(false)} onSaved={() => { setShowPopup(false); load() }} />}
-  {editing && <EditDamageModal damage={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load() }} />}
+  {showPopup && <RecordDamageModal onClose={() => setShowPopup(false)} onSaved={damage => {
+    setShowPopup(false)
+    setDamages(previous => [damage, ...previous])
+    const today = new Date().toDateString() === new Date(damage.createdAt).toDateString()
+    setStats(previous => ({
+      total: previous.total + damage.value,
+      count: previous.count + 1,
+      todayTotal: previous.todayTotal + (today ? damage.value : 0),
+      todayCount: previous.todayCount + (today ? 1 : 0),
+    }))
+  }} />}
+  {editing && <EditDamageModal damage={editing} onClose={() => setEditing(null)} onSaved={damage => {
+    setEditing(null)
+    setDamages(previous => previous.map(entry => entry._id === damage._id ? { ...entry, ...damage, stockItem: entry.stockItem } : entry))
+    const difference = damage.value - editing.value
+    setStats(previous => ({ ...previous, total: previous.total + difference, todayTotal: previous.todayTotal + (new Date(editing.createdAt).toDateString() === new Date().toDateString() ? difference : 0) }))
+  }} />}
   {historyFor && <DamageHistoryModal damage={historyFor} onClose={() => setHistoryFor(null)} />}
   </div>
 }
@@ -1045,8 +1103,8 @@ function RecordDamageModal({ onClose, onSaved }) {
         if (!Number.isFinite(money) || money <= 0) { setError('Enter the money value of what was damaged.'); setBusy(false); return }
         payload.value = money
       }
-      await api('/api/owner/damages', { method: 'POST', body: JSON.stringify(payload) })
-      onSaved()
+      const data = await api('/api/owner/damages', { method: 'POST', body: JSON.stringify(payload) })
+      onSaved(data.damage)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -1155,10 +1213,10 @@ function RecordExpenseModal({ onClose, onSaved }) {
     if (mode === 'existing' && !categoryId) { setError('Pick a category, or switch to “New category”.'); return }
     setBusy(true)
     try {
-      await api('/api/owner/expenses', { method: 'POST', body: JSON.stringify(mode === 'existing'
+      const data = await api('/api/owner/expenses', { method: 'POST', body: JSON.stringify(mode === 'existing'
         ? { categoryId, amount: value, note: note.trim() }
         : { categoryName: newName.trim(), amount: value, note: note.trim() }) })
-      onSaved()
+      onSaved(data.expense)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -1246,8 +1304,8 @@ function EditExpenseModal({ expense, onClose, onSaved }) {
     }
     setBusy(true)
     try {
-      await api(`/api/owner/expenses/${expense._id}`, { method: 'PATCH', body: JSON.stringify(body) })
-      onSaved()
+      const data = await api(`/api/owner/expenses/${expense._id}`, { method: 'PATCH', body: JSON.stringify(body) })
+      onSaved(data.expense)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -1367,8 +1425,8 @@ function EditDamageModal({ damage, onClose, onSaved }) {
     }
     setBusy(true)
     try {
-      await api(`/api/owner/damages/${damage._id}`, { method: 'PATCH', body: JSON.stringify(body) })
-      onSaved()
+      const data = await api(`/api/owner/damages/${damage._id}`, { method: 'PATCH', body: JSON.stringify(body) })
+      onSaved(data.damage)
     } catch (err) {
       setError(err.message)
     } finally {

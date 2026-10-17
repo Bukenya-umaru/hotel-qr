@@ -30,9 +30,12 @@ export async function api(path, options = {}) {
     ...(isForm ? {} : { 'Content-Type': 'application/json' }),
     ...options.headers,
   }
+  const requestUrl = import.meta.env?.DEV
+    ? `${API_REQUEST_BASE_URL}${path}`
+    : `/api/proxy?path=${encodeURIComponent(path)}`
   let response
   try {
-    response = await fetch(`${API_REQUEST_BASE_URL}${path}`, { credentials: 'include', ...options, headers })
+    response = await fetch(requestUrl, { credentials: 'include', ...options, headers })
   } catch (error) {
     if (error instanceof TypeError) {
       throw new Error('Unable to reach the server. Check that the backend is running and try again.')

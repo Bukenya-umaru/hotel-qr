@@ -79,8 +79,8 @@ export function CategoriesPage({ initialView = 'menu' }) {
 
     {view === 'foodtype' && <FoodTypeView
       categories={categories}
+      setCategories={setCategories}
       busy={busy} setBusy={setBusy} onError={setError}
-      reload={load}
     />}
 
     {view === 'expenses' && <ExpensesView
@@ -91,7 +91,7 @@ export function CategoriesPage({ initialView = 'menu' }) {
 
 // ---- Subsection: Food type — add food-type categories and see them here ----
 
-function FoodTypeView({ categories, busy, setBusy, onError, reload }) {
+function FoodTypeView({ categories, setCategories, busy, setBusy, onError }) {
   const [newCategory, setNewCategory] = useState('')
   const [renaming, setRenaming] = useState(null)
   const [renameValue, setRenameValue] = useState('')
@@ -107,10 +107,12 @@ function FoodTypeView({ categories, busy, setBusy, onError, reload }) {
     }
     setBusy('add')
     try {
-      await api('/api/owner/categories', { method: 'POST', body: JSON.stringify({ name }) })
+      const data = await api('/api/owner/categories', { method: 'POST', body: JSON.stringify({ name }) })
+      setCategories(previous => previous.some(category => category._id === data.category._id)
+        ? previous
+        : [...previous, data.category].sort((left, right) => left.name.localeCompare(right.name)))
       setNewCategory('')
       onError('')
-      await reload()
     } catch (err) {
       onError(err.message)
     } finally {
@@ -124,10 +126,13 @@ function FoodTypeView({ categories, busy, setBusy, onError, reload }) {
     if (!renaming || !name) return
     setBusy('rename')
     try {
-      await api(`/api/owner/categories/${renaming}`, { method: 'PATCH', body: JSON.stringify({ name }) })
+      const data = await api(`/api/owner/categories/${renaming}`, { method: 'PATCH', body: JSON.stringify({ name }) })
+      setCategories(previous => data.merged
+        ? previous.filter(category => category._id !== renaming)
+        : previous.map(category => category._id === renaming ? { ...category, ...data.category } : category)
+          .sort((left, right) => left.name.localeCompare(right.name)))
       setRenaming(null)
       onError('')
-      await reload()
     } catch (err) {
       onError(err.message)
     } finally {
@@ -141,8 +146,8 @@ function FoodTypeView({ categories, busy, setBusy, onError, reload }) {
     setBusy(`delete:${category._id}`)
     try {
       await api(`/api/owner/categories/${category._id}`, { method: 'DELETE' })
+      setCategories(previous => previous.filter(entry => entry._id !== category._id))
       onError('')
-      await reload()
     } catch (err) {
       onError(err.message)
     } finally {
@@ -210,10 +215,12 @@ function ExpensesView({ busy, setBusy, onError }) {
     }
     setBusy('add')
     try {
-      await api('/api/owner/expense-categories', { method: 'POST', body: JSON.stringify({ name }) })
+      const data = await api('/api/owner/expense-categories', { method: 'POST', body: JSON.stringify({ name }) })
+      setCategories(previous => previous.some(category => category._id === data.category._id)
+        ? previous
+        : [...previous, data.category].sort((left, right) => left.name.localeCompare(right.name)))
       setNewName('')
       onError('')
-      await load()
     } catch (err) {
       onError(err.message)
     } finally {
@@ -227,10 +234,11 @@ function ExpensesView({ busy, setBusy, onError }) {
     if (!renaming || !name) return
     setBusy('rename')
     try {
-      await api(`/api/owner/expense-categories/${renaming}`, { method: 'PATCH', body: JSON.stringify({ name }) })
+      const data = await api(`/api/owner/expense-categories/${renaming}`, { method: 'PATCH', body: JSON.stringify({ name }) })
+      setCategories(previous => previous.map(category => category._id === renaming ? { ...category, ...data.category } : category)
+        .sort((left, right) => left.name.localeCompare(right.name)))
       setRenaming(null)
       onError('')
-      await load()
     } catch (err) {
       onError(err.message)
     } finally {
@@ -244,8 +252,8 @@ function ExpensesView({ busy, setBusy, onError }) {
     setBusy(`delete:${category._id}`)
     try {
       await api(`/api/owner/expense-categories/${category._id}`, { method: 'DELETE' })
+      setCategories(previous => previous.filter(entry => entry._id !== category._id))
       onError('')
-      await load()
     } catch (err) {
       onError(err.message)
     } finally {

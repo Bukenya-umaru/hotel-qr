@@ -103,6 +103,27 @@ export function StockPage({ user, canManage = true }) {
     if (busy) return
     setBusy(true)
     setBusyAction('save')
+    const previousItems = items
+    const pendingId = editing?._id || `pending-${Date.now()}`
+    const quantity = Number(form.quantity || 0)
+    const optimisticItem = {
+      ...(editing || {}),
+      _id: pendingId,
+      name: form.name.trim(),
+      foodType: form.foodType,
+      price: Number(form.price || 0),
+      unit: form.unit,
+      customUnit: form.unit === 'other' ? form.customUnit : '',
+      plates: quantity,
+      totalAdded: editing ? editing.totalAdded : quantity,
+      totalUsed: editing ? editing.totalUsed : 0,
+      imageUrl: preview || editing?.imageUrl || '',
+      value: stockValue({ price: form.price, plates: quantity }),
+      approved: false,
+    }
+    setItems(previous => editing
+      ? previous.map(item => item._id === editing._id ? optimisticItem : item)
+      : [optimisticItem, ...previous])
     try {
       const data = new FormData()
       data.append('name', form.name)
@@ -112,14 +133,17 @@ export function StockPage({ user, canManage = true }) {
       data.append('customUnit', form.unit === 'other' ? form.customUnit : '')
       data.append('quantity', String(Number(form.quantity || 0)))
       if (image) data.append('image', image)
-      await api(editing ? `/api/stock/${editing._id}` : '/api/stock', { method: editing ? 'PATCH' : 'POST', body: data })
+      const result = await api(editing ? `/api/stock/${editing._id}` : '/api/stock', { method: editing ? 'PATCH' : 'POST', body: data })
+      const savedItem = { ...result.item, value: stockValue(result.item), approvedByName: result.item.approvedByName || '', dishes: result.item.dishes || [] }
+      setItems(previous => previous.map(item => item._id === pendingId ? savedItem : item))
       setShowForm(false)
       setEditing(null)
       clearImageInput()
       setPreview('')
       setError('')
-      await loadStock()
+      void loadStock()
     } catch (err) {
+      setItems(previousItems)
       setError(err.message)
     } finally {
       setBusy(false)
@@ -143,12 +167,26 @@ export function StockPage({ user, canManage = true }) {
     const delta = adjusting.mode === 'add' ? amount : -amount
     setBusy(true)
     setBusyAction('adjust')
+    const previousItems = items
+    setItems(previous => previous.map(item => item._id === adjusting.item._id
+      ? {
+          ...item,
+          plates: item.plates + delta,
+          totalAdded: delta > 0 ? item.totalAdded + delta : item.totalAdded,
+          approved: delta > 0 ? false : item.approved,
+          approvedByName: delta > 0 ? '' : item.approvedByName,
+          approvedAt: delta > 0 ? null : item.approvedAt,
+          value: stockValue({ ...item, plates: item.plates + delta }),
+        }
+      : item))
     try {
-      await api(`/api/stock/${adjusting.item._id}/adjust`, { method: 'PATCH', body: JSON.stringify({ delta }) })
+      const result = await api(`/api/stock/${adjusting.item._id}/adjust`, { method: 'PATCH', body: JSON.stringify({ delta }) })
+      const savedItem = { ...result.item, value: stockValue(result.item), approvedByName: result.item.approvedByName || '', dishes: result.item.dishes || [] }
+      setItems(previous => previous.map(item => item._id === adjusting.item._id ? savedItem : item))
       setAdjusting(null)
       setAdjustAmount('')
-      await loadStock()
     } catch (err) {
+      setItems(previousItems)
       setError(err.message)
     } finally {
       setBusy(false)
@@ -161,10 +199,12 @@ export function StockPage({ user, canManage = true }) {
     if (!window.confirm(`Remove "${stock.name}" from stock tracking?`)) return
     setBusy(true)
     setBusyAction(`delete:${stock._id}`)
+    const previousItems = items
+    setItems(previous => previous.filter(item => item._id !== stock._id))
     try {
       await api(`/api/stock/${stock._id}`, { method: 'DELETE' })
-      await loadStock()
     } catch (err) {
+      setItems(previousItems)
       setError(err.message)
     } finally {
       setBusy(false)
@@ -178,11 +218,17 @@ export function StockPage({ user, canManage = true }) {
     if (busy) return
     setBusy(true)
     setBusyAction(`approve:${stock._id}`)
+    const previousItems = items
+    setItems(previous => previous.map(item => item._id === stock._id
+      ? { ...item, approved: true, approvedByName: '', approvedAt: new Date().toISOString() }
+      : item))
     try {
-      await api(`/api/stock/${stock._id}/approve`, { method: 'POST' })
+      const result = await api(`/api/stock/${stock._id}/approve`, { method: 'POST' })
+      const savedItem = { ...result.item, value: stockValue(result.item), approvedByName: result.item.approvedByName || '', dishes: result.item.dishes || [] }
+      setItems(previous => previous.map(item => item._id === stock._id ? savedItem : item))
       setError('')
-      await loadStock()
     } catch (err) {
+      setItems(previousItems)
       setError(err.message)
     } finally {
       setBusy(false)
