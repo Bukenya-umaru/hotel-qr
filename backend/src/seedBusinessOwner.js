@@ -7,7 +7,7 @@ import { storePassword } from './utils/passwordVault.js'
 
 const {
   MONGODB_URI,
-  BUSINESS_NAME = 'WAGA BITS',
+  BUSINESS_NAME = 'WAGE BITES',
   BUSINESS_CITY = '',
   OWNER_NAME,
   OWNER_EMAIL,
@@ -29,8 +29,8 @@ try {
   let business = await Hotel.findOne().sort({ createdAt: 1 })
   if (!business) {
     business = await Hotel.create({
-      name: BUSINESS_NAME.trim() || 'WAGA BITS',
-      slug: 'waga-bits',
+      name: BUSINESS_NAME.trim() || 'WAGE BITES',
+      slug: 'wage-bites',
       city: BUSINESS_CITY.trim(),
       tableCount: 24,
       currency: 'UGX',

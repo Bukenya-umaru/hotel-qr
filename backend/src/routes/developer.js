@@ -60,21 +60,16 @@ router.post('/users', validate(developerUserBody), asyncRoute(async (req, res) =
     if (role !== 'OWNER') {
       return res.status(409).json({ message: 'Create the business owner account before adding chef accounts.' })
     }
-    const businessName = String(req.body.businessName || '').trim()
-    if (!businessName) return res.status(400).json({ message: 'Provide the business name to create its owner account.' })
-    const businessCity = String(req.body.businessCity || '').trim()
     business = await Hotel.findOne().sort({ createdAt: 1 })
     if (business) {
-      business.name = businessName
-      business.city = businessCity
       business.isActive = true
       await business.save()
     } else {
       try {
         business = await Hotel.create({
-          name: businessName,
-          slug: 'waga-bits',
-          city: businessCity,
+          name: 'WAGE BITES',
+          slug: 'wage-bites',
+          city: '',
           tableCount: 24,
           currency: 'UGX',
           taxRate: 0,

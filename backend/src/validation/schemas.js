@@ -115,7 +115,5 @@ export const developerUserBody = z.object({
   email: text(320),
   password: text(200),
   role: z.enum(['OWNER', 'KITCHEN']),
-  businessName: text(160).optional(),
-  businessCity: text(120).optional(),
   permissions: z.array(text(60)).max(20).optional(),
 })
