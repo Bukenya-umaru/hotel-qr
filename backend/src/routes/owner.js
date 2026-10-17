@@ -15,7 +15,7 @@ import { Sale, formatSaleId } from '../models/Sale.js'
 import { StockItem } from '../models/StockItem.js'
 import { Hotel } from '../models/Hotel.js'
 import { removeUploadedImage, uploadMenuImage } from '../middleware/upload.js'
-import { asyncRoute, idIsValid, safeMenuItem, safeSupport } from '../utils/http.js'
+import { asyncRoute, idIsValid, safeMenuItem } from '../utils/http.js'
 import { damageBody, expenseBody, expenseCategoryBody, menuBody, menuCategoryBody, saleBody, staffBody, validate } from '../validation/schemas.js'
 import { notifyHotel, checkLowStock, broadcastChange } from '../utils/notify.js'
 import { revealPassword, storePassword, vaultEnabled } from '../utils/passwordVault.js'
@@ -35,38 +35,6 @@ const staffUser = user => ({
   isActive: user.isActive,
   permissions: user.permissions,
 })
-
-// Business contact details shown on the information page.
-const SUPPORT_FIELDS = ['phone', 'whatsapp', 'email', 'hours', 'message']
-const SUPPORT_LIMITS = { phone: 40, whatsapp: 40, email: 120, hours: 200, message: 400 }
-
-const supportPayload = req => {
-  const input = req.body.support && typeof req.body.support === 'object' ? req.body.support : req.body
-  const updates = {}
-  for (const field of SUPPORT_FIELDS) {
-    if (input[field] === undefined) continue
-    updates[field] = String(input[field] ?? '').trim().slice(0, SUPPORT_LIMITS[field])
-  }
-  return updates
-}
-
-router.get('/support', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
-  const hotel = await Hotel.findById(hotelScope(req)).select('support')
-  if (!hotel) return res.status(404).json({ message: 'This business could not be found.' })
-  res.json({ support: safeSupport(hotel.support) })
-}))
-
-router.patch('/support', authenticate, authorize('OWNER'), asyncRoute(async (req, res) => {
-  const updates = supportPayload(req)
-  if (!Object.keys(updates).length) return res.status(400).json({ message: 'Provide a phone number, WhatsApp number, email, opening hours, or a help message to save.' })
-  const hotel = await Hotel.findByIdAndUpdate(
-    hotelScope(req),
-    { $set: Object.fromEntries(Object.entries(updates).map(([key, value]) => ([`support.${key}`, value]))) },
-    { new: true, runValidators: true },
-  ).select('support')
-  if (!hotel) return res.status(404).json({ message: 'This business could not be found.' })
-  res.json({ support: safeSupport(hotel.support) })
-}))
 
 router.get('/menu', authenticate, authorize('OWNER', 'KITCHEN'), cacheHotelResource('menu', req => req.user.role), asyncRoute(async (req, res) => {
   const scope = hotelScope(req)

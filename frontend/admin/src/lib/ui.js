@@ -84,7 +84,6 @@ export const navItems = {
     { label: 'Purchases', icon: ShoppingCart, children: [{ label: 'Record Sale', target: 'Make sale' }, { label: 'Sales' }, { label: 'Expenses', target: 'Purchase expenses' }, { label: 'Damage', target: 'Purchase damages' }] },
     { label: 'Chefs', icon: Users },
     { label: 'Reports', icon: TrendingUp },
-    { label: 'Help & support', icon: CircleHelp },
   ],
   KITCHEN: [
     { label: 'Overview', icon: LayoutDashboard },

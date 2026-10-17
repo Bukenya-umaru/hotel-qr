@@ -302,7 +302,7 @@ export default function App() {
   else if (page === 'Purchase expenses' && ['OWNER', 'KITCHEN'].includes(role)) content = <PurchasePage hotelId={user?.hotelId} initialView="expenses" canManageExpenses={hasPermission(user, 'manage_expenses')} canApprove={hasPermission(user, 'approve_records')} />
   else if (page === 'Purchase damages' && ['OWNER', 'KITCHEN'].includes(role)) content = <PurchasePage hotelId={user?.hotelId} initialView="damages" canManageExpenses={hasPermission(user, 'manage_expenses')} canApprove={hasPermission(user, 'approve_records')} />
   else if (page === 'Stock' && ['OWNER', 'KITCHEN'].includes(role)) content = <StockPage user={user} canManage={canManageStock} />
-  else if (page === 'Help & support' && ['OWNER', 'DEVELOPER'].includes(role)) content = <SupportPage role={role} />
+  else if (page === 'Help & support' && role === 'DEVELOPER') content = <SupportPage />
   else if (page === 'Security' && role === 'DEVELOPER') content = <SecurityPage />
   else if (page === 'Reports') content = <Reports analytics={analytics} currency="UGX" onRange={loadReportRange} hotelName={hotelName} reportRange={reportRange} />
   else if (page === 'Accounts' || page === 'Chefs') content = <AccountsPage users={users} role={role} passwordViewable={platformOverview.passwordViewable} onCreate={() => setModal('account')} onToggle={toggleUser} onReset={account => { setResettingUser(account); setModal('reset') }} onEdit={account => { setEditingUser(account); setModal('edit-account') }} onView={account => { setViewingUser(account); setModal('view-password') }} />

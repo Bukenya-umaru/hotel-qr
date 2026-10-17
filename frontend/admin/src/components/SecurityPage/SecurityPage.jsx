@@ -47,23 +47,23 @@ export function SecurityPage() {
       <button onClick={load} className="flex items-center gap-2 rounded-lg border border-[#f0e8e4] px-3.5 py-2.5 text-[11px] font-semibold text-[#ea580c]"><RefreshCw size={14} className={cx(loading && 'animate-spin')} />Refresh</button>
     </div>
     {error && <div role="alert" className="rounded-lg bg-[#fef2f2] px-3 py-2.5 text-[11px] text-[#dc2626]">{error}</div>}
-    <div className="grid grid-cols-2 gap-2.5 min-[420px]:gap-3 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-2.5 min-[360px]:grid-cols-2 min-[360px]:gap-3 xl:grid-cols-4">
       <MetricBlock tone="red" icon={ShieldAlert} title="Attack signals" value={attackCount} detail="High-severity events in view" />
       <MetricBlock tone="amber" icon={ShieldCheck} title="Failed sign-ins" value={summaryOf('login_failed')} detail="Wrong credentials submitted" />
       <MetricBlock tone="blue" icon={Activity} title="Revealed passwords" value={summaryOf('password_revealed')} detail="Support password decrypts" />
       <MetricBlock tone="green" icon={ShieldCheck} title="Accounts created" value={summaryOf('account_created')} detail="Owner & chef accounts" />
     </div>
     <section className="overflow-hidden rounded-2xl border border-[#e7ebf0] bg-white">
-      <div className="flex flex-wrap gap-1.5 border-b border-[#f1f5f9] px-4 py-3">{flaggedTypes.map(type => <span key={type} className="rounded-md bg-[#f1f4f9] px-2 py-1 text-[9px] font-medium text-[#64748b]">{TYPES[type]?.label || type}: {summaryOf(type)}</span>)}</div>
+      <div className="flex flex-wrap gap-1.5 border-b border-[#f1f5f9] px-3 py-3 sm:px-4">{flaggedTypes.map(type => <span key={type} className="max-w-full break-words rounded-md bg-[#f1f4f9] px-2 py-1 text-[9px] font-medium text-[#64748b]">{TYPES[type]?.label || type}: {summaryOf(type)}</span>)}</div>
       {data.events.length ? <ul className="divide-y divide-[#f1f4f9]">
         {data.events.map(event => (
-          <li key={event._id} className="flex flex-wrap items-start gap-x-4 gap-y-1.5 px-4 py-3.5 sm:px-5">
+          <li key={event._id} className="grid min-w-0 gap-2 px-3 py-3.5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-start sm:gap-3 sm:px-5">
             <Badge tone={toneFor(event)}>{event.severity === 'high' ? '⚠ ' : ''}{labelFor(event)}</Badge>
-            <span className="min-w-0 flex-1 break-words text-[11px] text-[#334155]">{textFor(event)}</span>
-            <span className="text-[9px] text-[#94a3b8]">
-              {event.email && <span className="mr-2">{event.email}</span>}
-              {event.ip && <span className="mr-2">{event.ip}</span>}
-              {new Date(event.createdAt).toLocaleString()}
+            <span className="min-w-0 break-words text-[11px] text-[#334155]">{textFor(event)}</span>
+            <span className="flex min-w-0 flex-wrap gap-x-2 gap-y-1 break-all text-[9px] text-[#94a3b8] sm:justify-end">
+              {event.email && <span>{event.email}</span>}
+              {event.ip && <span>{event.ip}</span>}
+              <time className="basis-full sm:basis-auto" dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleString()}</time>
             </span>
           </li>
         ))}

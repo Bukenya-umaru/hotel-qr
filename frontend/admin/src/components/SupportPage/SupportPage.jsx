@@ -11,8 +11,7 @@ const FIELDS = [
 
 const EMPTY = { phone: '', whatsapp: '', email: '', hours: '', message: '' }
 
-export function SupportPage({ role = 'OWNER' }) {
-  const isOwner = role === 'OWNER'
+export function SupportPage() {
   const [form, setForm] = useState(EMPTY)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -23,7 +22,7 @@ export function SupportPage({ role = 'OWNER' }) {
   useEffect(() => {
     let active = true
     setLoading(true)
-    api(isOwner ? '/api/owner/support' : '/api/developer/support')
+    api('/api/developer/support')
       .then(data => {
         if (!active) return
         setForm({ ...EMPTY, ...data.support })
@@ -32,7 +31,7 @@ export function SupportPage({ role = 'OWNER' }) {
       .catch(err => { if (active) setError(err.message) })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [isOwner])
+  }, [])
 
   useEffect(() => {
     if (!saved) return undefined
@@ -47,7 +46,7 @@ export function SupportPage({ role = 'OWNER' }) {
     setSaving(true)
     setError('')
     try {
-      const data = await api(isOwner ? '/api/owner/support' : '/api/developer/support', {
+      const data = await api('/api/developer/support', {
         method: 'PATCH',
         body: JSON.stringify(form),
       })
@@ -66,9 +65,7 @@ export function SupportPage({ role = 'OWNER' }) {
     <div>
       <h2 className="font-display text-lg font-bold">Help & support</h2>
       <p className="mt-1 text-[12px] text-[#94a3b8]">
-        {isOwner
-          ? 'Keep your business contact details up to date for staff and customers.'
-          : 'Maintain the help & support details shown to customers on the menu page for this business.'}
+        Maintain the help & support details shown to customers on the menu page for this business.
       </p>
     </div>
 

@@ -20,7 +20,7 @@ export function SearchModal({ onClose, onNavigate, role = 'OWNER' }) {
   const pages = useMemo(() => PAGE_LINKS.filter(name =>
     (!trimmed || name.toLowerCase().includes(trimmed)) &&
     !(name === 'Chefs' && role !== 'OWNER') &&
-    !(name === 'Help & support' && !['OWNER', 'DEVELOPER'].includes(role)),
+    !(name === 'Help & support' && role !== 'DEVELOPER'),
   ).slice(0, 7), [trimmed, role])
 
   return <div className="fixed inset-0 z-50 flex items-start justify-center bg-[#352a24]/35 p-3 pt-[max(4rem,env(safe-area-inset-top))] backdrop-blur-[2px]" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}>
