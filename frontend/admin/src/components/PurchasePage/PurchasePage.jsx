@@ -259,7 +259,9 @@ function SalesView({ onError, canApprove = false, hotelId }) {
             <span className="shrink-0 rounded bg-[#f1f4f9] px-1.5 py-0.5 font-mono text-[8px] font-bold tracking-wide text-[#64748b]">{sale.saleId}</span>
             <span className="truncate">{saleTime(sale.createdAt)}{sale.recordedBy && ` · by ${sale.recordedBy}`}{sale.customerName && ` · for ${sale.customerName}`}{sale.customerContact && ` · ${sale.customerContact}`}{sale.note && ` · ${sale.note}`}</span>
           </p>
-          {sale.approved && <p className="mt-0.5 flex items-center gap-1 text-[8px] font-bold text-[#16a34a]"><Check size={10} />Approved{sale.approvedByName && ` by ${sale.approvedByName}`}</p>}
+          {sale.approved
+            ? <p className="mt-0.5 flex items-center gap-1 text-[8px] font-bold text-[#16a34a]"><Check size={10} />Approved{sale.approvedByName && ` by ${sale.approvedByName}`}</p>
+            : <p className="mt-0.5 text-[8px] font-bold text-[#b45309]">Awaiting approval · editable</p>}
         </div>
         {!sale.approved && canApprove && <button disabled={busy} onClick={() => approveSale(sale)} title={`Approve ${sale.saleId}`} className="flex shrink-0 items-center gap-1 rounded-md bg-[#f0fdf4] px-2 py-1 text-[9px] font-bold text-[#16a34a] transition hover:bg-[#dcfce7] disabled:opacity-50">{busyAction === `approve:${sale._id}` ? <ActionProgress>Approving…</ActionProgress> : <><Check size={11} />Approve</>}</button>}
         {sale.edits?.length > 0 && <button onClick={() => setHistoryFor(sale)} title="See what changed" className="flex shrink-0 items-center gap-1 rounded-md bg-[#fef9ee] px-2 py-1 text-[9px] font-bold text-[#b45309] transition hover:bg-[#fef9ee]"><History size={11} />Edited</button>}
@@ -610,8 +612,8 @@ function MakeSaleView({ onError, onViewSales }) {
   if (recorded) return <div className="mx-auto w-full max-w-xl rounded-xl border border-[#e7ebf0] bg-white p-5">
     <div className="flex flex-col items-center gap-1.5 py-4 text-center">
       <span className="grid size-12 place-items-center rounded-full bg-[#f0fdf4] text-[#16a34a]"><Check size={22} /></span>
-      <p className="mt-1 text-[13px] font-bold text-[#0f172a]">Sale recorded</p>
-      <p className="text-[10px] text-[#94a3b8]">Saved to this hotel’s sales with its own ID — quote it any time.</p>
+      <p className="mt-1 text-[13px] font-bold text-[#0f172a]">Sale saved — awaiting approval</p>
+      <p className="text-[10px] text-[#94a3b8]">You can edit it from Sales until it is approved. Its ID can be quoted any time.</p>
       <div className="mt-2.5 flex flex-wrap items-center justify-center gap-2">
         <span className="rounded-lg bg-[#fff4ec] px-3 py-1.5 font-mono text-[12px] font-bold tracking-wide text-[#ea580c]">{recorded.saleId}</span>
         <span className="text-[12px] font-bold text-[#16a34a]">{money(recorded.amount)}</span>
@@ -829,7 +831,9 @@ function ExpensesView({ onError, canApprove = false, hotelId }) {
           <span className="shrink-0 rounded-xl bg-[#fff4ec] px-3 py-2 text-[13px] font-bold text-[#c2410c]">−{money(expense.amount)}</span>
         </div>
         {expense.note && <p className="mt-3 break-words rounded-lg bg-[#f8fafc] px-3 py-2 text-[12px] leading-5 text-[#475569]">{expense.note}</p>}
-        {expense.approved && <p className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-[#15803d]"><Check size={13} />Approved{expense.approvedByName && ` by ${expense.approvedByName}`}</p>}
+        {expense.approved
+          ? <p className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-[#15803d]"><Check size={13} />Approved{expense.approvedByName && ` by ${expense.approvedByName}`}</p>
+          : <p className="mt-3 text-[10px] font-semibold text-[#b45309]">Awaiting approval · editable</p>}
         <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[#f1f5f9] pt-3">
           {!expense.approved && canApprove && <button disabled={busy} onClick={() => approveExpense(expense)} title="Approve expense" className="flex items-center gap-1.5 rounded-lg bg-[#f0fdf4] px-3 py-2 text-[11px] font-semibold text-[#15803d] transition hover:bg-[#dcfce7] disabled:opacity-50">{busyAction === `approve:${expense._id}` ? <ActionProgress>Approving…</ActionProgress> : <><Check size={13} />Approve</>}</button>}
           {!expense.approved && <button disabled={busy} onClick={() => setEditing(expense)} title={`Edit ${expense.categoryName} expense`} className="flex items-center gap-1.5 rounded-lg bg-[#fff4ec] px-3 py-2 text-[11px] font-semibold text-[#c2410c] transition hover:bg-[#ffedd5] disabled:opacity-50"><Pencil size={13} />Edit</button>}
@@ -952,7 +956,9 @@ function DamagesView({ onError, canApprove = false, hotelId }) {
             <span className="ml-1.5 font-normal text-[#94a3b8]">{damage.quantity} {damage.unit || 'units'}</span>
           </p>
           <p className="mt-0.5 truncate text-[9px] text-[#94a3b8]">{damageTime(damage.createdAt)}{damage.recordedBy && ` · by ${damage.recordedBy}`}{damage.stockItem && ` · from stock: ${damage.stockItem.name}`}{damage.note && ` · ${damage.note}`}</p>
-          {damage.approved && <p className="mt-0.5 flex items-center gap-1 text-[8px] font-bold text-[#16a34a]"><Check size={10} />Approved{damage.approvedByName && ` by ${damage.approvedByName}`}</p>}
+          {damage.approved
+            ? <p className="mt-0.5 flex items-center gap-1 text-[8px] font-bold text-[#16a34a]"><Check size={10} />Approved{damage.approvedByName && ` by ${damage.approvedByName}`}</p>
+            : <p className="mt-0.5 text-[8px] font-bold text-[#b45309]">Awaiting approval · editable</p>}
         </div>
         {!damage.approved && canApprove && <button disabled={busy} onClick={() => approveDamage(damage)} title="Approve damage record" className="flex shrink-0 items-center gap-1 rounded-md bg-[#f0fdf4] px-2 py-1 text-[9px] font-bold text-[#16a34a] transition hover:bg-[#dcfce7] disabled:opacity-50">{busyAction === `approve:${damage._id}` ? <ActionProgress>Approving…</ActionProgress> : <><Check size={11} />Approve</>}</button>}
       {!damage.approved && <button disabled={busy} onClick={() => setEditing(damage)} title={`Edit ${damage.name} damage`} className="flex shrink-0 items-center gap-1 rounded-md bg-[#fff4ec] px-2 py-1 text-[9px] font-bold text-[#ea580c] transition hover:bg-[#ffedd5] disabled:opacity-50"><Pencil size={11} />Edit</button>}

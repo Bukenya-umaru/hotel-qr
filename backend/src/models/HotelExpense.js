@@ -13,8 +13,7 @@ const schema = new mongoose.Schema({
   amount: { type: Number, required: true, min: 0 },
   note: { type: String, default: '', trim: true, maxlength: 200 },
   recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  // Sign-off: records made by someone who cannot approve wait for the owner
-  // (or staff granted the approval permission). Approved expenses are locked
+  // Sign-off: every new expense waits for explicit approval. Approved expenses are locked
   // — they can no longer be deleted or changed.
   approved: { type: Boolean, default: false, index: true },
   approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },

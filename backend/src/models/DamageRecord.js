@@ -21,8 +21,7 @@ const schema = new mongoose.Schema({
   stockItemId: { type: mongoose.Schema.Types.ObjectId, ref: 'StockItem', default: null },
   note: { type: String, default: '', trim: true, maxlength: 200 },
   recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  // Sign-off: records made by someone who cannot approve wait for the owner
-  // (or staff granted the approval permission). Approved damages are locked
+  // Sign-off: every new damage record waits for explicit approval. Approved damages are locked
   // — they can no longer be edited, deleted or re-counted.
   approved: { type: Boolean, default: false, index: true },
   approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },

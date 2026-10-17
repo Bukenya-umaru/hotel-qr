@@ -34,6 +34,8 @@ The backend must be running for the management dashboard to load or submit data.
 
 For local bootstrap, business details and the initial owner email/password are configured in `backend/.env`; `npm run seed:business-owner` initializes the single business and owner account. In a hosted deployment, the developer can instead create the first business owner from the dashboard, which sets up the business automatically. The developer supports the business and its staff. Owners and authorized chefs can add food types and stock items, record food sales, record and approve expenses, and review reports for daily, monthly, yearly, or custom date ranges. Sales and expense reports are based on manually recorded business records.
 
+Every new stock addition, sale, expense, and damage record waits for explicit approval regardless of who created it. These records remain editable until approved.
+
 The dashboard also supports chef accounts, stock adjustments, account access support, and password resets.
 
 ## Project layout

@@ -238,9 +238,6 @@ router.post('/expenses', authenticate, authorize('OWNER', 'KITCHEN'), validate(e
       { new: true, upsert: true },
     )
   }
-  // A record made by someone allowed to approve is trusted straight away;
-  // everyone else's waits for the owner's (or an approver's) sign-off.
-  const autoApproved = hasPerm(req.user, 'approve_records')
   const expense = await HotelExpense.create({
     hotelId: scope,
     category: category._id,
@@ -248,14 +245,14 @@ router.post('/expenses', authenticate, authorize('OWNER', 'KITCHEN'), validate(e
     amount: Math.round(amount * 100) / 100,
     note,
     recordedBy: req.user._id,
-    approved: autoApproved,
-    approvedBy: autoApproved ? req.user._id : null,
-    approvedAt: autoApproved ? new Date() : null,
+    approved: false,
+    approvedBy: null,
+    approvedAt: null,
   })
   await notifyHotel(req.app.get('io'), scope, {
     type: 'new_expense',
     title: `New expense recorded — ${category.name}`,
-    body: `${expense.amount} · ${note || 'no note'} · by ${req.user.name}${autoApproved ? '' : ' · awaiting approval'}`,
+    body: `${expense.amount} · ${note || 'no note'} · by ${req.user.name} · awaiting approval`,
     refId: expense._id,
   })
   broadcastChange(req.app.get('io'), scope, 'expenses_changed')
@@ -438,11 +435,10 @@ router.post('/damages', authenticate, authorize('OWNER', 'KITCHEN'), validate(da
     stockItemId: stockItem ? stockItem._id : null,
     note,
     recordedBy: req.user._id,
-    // Records by someone allowed to approve are trusted straight away;
-    // everyone else's wait for the owner's (or an approver's) sign-off.
-    approved: hasPerm(req.user, 'approve_records'),
-    approvedBy: hasPerm(req.user, 'approve_records') ? req.user._id : null,
-    approvedAt: hasPerm(req.user, 'approve_records') ? new Date() : null,
+    // Every damage record remains editable until someone explicitly signs it off.
+    approved: false,
+    approvedBy: null,
+    approvedAt: null,
   })
   if (stockItem) {
     await StockItem.updateOne({ _id: stockItem._id, plates: { $gte: quantity } }, { $inc: { plates: -quantity, totalUsed: quantity } }).catch(() => {})
@@ -452,7 +448,7 @@ router.post('/damages', authenticate, authorize('OWNER', 'KITCHEN'), validate(da
   await notifyHotel(req.app.get('io'), scope, {
     type: 'new_damage',
     title: `Damage recorded — ${damage.name}`,
-    body: `${damage.quantity} ${damage.unit || 'units'} · ${damage.value} value · by ${req.user.name}`,
+    body: `${damage.quantity} ${damage.unit || 'units'} · ${damage.value} value · by ${req.user.name} · awaiting approval`,
     refId: damage._id,
   })
   broadcastChange(req.app.get('io'), scope, 'damages_changed')
@@ -786,9 +782,6 @@ router.post('/sales', authenticate, authorize('OWNER', 'KITCHEN'), validate(sale
   const total = Math.round(items.reduce((sum, item) => sum + item.amount, 0) * 100) / 100
   const customerName = String(req.body.customerName || '').trim().slice(0, 80)
   const customerContact = String(req.body.customerContact || '').trim().slice(0, 60)
-  // A record made by someone allowed to approve is trusted straight away;
-  // everyone else's waits for the owner's (or an approver's) sign-off.
-  const autoApproved = hasPerm(req.user, 'approve_records')
   // Receipt numbers are sequential per hotel: take the highest used number
   // and add one. If two staff record at the same instant the unique index
   // rejects the loser, and it retries with a freshly read number.
@@ -809,9 +802,9 @@ router.post('/sales', authenticate, authorize('OWNER', 'KITCHEN'), validate(sale
         customerContact,
         note: String(req.body.note || '').trim().slice(0, 200),
         recordedBy: req.user._id,
-        approved: autoApproved,
-        approvedBy: autoApproved ? req.user._id : null,
-        approvedAt: autoApproved ? new Date() : null,
+        approved: false,
+        approvedBy: null,
+        approvedAt: null,
       })
     } catch (error) {
       if (error.code !== 11000) throw error

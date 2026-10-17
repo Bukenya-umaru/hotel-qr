@@ -103,11 +103,10 @@ router.post('/', authenticate, authorize('OWNER', 'KITCHEN'), uploadLimiter, upl
     price,
     plates: quantity,
     totalAdded: quantity,
-    // Stock added by someone allowed to approve is trusted straight away;
-    // everyone else's waits for the owner's (or an approver's) sign-off.
-    approved: hasPerm(req.user, 'approve_records'),
-    approvedBy: hasPerm(req.user, 'approve_records') ? req.user._id : null,
-    approvedAt: hasPerm(req.user, 'approve_records') ? new Date() : null,
+    // Every stock addition remains editable until someone explicitly signs it off.
+    approved: false,
+    approvedBy: null,
+    approvedAt: null,
   })
   if (!stock.approved) {
     await notifyHotel(req.app.get('io'), String(scope), {
@@ -142,17 +141,23 @@ router.patch('/:id/adjust', authenticate, authorize('OWNER', 'KITCHEN'), asyncRo
   stock.plates = nextPlates
   if (delta > 0) {
     stock.totalAdded += delta
-    // Freshly added stock needs sign-off again — unless the person adding
-    // it is allowed to approve, in which case it is trusted straight away.
+    // Every stock addition remains editable until someone explicitly signs it off.
     // Reducing (waste, spoilage) never touches the approval.
-    const autoApproved = hasPerm(req.user, 'approve_records')
-    stock.approved = autoApproved
-    stock.approvedBy = autoApproved ? req.user._id : null
-    stock.approvedAt = autoApproved ? new Date() : null
+    stock.approved = false
+    stock.approvedBy = null
+    stock.approvedAt = null
   }
   // `price` is the rate for one plate/item/kg, so it never changes with the
   // count — the money value of the entry moves on its own (price × count).
   await stock.save()
+  if (delta > 0) {
+    await notifyHotel(req.app.get('io'), String(scope), {
+      type: 'stock_pending',
+      title: `Stock awaits confirmation — ${stock.name}`,
+      body: `${delta} ${noun} added by ${req.user.name} · awaiting approval`,
+      refId: stock._id,
+    })
+  }
   if (delta < 0) await checkLowStock(req.app.get('io'), String(scope), [stock._id])
   req.app.get('io').to(`hotel:${scope}`).emit('stock_updated')
   res.json({ item: stock })

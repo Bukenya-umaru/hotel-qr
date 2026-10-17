@@ -52,8 +52,7 @@ const schema = new mongoose.Schema({
   customerContact: { type: String, default: '', trim: true, maxlength: 60 },
   note: { type: String, default: '', trim: true, maxlength: 200 },
   recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  // Sign-off: records made by someone who cannot approve wait for the owner
-  // (or staff granted the approval permission). Approved sales are locked —
+  // Sign-off: every new sale waits for explicit approval. Approved sales are locked —
   // they can no longer be deleted or changed.
   approved: { type: Boolean, default: false, index: true },
   approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },

@@ -16,7 +16,11 @@ async function readResponse(response) {
   try {
     return JSON.parse(body)
   } catch {
-    throw new Error('The service could not complete that request. Please try again shortly.')
+    const error = new Error(
+      `The API returned an unexpected response (HTTP ${response.status}). The request may not be reaching an API route; try again later or contact the site administrator.`,
+    )
+    error.status = response.status
+    throw error
   }
 }
 
