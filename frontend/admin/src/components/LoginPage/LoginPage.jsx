@@ -4,7 +4,7 @@ import { Brand } from '../Brand/Brand.jsx'
 import { api } from '../../lib/api.js'
 import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
 
-export function LoginPage({ onLogin, sessionNotice = '' }) {
+export function LoginPage({ onLogin }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -45,8 +45,6 @@ export function LoginPage({ onLogin, sessionNotice = '' }) {
         <h1 className="font-display text-[21px] font-semibold tracking-[-.4px] text-[#211f1e]">Welcome back!</h1>
         <p className="mt-1 text-[13px] text-[#85817e]">Log in to your account to get started.</p>
       </div>
-
-      {sessionNotice && <div role="status" className="mt-4 rounded-[10px] border border-[#f0ddc8] bg-[#fdf6ec] px-3.5 py-2.5 text-[12px] leading-[1.55] text-[#8a6d3b]">{sessionNotice}</div>}
 
       <form className="mt-7 flex flex-1 flex-col" onSubmit={submit}>
         <div>

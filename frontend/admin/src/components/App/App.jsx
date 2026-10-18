@@ -29,7 +29,6 @@ const dateKey = date => `${date.getFullYear()}-${String(date.getMonth() + 1).pad
 export default function App() {
   const [user, setUser] = useState(null)
   const [sessionLoading, setSessionLoading] = useState(true)
-  const [sessionError, setSessionError] = useState(false)
   const role = user?.role || 'OWNER'
   const [page, setPage] = useState(role === 'DEVELOPER' ? 'Platform overview' : 'Overview')
   const [users, setUsers] = useState([])
@@ -90,7 +89,6 @@ export default function App() {
       // the screen — the user can sign in and only then see server errors.
       .catch(() => {
         if (!active) return
-        setSessionError(true)
         setUser(null)
       })
       .finally(() => { if (active) setSessionLoading(false) })
@@ -296,7 +294,7 @@ export default function App() {
   }
 
   if (sessionLoading) return <main className="flex min-h-screen items-center justify-center bg-[#eeeeed] px-4"><p role="status" className="text-[13px] text-[#85817e]">Checking your session…</p></main>
-  if (!user) return <LoginPage onLogin={login} sessionNotice={sessionError ? 'Could not check your saved session — sign in again. If this keeps failing, your API server is offline.' : ''} />
+  if (!user) return <LoginPage onLogin={login} />
 
   let content
   if (page === 'Food type') content = <CategoriesPage initialView="foodtype" />
