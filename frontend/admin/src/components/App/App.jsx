@@ -29,8 +29,7 @@ const dateKey = date => `${date.getFullYear()}-${String(date.getMonth() + 1).pad
 export default function App() {
   const [user, setUser] = useState(null)
   const [sessionLoading, setSessionLoading] = useState(true)
-  const [sessionError, setSessionError] = useState('')
-  const [sessionCheckAttempt, setSessionCheckAttempt] = useState(0)
+  const [sessionError, setSessionError] = useState(false)
   const role = user?.role || 'OWNER'
   const [page, setPage] = useState(role === 'DEVELOPER' ? 'Platform overview' : 'Overview')
   const [users, setUsers] = useState([])
@@ -80,24 +79,23 @@ export default function App() {
   useEffect(() => {
     let active = true
     setSessionLoading(true)
-    setSessionError('')
     api('/api/auth/me')
       .then(data => {
         if (!active) return
         setUser(data.user)
         if (data.user.role) setPage(data.user.role === 'DEVELOPER' ? 'Platform overview' : 'Overview')
       })
-      .catch(error => {
+      // The login page always comes first: a 401 simply means no saved
+      // session, and even an API hiccup (404/502/timeout) shouldn't block
+      // the screen — the user can sign in and only then see server errors.
+      .catch(() => {
         if (!active) return
-        if (error.status === 401) {
-          setUser(null)
-          return
-        }
-        setSessionError(error.message)
+        setSessionError(true)
+        setUser(null)
       })
       .finally(() => { if (active) setSessionLoading(false) })
     return () => { active = false }
-  }, [sessionCheckAttempt])
+  }, [])
   useEffect(() => {
     if (user && ['OWNER', 'KITCHEN'].includes(user.role)) {
       const today = new Date()
@@ -298,8 +296,7 @@ export default function App() {
   }
 
   if (sessionLoading) return <main className="flex min-h-screen items-center justify-center bg-[#eeeeed] px-4"><p role="status" className="text-[13px] text-[#85817e]">Checking your session…</p></main>
-  if (sessionError) return <main className="flex min-h-screen items-center justify-center bg-[#eeeeed] px-4"><section className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-sm"><p role="alert" className="text-[13px] text-[#77726e]">Unable to check your saved session: {sessionError}</p><button disabled={sessionLoading} onClick={() => { setSessionError(''); setSessionLoading(true); setSessionCheckAttempt(attempt => attempt + 1) }} className="mt-5 rounded-full bg-[#a93216] px-5 py-2.5 text-[13px] font-medium text-white disabled:cursor-wait disabled:opacity-60">{sessionLoading ? <ActionProgress>Checking session…</ActionProgress> : 'Try again'}</button></section></main>
-  if (!user) return <LoginPage onLogin={login} />
+  if (!user) return <LoginPage onLogin={login} sessionNotice={sessionError ? 'Could not check your saved session — sign in again. If this keeps failing, your API server is offline.' : ''} />
 
   let content
   if (page === 'Food type') content = <CategoriesPage initialView="foodtype" />
