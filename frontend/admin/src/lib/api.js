@@ -39,7 +39,7 @@ export async function api(path, options = {}, retries = 2) {
   }
   const requestUrl = import.meta.env?.DEV
     ? `${API_REQUEST_BASE_URL}${path}`
-    : `/api/proxy?path=${encodeURIComponent(path)}`
+    : `${path}`
   let response
   try {
     response = await fetch(requestUrl, { credentials: 'include', ...options, headers })
