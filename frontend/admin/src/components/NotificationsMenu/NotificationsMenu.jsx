@@ -83,10 +83,21 @@ export function NotificationsMenu({ hotelId, live }) {
   }
   const markAll = async () => {
     setBusy('all')
+    // Optimistic update: clear the list immediately for a snappier feel
+    const previousItems = items
+    const previousUnread = unread
+    setItems([])
+    setUnread(0)
+    setFreshIds(new Set())
+
     try {
       await api('/api/notifications/read-all', { method: 'PATCH' })
-      setItems([]); setUnread(0); setFreshIds(new Set())
-    } catch { /* refresh keeps state honest */ } finally {
+    } catch {
+      // If the request fails, restore the previous state and refresh to be sure
+      setItems(previousItems)
+      setUnread(previousUnread)
+      load()
+    } finally {
       setBusy('')
     }
   }
