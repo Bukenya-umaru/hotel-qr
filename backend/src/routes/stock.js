@@ -194,7 +194,7 @@ router.patch('/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadLimiter,
     if (price === null) return res.status(400).json({ message: 'Price must be zero or more.' })
     updates.price = price
   }
-  if (req.file) updates.imageUrl = `/uploads/${req.file.filename}`
+  if (req.file) updates.imageUrl = req.file.path
   if (!Object.keys(updates).length) return res.status(400).json({ message: 'No supported changes were provided.' })
   if (updates.name) {
     const duplicate = await StockItem.findOne({
