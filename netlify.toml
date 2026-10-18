@@ -1,0 +1,32 @@
+# Netlify config for the WAGA BITS project (repo root).
+# Built at the repo root with npm workspaces; each workspace keeps its own
+# dist folder, so the publish paths are written out in full from the root.
+#
+# The two redirect targets below proxy API calls and uploaded files to the
+# Render backend so every request stays same-origin: the session cookie is
+# SameSite=Lax and only travels on the dashboard's own domain.
+
+[build]
+  command = "npm run build:admin"
+  publish = "frontend/admin/dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[[redirects]]
+  from = "/api/*"
+  to = "https://hotel-qr-1.onrender.com/api/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/uploads/*"
+  to = "https://hotel-qr-1.onrender.com/uploads/:splat"
+  status = 200
+  force = true
+
+# Single-page app fallback: any other path serves the dashboard's app shell.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
