@@ -1,5 +1,5 @@
-# API proxying is configured at the repo-root netlify.toml via the
-# backend-proxy function; the backend URL lives in the BACKEND_URL
-# environment variable (Netlify site settings), not in this repo.
-# Keep only the single-page app fallback here.
+# Keep API and upload requests ahead of the SPA fallback. The function
+# forwards them to the Render origin configured as BACKEND_URL in Netlify.
+/api/*  /.netlify/functions/backend-proxy  200!
+/uploads/*  /.netlify/functions/backend-proxy  200!
 /*  /index.html  200

@@ -11,24 +11,7 @@
 [build]
   command = "npm run build:admin"
   publish = "frontend/admin/dist"
+  functions = "frontend/admin/netlify/functions"
 
 [build.environment]
   NODE_VERSION = "20"
-
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/backend-proxy"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/uploads/*"
-  to = "/.netlify/functions/backend-proxy"
-  status = 200
-  force = true
-
-# Single-page app fallback: any other path serves the dashboard's app shell.
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200

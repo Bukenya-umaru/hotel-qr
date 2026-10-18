@@ -1,4 +1,5 @@
-# NOTE: API proxying for this site is configured at the repo-root
-# netlify.toml, which routes /api/* and /uploads/* through the
-# backend-proxy Netlify Function. The backend URL lives only in the
-# BACKEND_URL environment variable (Netlify site settings), never here.
+# If Netlify's Base directory is frontend/admin, the published _redirects
+# file still handles API proxying and the function is discovered here.
+# Configure BACKEND_URL in Netlify's environment variables.
+[build]
+  functions = "netlify/functions"
