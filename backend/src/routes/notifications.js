@@ -47,9 +47,10 @@ router.patch('/:id/read', authenticate, asyncRoute(async (req, res) => {
 router.patch('/read-all', authenticate, asyncRoute(async (req, res) => {
   const scope = hotelScope(req)
   if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
+
   await Notification.updateMany(
     { hotelId: scope, readBy: { $ne: req.user._id } },
-    { $addToSet: { readBy: req.user._id } },
+    { $push: { readBy: req.user._id } },
   )
   res.json({ unread: 0 })
 }))
