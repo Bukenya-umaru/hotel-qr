@@ -31,7 +31,7 @@ async function readResponse(response) {
   throw error
 }
 
-export async function api(path, options = {}) {
+export async function api(path, options = {}, retries = 2) {
   const isForm = options.body instanceof FormData
   const headers = {
     ...(isForm ? {} : { 'Content-Type': 'application/json' }),
@@ -49,11 +49,24 @@ export async function api(path, options = {}) {
     }
     throw error
   }
-  const data = await readResponse(response)
-  if (!response.ok) {
-    const error = new Error(data?.message || 'Something went wrong. Please try again.')
-    error.status = response.status
+
+  try {
+    const data = await readResponse(response)
+    if (!response.ok) {
+      const error = new Error(data?.message || 'Something went wrong. Please try again.')
+      error.status = response.status
+      throw error
+    }
+    return data
+  } catch (error) {
+    // If we get an "invalid response" (HTML instead of JSON) and have retries left, try again.
+    // This handles Render "cold starts" where the first request might return a loading page.
+    if (retries > 0 && (error.message.includes('invalid response') || response.status === 502 || response.status === 503)) {
+      console.log(`Invalid response received. Retrying... (${retries} attempts left)`)
+      // Wait 2 seconds before retrying to give the server time to wake up
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      return api(path, options, retries - 1)
+    }
     throw error
   }
-  return data
 }
