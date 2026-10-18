@@ -1,0 +1,5 @@
+[[redirects]]
+  from = "/api/*"
+  to = "https://hotel-qr-wygt.onrender.com/:splat"
+  status = 200
+  force = true
