@@ -1,3 +1,5 @@
-/api/*  https://hotel-qr-wygt.onrender.com/api/:splat  200
-/uploads/*  https://hotel-qr-wygt.onrender.com/uploads/:splat  200
+# API proxying is configured at the repo-root netlify.toml via the
+# backend-proxy function; the backend URL lives in the BACKEND_URL
+# environment variable (Netlify site settings), not in this repo.
+# Keep only the single-page app fallback here.
 /*  /index.html  200

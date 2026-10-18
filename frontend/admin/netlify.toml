@@ -1,17 +1,4 @@
-[[redirects]]
-  from = "/api/*"
-  to = "https://hotel-qr-wygt.onrender.com/api/:splat"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/uploads/*"
-  to = "https://hotel-qr-wygt.onrender.com/uploads/:splat"
-  status = 200
-  force = true
-
-# Single-page app fallback: serve the dashboard shell for client-side routes.
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
+# NOTE: API proxying for this site is configured at the repo-root
+# netlify.toml, which routes /api/* and /uploads/* through the
+# backend-proxy Netlify Function. The backend URL lives only in the
+# BACKEND_URL environment variable (Netlify site settings), never here.
