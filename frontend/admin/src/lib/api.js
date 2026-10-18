@@ -25,15 +25,17 @@ async function readResponse(response) {
   }
 }
 
-export async function api(path, options = {}) {
+export async function api(path, options = {}, retries = 2) {
   const isForm = options.body instanceof FormData
   const headers = {
     ...(isForm ? {} : { 'Content-Type': 'application/json' }),
     ...options.headers,
   }
-  // Dev calls the backend through Vite's proxy; production calls the same
-  // paths on the dashboard's own origin, where the host proxies to the API.
-  const requestUrl = path
+
+  // In production, Netlify uses the _redirects file to send /api requests to Render.
+  // We ensure the path starts with /api to match the redirect rule.
+  const requestUrl = path.startsWith('/api') ? path : `/api${path}`
+
   let response
   try {
     response = await fetch(requestUrl, { credentials: 'include', ...options, headers })
@@ -43,11 +45,20 @@ export async function api(path, options = {}) {
     }
     throw error
   }
-  const data = await readResponse(response)
-  if (!response.ok) {
-    const error = new Error(data?.message || 'Something went wrong. Please try again.')
-    error.status = response.status
+
+  try {
+    const data = await readResponse(response)
+    if (!response.ok) {
+      const error = new Error(data?.message || 'Something went wrong. Please try again.')
+      error.status = response.status
+      throw error
+    }
+    return data
+  } catch (error) {
+    if (retries > 0 && (error.message.includes('invalid response') || response.status === 502 || response.status === 503)) {
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      return api(path, options, retries - 1)
+    }
     throw error
   }
-  return data
 }
