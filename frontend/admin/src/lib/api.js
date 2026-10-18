@@ -10,18 +10,25 @@ export function apiAssetUrl(path) {
 async function readResponse(response) {
   if (response.status === 204) return null
 
+  const contentType = response.headers.get('content-type')
   const body = await response.text()
   if (!body) return null
 
-  try {
-    return JSON.parse(body)
-  } catch {
-    const error = new Error(
-      `The API returned an unexpected response (HTTP ${response.status}). The request may not be reaching an API route; try again later or contact the site administrator.`,
-    )
-    error.status = response.status
-    throw error
+  if (contentType && contentType.includes('application/json')) {
+    try {
+      return JSON.parse(body)
+    } catch {
+      // Fall through to error if JSON is malformed
+    }
   }
+
+  const error = new Error(
+    `The server returned an invalid response (HTTP ${response.status}). This often happens when the API is down or returning an HTML error page. Please try again later.`,
+  )
+  error.status = response.status
+  // Log the body to the console in development/staging to help debug the HTML error
+  if (import.meta.env?.DEV) console.error('Invalid API response body:', body)
+  throw error
 }
 
 export async function api(path, options = {}) {
