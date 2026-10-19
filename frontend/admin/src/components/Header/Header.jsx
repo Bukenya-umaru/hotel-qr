@@ -25,10 +25,18 @@ export function Header({ role, page, onLogin, user, titleOverride, hotelName, on
         {hasPermission(user, 'manage_expenses') && <button onClick={() => onNavigate('Purchase expenses')} className="inline-flex items-center gap-1.5 rounded-lg border border-[#eee4df] bg-white px-3 py-2 text-[10px] font-semibold text-[#655a54] transition hover:border-[#e7654b] hover:text-[#d95c43]"><Receipt size={13} />Add expense</button>}
       </div>}
       <span className="hidden text-[10px] text-[#a19690] xl:block">{today}</span>
-      {user && <div className="flex items-center gap-2.5">
-        <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#fde3da] text-[10px] font-bold text-[#d95c43]">{initials}</span>
-        <span className="hidden min-w-0 lg:block"><span className="block max-w-[170px] truncate text-[12px] font-bold text-[#292421]">{user.name}</span><span className="block max-w-[170px] truncate text-[9px] text-[#938780]">{user.email}</span></span>
-      </div>}
+      {user && (
+        <button
+          onClick={() => onNavigate('Profile')}
+          className="flex items-center gap-2.5 rounded-full p-1 transition hover:bg-[#fbf8f6]"
+        >
+          <div className="grid size-8 shrink-0 place-items-center rounded-full bg-[#fde3da] text-[10px] font-bold text-[#d95c43]">{initials}</div>
+          <span className="hidden min-w-0 lg:block text-left">
+            <span className="block max-w-[170px] truncate text-[12px] font-bold text-[#292421]">{user.name}</span>
+            <span className="block max-w-[170px] truncate text-[9px] text-[#938780]">{user.email}</span>
+          </span>
+        </button>
+      )}
       {!user && <button onClick={onLogin} className="ml-1 rounded-lg bg-[#e7654b] px-3.5 py-2 text-[11px] font-semibold text-white transition hover:bg-[#d95c43]">Sign in</button>}
     </div>
     {searchOpen && <SearchModal onClose={() => setSearchOpen(false)} onNavigate={onNavigate} role={role} />}
