@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { io } from 'socket.io-client'
 import { Check, ChevronDown, LogOut, Menu, ShieldCheck, X } from 'lucide-react'
-import { api, API_BASE_URL } from '../../lib/api.js'
+import { api, SOCKET_URL } from '../../lib/api.js'
 import { cx, navItems, hasPermission } from '../../lib/ui.js'
 import { applyTheme, readTheme, toggleTheme } from '../../lib/theme.js'
 import { Reports } from '../Reports/Reports.jsx'
@@ -133,7 +133,7 @@ export default function App() {
   // effect so reconnects re-run the join_hotel handshake.
   useEffect(() => {
     if (!user) return undefined
-    const socket = io(API_BASE_URL || undefined, { withCredentials: true, reconnectionDelayMax: 5000 })
+    const socket = io(SOCKET_URL || undefined, { withCredentials: true, reconnectionDelayMax: 5000 })
     socket.on('connect', () => {
       socket.emit('join_hotel', user.hotelId)
       setLive(socket)

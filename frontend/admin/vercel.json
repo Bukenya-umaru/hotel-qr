@@ -6,11 +6,15 @@
       "destination": "/api/[...path]"
     },
     {
+      "source": "/socket.io/:path*",
+      "destination": "/api/[...path]"
+    },
+    {
       "source": "/uploads/:path*",
       "destination": "/api/proxy/uploads/:path*"
     },
     {
-      "source": "/((?!api/|uploads/).*)",
+      "source": "/((?!api/|uploads/|socket[.]io/).*)",
       "destination": "/index.html"
     }
   ]

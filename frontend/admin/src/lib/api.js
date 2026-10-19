@@ -1,5 +1,11 @@
 export const API_BASE_URL = (import.meta.env?.VITE_API_URL || '').replace(/\/+$/, '')
 
+// Sockets connect same-origin ('', proxied by the host — Netlify/Vercel) in
+// production so the HttpOnly session cookie travels on the handshake and the
+// backend can identify the socket without cross-origin cookie rules. In dev,
+// Vite proxies /socket.io to the backend via VITE_API_URL.
+export const SOCKET_URL = API_BASE_URL
+
 export function apiAssetUrl(path) {
   // Upload images always load same-origin: in dev Vite proxies /uploads/ to
   // the backend, in production the host (Netlify/Vercel config) proxies it —

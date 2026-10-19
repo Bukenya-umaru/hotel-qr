@@ -45,11 +45,13 @@ export default function handler(req, res) {
     } else {
       target = new URL(req.url, origin)
     }
-    if (target.origin !== origin || !target.pathname.startsWith('/api/') &&
-      !target.pathname.startsWith('/api/proxy/uploads/')) {
+    const isApi = target.pathname.startsWith('/api/')
+    const isUploadsProxy = target.pathname.startsWith('/api/proxy/uploads/')
+    const isSocket = target.pathname.startsWith('/socket.io/')
+    if (target.origin !== origin || (!isApi && !isUploadsProxy && !isSocket)) {
       return res.status(400).json({ message: 'Invalid API path.' })
     }
-    if (target.pathname.startsWith('/api/proxy/uploads/')) {
+    if (isUploadsProxy) {
       target.pathname = target.pathname.replace('/api/proxy/uploads/', '/uploads/')
     }
   } catch (error) {

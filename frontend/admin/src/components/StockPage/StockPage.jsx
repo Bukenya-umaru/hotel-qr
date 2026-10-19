@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { io } from 'socket.io-client'
 import { Boxes, Check, ImagePlus, Pencil, Plus, Trash2, Wallet } from 'lucide-react'
-import { API_BASE_URL, api, apiAssetUrl } from '../../lib/api.js'
+import { SOCKET_URL, api, apiAssetUrl } from '../../lib/api.js'
 import { hasPermission, money, cx } from '../../lib/ui.js'
 import { Modal } from '../Modal/Modal.jsx'
 import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
@@ -60,7 +60,7 @@ export function StockPage({ user, canManage = true }) {
     loadStock()
     api('/api/owner/categories').then(data => setFoodTypes(data.categories.map(category => category.name))).catch(() => {})
     if (!user?.hotelId) return undefined
-    const socket = io(API_BASE_URL || undefined, { withCredentials: true })
+    const socket = io(SOCKET_URL || undefined, { withCredentials: true })
     socket.emit('join_hotel', user.hotelId)
     socket.on('stock_updated', loadStock)
     return () => socket.disconnect()
