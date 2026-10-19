@@ -30,7 +30,7 @@ export function SectionGate({ sectionKey, ready, children }) {
   return (
     <>
       {gating && (
-        <div key={beat} role="status" aria-label="Loading section" className="absolute inset-0 z-20 grid place-items-center bg-[#fbf8f6] lg:z-[80]">
+        <div key={beat} role="status" aria-label="Loading section" className="absolute inset-0 z-20 flex items-start justify-center bg-[#fbf8f6] pt-8 lg:z-[80] lg:grid lg:place-items-center lg:pt-0">
           <div className="flex flex-col items-center gap-3">
             <Loader2 size={34} className="animate-spin text-[#e7654b]" />
             <p className="text-[12px] font-semibold text-[#786d67]">Loading {sectionKey}…</p>

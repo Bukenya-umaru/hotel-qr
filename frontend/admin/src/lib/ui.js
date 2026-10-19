@@ -90,6 +90,7 @@ export const navItems = {
     { label: 'Categories', icon: Rows3, children: [{ label: 'Food type' }, { label: 'Expenses' }] },
     { label: 'Stock', icon: Boxes },
     { label: 'Purchases', icon: ShoppingCart, children: [{ label: 'Record Sale', target: 'Make sale' }, { label: 'Sales' }, { label: 'Expenses', target: 'Purchase expenses' }, { label: 'Damage', target: 'Purchase damages' }] },
+    { label: 'Reports', icon: TrendingUp },
   ],
   DEVELOPER: [
     { label: 'Platform overview', icon: LayoutDashboard },
