@@ -20,6 +20,7 @@ import { StockPage } from '../StockPage/StockPage.jsx'
 import { CategoriesPage } from '../CategoriesPage/CategoriesPage.jsx'
 import { PurchasePage } from '../PurchasePage/PurchasePage.jsx'
 import { SupportPage } from '../SupportPage/SupportPage.jsx'
+import { SectionGate } from '../SectionGate/SectionGate.jsx'
 import { SecurityPage } from '../SecurityPage/SecurityPage.jsx'
 import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
 
@@ -310,6 +311,15 @@ export default function App() {
   else if (page === 'Accounts' || page === 'Chefs') content = <AccountsPage users={users} role={role} passwordViewable={platformOverview.passwordViewable} passwordLoadingId={passwordLoadingId} onCreate={() => setModal('account')} onToggle={toggleUser} onReset={account => { setResettingUser(account); setModal('reset') }} onEdit={account => { setEditingUser(account); setModal('edit-account') }} onView={account => { setViewingUser(account); setPasswordLoadingId(String(account._id)); setModal('view-password') }} />
   else if (role === 'DEVELOPER') content = <DeveloperDashboard users={users} onNavigate={setPage} overview={platformOverview} />
   else content = <Overview hotelName={hotelName} onNavigate={setPage} analytics={analytics} currency="UGX" onRange={loadReportRange} reportRange={reportRange} />
+
+  // Every section/subsection switch opens behind a full-screen loading gate:
+  // the overlay holds for at least 5 seconds (owner's requirement) and longer
+  // while the section's own data is still arriving.
+  let sectionReady = true
+  if (page === 'Reports') sectionReady = analytics.isActual
+  else if (['Accounts', 'Chefs'].includes(page)) sectionReady = users.length > 0
+  else if (['Food type', 'Expenses'].includes(page)) sectionReady = undefined
+  content = <SectionGate sectionKey={page} ready={sectionReady}>{content}</SectionGate>
 
   return <div className="min-h-screen bg-[#fbf8f6]">
     <Sidebar role={role} page={page} setPage={setPage} user={user} onLogin={() => setModal('login')} onLogout={logout} loggingOut={loggingOut} onChangePassword={() => setModal('change-password')} hotelName={hotelName} items={currentNav} />
