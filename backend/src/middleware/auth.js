@@ -21,11 +21,15 @@ export function issueToken(user) {
 }
 
 export function cookieOptions() {
+  // Secure instances (HTTPS, e.g. the Render deployment) must ship
+  // SameSite=None so browsers also attach the session cookie to the
+  // cross-origin Socket.IO wss:// handshake that streams live
+  // notifications. Insecure dev cookies stay Lax for plain HTTP.
   const secure = process.env.COOKIE_SECURE === 'true' || process.env.NODE_ENV === 'production'
   return {
     httpOnly: true,
     secure,
-    sameSite: 'lax',
+    sameSite: secure ? 'none' : 'lax',
     path: '/',
     maxAge: SESSION_MAX_AGE_MS,
   }

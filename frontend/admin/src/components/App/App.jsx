@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { io } from 'socket.io-client'
 import { Check, ChevronDown, LogOut, Menu, ShieldCheck, X } from 'lucide-react'
-import { api, SOCKET_URL } from '../../lib/api.js'
+import { api, connectSocket } from '../../lib/api.js'
 import { cx, navItems, hasPermission } from '../../lib/ui.js'
 import { applyTheme, readTheme, toggleTheme } from '../../lib/theme.js'
 import { Reports } from '../Reports/Reports.jsx'
@@ -129,11 +128,12 @@ export default function App() {
     return () => window.clearTimeout(timeout)
   }, [notificationToast])
 
-  // Connect on sign-in, disconnect cleanly on sign-out. Registered inside the
-  // effect so reconnects re-run the join_hotel handshake.
+  // Connect on sign-in, disconnect cleanly on sign-out. connectSocket tries
+  // same-origin first (proxied), falling back to the direct Render socket on
+  // hosts that can't stream Socket.IO's handshake (e.g. Vercel serverless).
   useEffect(() => {
     if (!user) return undefined
-    const socket = io(SOCKET_URL || undefined, { withCredentials: true, reconnectionDelayMax: 5000 })
+    const socket = connectSocket()
     socket.on('connect', () => {
       socket.emit('join_hotel', user.hotelId)
       setLive(socket)

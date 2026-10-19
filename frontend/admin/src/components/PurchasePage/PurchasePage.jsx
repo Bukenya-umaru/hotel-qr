@@ -1,9 +1,8 @@
 import { Fragment, useEffect, useState } from 'react'
-import { io } from 'socket.io-client'
+import { api, apiAssetUrl, connectSocket } from '../../lib/api.js'
 import {
   ArrowDown, BadgePlus, Banknote, CalendarDays, Check, ChevronRight, History, Minus, Pencil, Plus, Receipt, Trash2, PackageOpen,
 } from 'lucide-react'
-import { api, apiAssetUrl, SOCKET_URL } from '../../lib/api.js'
 import { money, cx, UNIT_OPTIONS, unitDisplay } from '../../lib/ui.js'
 import { Modal } from '../Modal/Modal.jsx'
 import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
@@ -181,7 +180,7 @@ function SalesView({ onError, canApprove = false, hotelId }) {
   // Live list: the backend broadcasts sales_changed on every record,
   // approve, edit or delete — the list refreshes instantly, no page reload.
   useEffect(() => {
-    const socket = io(SOCKET_URL || undefined, { withCredentials: true })
+    const socket = connectSocket()
     socket.on('connect', () => {
       socket.emit('join_hotel', hotelId)
     })
@@ -760,7 +759,7 @@ function ExpensesView({ onError, canApprove = false, hotelId }) {
   // Live list: expenses broadcast expenses_changed on record, approve or
   // delete — the list refreshes instantly, no page reload.
   useEffect(() => {
-    const socket = io(SOCKET_URL || undefined, { withCredentials: true })
+    const socket = connectSocket()
     socket.on('connect', () => {
       socket.emit('join_hotel', hotelId)
     })
@@ -916,7 +915,7 @@ function DamagesView({ onError, canApprove = false, hotelId }) {
 
   // Live list: damages broadcast damages_changed on record or delete.
   useEffect(() => {
-    const socket = io(SOCKET_URL || undefined, { withCredentials: true })
+    const socket = connectSocket()
     socket.on('connect', () => {
       socket.emit('join_hotel', hotelId)
     })
