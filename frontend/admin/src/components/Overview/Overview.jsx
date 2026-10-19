@@ -44,7 +44,7 @@ const periodDates = key => {
 // returned by the API; empty when the line is not stock-linked or has no photo.
 const saleItemImage = (sale, item) => (sale.stockImages ? sale.stockImages[String(item?.stockItemId || '')] || '' : '')
 
-export function Overview({ hotelName, onNavigate, analytics, currency, onRange, reportRange }) {
+export function Overview({ hotelName, userId, userRole, onNavigate, analytics, currency, onRange, reportRange }) {
   const sales = analytics.sales || []
   const expenses = analytics.expenses || []
   const canViewSales = analytics.canViewSales !== false
@@ -320,7 +320,7 @@ export function Overview({ hotelName, onNavigate, analytics, currency, onRange, 
               <span className="min-w-0"><span className="block max-w-[180px] truncate text-[10px] font-semibold text-[#292421]">{item.name}</span><span className="mt-0.5 block text-[9px] text-[#8d817b]">{item.plates} {stockUnitNoun(item)} · {money(item.price, currency)} each</span></span>
               <span title={approvedTitle(item)} className={`shrink-0 cursor-help rounded px-1.5 py-0.5 text-[8px] font-semibold ${stockApprovedNow(item) ? 'bg-[#eaf7ef] text-[#55a978]' : 'bg-[#fdf1cf] text-[#c4901c]'}`}>{stockApprovedNow(item) ? 'Approved' : 'Pending'}</span>
               {!stockApprovedNow(item) && canApproveStock && <button onClick={() => approveStockAddition(item)} disabled={Boolean(busyStockApproval)} title={`Approve ${item.name}`} aria-label={busyStockApproval === String(item._id) ? `Approving ${item.name}` : `Approve ${item.name}`} className="shrink-0 rounded-md bg-[#f0fdf4] px-1.5 py-1 text-[8px] font-semibold text-[#16a34a] hover:bg-[#dcfce7] disabled:cursor-wait disabled:opacity-50">{busyStockApproval === String(item._id) ? <ActionProgress>Approving…</ActionProgress> : 'Approve'}</button>}
-              {!stockApprovedNow(item) && <button onClick={() => onNavigate('Stock')} title={`Edit ${item.name} on the stock page`} aria-label={`Edit ${item.name}`} className="shrink-0 rounded-md border border-[#eadfd9] px-1.5 py-1 text-[8px] font-semibold text-[#8d817b] hover:border-[#e7654b] hover:text-[#d95c43]">Edit</button>}
+              {!stockApprovedNow(item) && (userRole === 'OWNER' || String(item.createdById || '') === String(userId || '')) && <button onClick={() => onNavigate('Stock')} title={`Edit ${item.name} on the stock page`} aria-label={`Edit ${item.name}`} className="shrink-0 rounded-md border border-[#eadfd9] px-1.5 py-1 text-[8px] font-semibold text-[#8d817b] hover:border-[#e7654b] hover:text-[#d95c43]">Edit</button>}
             </div>) : <p className="py-5 text-center text-[10px] text-[#8d817b]">No stock was added {dayWording}.</p>}
           </div>
         </section>

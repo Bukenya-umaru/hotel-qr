@@ -4,6 +4,9 @@ import { Boxes, Check, ImagePlus, Pencil, Plus, Trash2, Wallet } from 'lucide-re
 import { hasPermission, money, cx } from '../../lib/ui.js'
 import { Modal } from '../Modal/Modal.jsx'
 import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
+import { Pagination } from '../Pagination/Pagination.jsx'
+
+const PAGE_SIZE = 10
 
 // Stock is not always counted in plates — gas cylinders, charcoal and boxes
 // are counted as items, milk is served by the cup, and anything else can be
@@ -41,6 +44,7 @@ export function StockPage({ user, canManage = true }) {
   const [form, setForm] = useState({ name: '', foodType: '', price: '', unit: 'plates', customUnit: '', quantity: '' })
   const [image, setImage] = useState(null)
   const [preview, setPreview] = useState('')
+  const [page, setPage] = useState(1)
   const fileRef = useRef(null)
   // The owner — or staff granted the approval permission — can sign stock off.
   const canApprove = hasPermission(user, 'approve_records')
@@ -135,6 +139,7 @@ export function StockPage({ user, canManage = true }) {
       const result = await api(editing ? `/api/stock/${editing._id}` : '/api/stock', { method: editing ? 'PATCH' : 'POST', body: data })
       const savedItem = { ...result.item, value: stockValue(result.item), approvedByName: result.item.approvedByName || '', dishes: result.item.dishes || [] }
       setItems(previous => previous.map(item => item._id === pendingId ? savedItem : item))
+      if (!editing) setPage(1)
       setShowForm(false)
       setEditing(null)
       clearImageInput()
@@ -247,6 +252,9 @@ export function StockPage({ user, canManage = true }) {
   const outCount = items.filter(item => item.plates === 0).length
   const lowCount = items.filter(item => item.plates > 0 && lowStock(item.plates)).length
   const totalCount = items.reduce((sum, item) => sum + (Number(item.plates) || 0), 0)
+  const pageCount = Math.max(1, Math.ceil(items.length / PAGE_SIZE))
+  const currentPage = Math.min(page, pageCount)
+  const visibleItems = items.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   const unitButton = active => cx('rounded-lg border px-2.5 py-1.5 text-[10px] font-semibold transition', active ? 'border-[#f97316] bg-[#fff4ec] text-[#f97316]' : 'border-[#e7ebf0] bg-white text-[#64748b] hover:border-[#fdba74]')
 
@@ -266,7 +274,7 @@ export function StockPage({ user, canManage = true }) {
       {lowCount > 0 && <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#fef9ee] px-2 py-1 text-[10px] font-semibold text-[#b45309] sm:px-3 sm:py-2 sm:text-[12px]">{lowCount} running low</span>}
     </div>}
     {!items.length ? <div className="rounded-2xl border border-dashed border-[#dbe1ea] bg-white px-5 py-12 text-center"><Boxes className="mx-auto text-[#f97316]" size={26} /><p className="mt-3 text-[12px] font-semibold">No stock tracked yet</p><p className="mt-1 text-[10px] text-[#94a3b8]">{canManage ? 'Click Add stock to record your first batch — pick the food type, how it is counted (plates, items, cups, kg or your own unit), price, and quantity.' : 'Stock entries will appear here once the kitchen adds them.'}</p></div> :
-      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4 lg:gap-4 2xl:grid-cols-5">{items.map(item => { const unit = unitInfo(item.unit, item.customUnit); return <article key={item._id} className="flex min-w-0 flex-col items-center gap-1 rounded-xl border border-[#e7ebf0] bg-white p-1.5 transition hover:border-[#fdba74] sm:gap-2.5 sm:p-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4 lg:gap-4 2xl:grid-cols-5">{visibleItems.map(item => { const unit = unitInfo(item.unit, item.customUnit); const canEdit = user?.role === 'OWNER' || String(item.createdById || '') === String(user?._id || ''); return <article key={item._id} className="flex min-w-0 flex-col items-center gap-1 rounded-xl border border-[#e7ebf0] bg-white p-1.5 transition hover:border-[#fdba74] sm:gap-2.5 sm:p-4">
         <span className="relative block aspect-[4/3] w-full overflow-hidden rounded-lg bg-[#f1f5f9] text-[#e2e8f0] sm:aspect-[16/10] sm:rounded-xl">
           {item.imageUrl ? <img src={apiAssetUrl(item.imageUrl)} alt={item.name} className="size-full object-cover" /> : <span className="grid size-full place-items-center"><Boxes size={16} className="sm:size-7" /></span>}
           <span title={item.plates === 0 ? 'Out of stock' : lowStock(item.plates) ? 'Running low' : 'In stock'} className={cx('absolute right-1 top-1 size-2 rounded-full ring-2 ring-white sm:right-1.5 sm:top-1.5 sm:size-3', item.plates === 0 ? 'bg-[#ef4444]' : lowStock(item.plates) ? 'bg-[#f59e0b]' : 'bg-[#22c55e]')} />
@@ -274,7 +282,7 @@ export function StockPage({ user, canManage = true }) {
         <div className="w-full min-w-0 text-center">
           <h3 className="font-display flex items-center justify-center gap-1 text-[10px] font-bold leading-[13px] sm:gap-1.5 sm:text-[13px] sm:leading-[17px]">
             <span className="line-clamp-2 break-words">{item.name}</span>
-            {canManage && <button onClick={() => openEdit(item)} title={`Edit ${item.name}`} className="shrink-0 rounded p-0.5 text-[#e2e8f0] hover:bg-[#f1f5f9] hover:text-[#64748b] sm:p-1"><Pencil size={11} className="sm:size-3.5" /></button>}
+            {canManage && canEdit && <button onClick={() => openEdit(item)} title={`Edit ${item.name}`} className="shrink-0 rounded p-0.5 text-[#e2e8f0] hover:bg-[#f1f5f9] hover:text-[#64748b] sm:p-1"><Pencil size={11} className="sm:size-3.5" /></button>}
           </h3>
           <div className="mt-0.5 flex flex-wrap items-center justify-center gap-1 sm:mt-1.5 sm:gap-1.5">
             {item.foodType && <span className="max-w-full truncate rounded bg-[#fff4ec] px-1.5 py-0.5 text-[7px] font-semibold uppercase tracking-[.6px] text-[#ea580c] sm:px-2 sm:py-1 sm:text-[9px] sm:tracking-[.8px]">{item.foodType}</span>}
@@ -296,11 +304,14 @@ export function StockPage({ user, canManage = true }) {
         </div>
         {canManage && <div className="flex w-full items-center justify-center gap-1 sm:gap-1.5">
           {canApprove && !item.approved && <button disabled={busy} onClick={() => approveStock(item)} aria-label={busyAction === `approve:${item._id}` ? `Approving ${item.name}` : `Approve ${item.name}`} title="Approve this stock" className="grid size-6 place-items-center rounded-md bg-[#f0fdf4] text-[#16a34a] disabled:opacity-50 sm:size-9 sm:rounded-lg">{busyAction === `approve:${item._id}` ? <ActionProgress><span className="sr-only">Approving stock…</span></ActionProgress> : <Check size={12} className="sm:size-4" />}</button>}
-          <button disabled={busy} onClick={() => { setAdjusting({ item, mode: 'add' }); setAdjustAmount('') }} aria-label={`Add ${unit.plural} to ${item.name}`} title={`Add ${unit.plural}`} className="grid size-6 place-items-center rounded-md bg-[#fff4ec] text-[#ea580c] disabled:opacity-60 sm:size-9 sm:rounded-lg"><Plus size={12} className="sm:size-[18px]" /></button>
-          <button disabled={busy || item.plates === 0} onClick={() => { setAdjusting({ item, mode: 'reduce' }); setAdjustAmount('') }} aria-label={`Reduce ${unit.plural} from ${item.name}`} title={`Reduce ${unit.plural}`} className="grid size-6 place-items-center rounded-md border border-[#e7ebf0] text-[12px] leading-none text-[#64748b] disabled:opacity-60 sm:size-9 sm:rounded-lg sm:text-[17px]">−</button>
-          <button disabled={busy || item.approved} onClick={() => removeStock(item)} aria-label={busyAction === `delete:${item._id}` ? `Deleting ${item.name}` : `Remove ${item.name}`} title={item.approved ? 'Approved — cannot be changed' : `Remove ${item.name}`} className="grid size-6 place-items-center rounded-md border border-[#e7ebf0] text-[#dc2626] disabled:opacity-50 sm:size-9 sm:rounded-lg">{busyAction === `delete:${item._id}` ? <ActionProgress><span className="sr-only">Deleting stock…</span></ActionProgress> : <Trash2 size={11} className="sm:size-4" />}</button>
+          {canEdit && <>
+            <button disabled={busy} onClick={() => { setAdjusting({ item, mode: 'add' }); setAdjustAmount('') }} aria-label={`Add ${unit.plural} to ${item.name}`} title={`Add ${unit.plural}`} className="grid size-6 place-items-center rounded-md bg-[#fff4ec] text-[#ea580c] disabled:opacity-60 sm:size-9 sm:rounded-lg"><Plus size={12} className="sm:size-[18px]" /></button>
+            <button disabled={busy || item.plates === 0} onClick={() => { setAdjusting({ item, mode: 'reduce' }); setAdjustAmount('') }} aria-label={`Reduce ${unit.plural} from ${item.name}`} title={`Reduce ${unit.plural}`} className="grid size-6 place-items-center rounded-md border border-[#e7ebf0] text-[12px] leading-none text-[#64748b] disabled:opacity-60 sm:size-9 sm:rounded-lg sm:text-[17px]">−</button>
+            <button disabled={busy || item.approved} onClick={() => removeStock(item)} aria-label={busyAction === `delete:${item._id}` ? `Deleting ${item.name}` : `Remove ${item.name}`} title={item.approved ? 'Approved — cannot be changed' : `Remove ${item.name}`} className="grid size-6 place-items-center rounded-md border border-[#e7ebf0] text-[#dc2626] disabled:opacity-50 sm:size-9 sm:rounded-lg">{busyAction === `delete:${item._id}` ? <ActionProgress><span className="sr-only">Deleting stock…</span></ActionProgress> : <Trash2 size={11} className="sm:size-4" />}</button>
+          </>}
         </div>}
       </article> })}</div>}
+    {items.length > 0 && <Pagination page={currentPage} pageCount={pageCount} total={items.length} pageSize={PAGE_SIZE} onPageChange={setPage} />}
     {adjusting && <Modal title={adjusting.mode === 'add' ? `Add ${adjusting.item.name}` : `Reduce ${adjusting.item.name}`} onClose={() => setAdjusting(null)}>
       {(() => { const unit = unitInfo(adjusting.item.unit, adjusting.item.customUnit); return <form className="space-y-3.5" onSubmit={event => { event.preventDefault(); adjustStock() }}>
         <p className="text-[11px] leading-5 text-[#94a3b8]">{adjusting.mode === 'add' ? `${unit.label} you have just prepared and added.` : `${unit.label} removed from stock — staff meals, waste, or spoilage.`} Current count: <b>{adjusting.item.plates} {unit.plural}</b>, worth <b>{money(stockValue(adjusting.item))}</b> at {money(adjusting.item.price || 0)} per {unit.singular}.</p>

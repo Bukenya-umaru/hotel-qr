@@ -9,6 +9,7 @@ import { notifyHotel, checkLowStock, LOW_STOCK_LIMIT, noun } from '../utils/noti
 import { cacheHotelResource } from '../utils/cache.js'
 import { uploadLimiter } from '../middleware/rateLimit.js'
 import { hasPerm } from './owner.js'
+import { canEditRecord } from '../utils/recordOwnership.js'
 
 const router = express.Router()
 
@@ -65,6 +66,7 @@ router.get('/', authenticate, authorize('OWNER', 'KITCHEN'), cacheHotelResource(
     approved: item.approved,
     approvedAt: item.approvedAt,
     approvedByName: item.approvedBy?.name || '',
+    createdById: item.createdBy ? String(item.createdBy) : '',
     dishes: dishes.filter(dish => String(dish.stockItemId || '') === String(item._id)).map(dish => dish.name),
   }))
   const unlinked = dishes.filter(dish => !dish.stockItemId).map(dish => ({ _id: dish._id, name: dish.name }))
@@ -95,6 +97,7 @@ router.post('/', authenticate, authorize('OWNER', 'KITCHEN'), uploadLimiter, upl
   }
   const stock = await StockItem.create({
     hotelId: scope,
+    createdBy: req.user._id,
     name,
     foodType,
     unit,
@@ -126,6 +129,7 @@ router.patch('/:id/adjust', authenticate, authorize('OWNER', 'KITCHEN'), asyncRo
   const scope = hotelScope(req)
   const stock = await StockItem.findOne({ _id: req.params.id, hotelId: scope })
   if (!stock) return res.status(404).json({ message: 'Stock not found.' })
+  if (!canEditRecord(stock, req.user)) return res.status(403).json({ message: 'Only the user who added this stock or the owner can change it.' })
   const noun = stock.unit === 'kg' ? 'kg'
     : stock.unit === 'items' ? 'items'
     : stock.unit === 'cups' ? 'cups'
@@ -166,8 +170,9 @@ router.patch('/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadLimiter,
   if (!requireStockPermission(req, res)) return
   if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Stock not found.' })
   const scope = hotelScope(req)
-  const current = await StockItem.findOne({ _id: req.params.id, hotelId: scope }).select('unit customUnit imageUrl approved plates')
+  const current = await StockItem.findOne({ _id: req.params.id, hotelId: scope }).select('unit customUnit imageUrl approved plates createdBy')
   if (!current) return res.status(404).json({ message: 'Stock not found.' })
+  if (!canEditRecord(current, req.user)) return res.status(403).json({ message: 'Only the user who added this stock or the owner can change it.' })
   const updates = {}
   if (req.body.name !== undefined) {
     const name = normalizeName(req.body.name)
@@ -237,6 +242,7 @@ router.delete('/:id', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(as
   const scope = hotelScope(req)
   const stock = await StockItem.findOne({ _id: req.params.id, hotelId: scope })
   if (!stock) return res.status(404).json({ message: 'Stock not found.' })
+  if (!canEditRecord(stock, req.user)) return res.status(403).json({ message: 'Only the user who added this stock or the owner can change it.' })
   // Approved stock is the signed-off record — it can no longer be removed.
   if (stock.approved) return res.status(403).json({ message: 'This stock has been approved and can no longer be changed.' })
   await StockItem.deleteOne({ _id: stock._id })

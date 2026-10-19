@@ -6,6 +6,7 @@ import { attachCachePurge } from '../utils/cache.js'
 // and recorded sales deduct from it automatically.
 const schema = new mongoose.Schema({
   hotelId: { type: mongoose.Schema.Types.ObjectId, ref: 'Hotel', required: true, index: true },
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   name: { type: String, required: true, trim: true, maxlength: 60 },
   // The kind of food this stock holds, chosen from the business's
   // food-type categories (Beef, Chicken, Fish, …).

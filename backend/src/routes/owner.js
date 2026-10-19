@@ -21,6 +21,7 @@ import { notifyHotel, checkLowStock, broadcastChange } from '../utils/notify.js'
 import { revealPassword, storePassword, vaultEnabled } from '../utils/passwordVault.js'
 import { isStrongPassword, PASSWORD_RULE_MESSAGE } from '../utils/passwordPolicy.js'
 import { ALL_PERMISSIONS } from '../utils/permissions.js'
+import { canEditRecord } from '../utils/recordOwnership.js'
 
 const router = express.Router()
 
@@ -201,6 +202,7 @@ router.get('/expenses', authenticate, authorize('OWNER', 'KITCHEN'), cacheHotelR
       amount: expense.amount,
       note: expense.note,
       recordedBy: expense.recordedBy?.name || '',
+      recordedById: expense.recordedBy?._id ? String(expense.recordedBy._id) : '',
       createdAt: expense.createdAt,
       approved: expense.approved,
       approvedAt: expense.approvedAt,
@@ -262,8 +264,9 @@ router.post('/expenses', authenticate, authorize('OWNER', 'KITCHEN'), validate(e
 router.delete('/expenses/:expenseId', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
   if (!requireExpenseAccess(req, res)) return
   if (!idIsValid(req.params.expenseId)) return res.status(404).json({ message: 'Expense not found.' })
-  const expense = await HotelExpense.findOne({ _id: req.params.expenseId, hotelId: hotelScope(req) }).select('approved')
+  const expense = await HotelExpense.findOne({ _id: req.params.expenseId, hotelId: hotelScope(req) }).select('approved recordedBy')
   if (!expense) return res.status(404).json({ message: 'Expense not found.' })
+  if (!canEditRecord(expense, req.user)) return res.status(403).json({ message: 'Only the user who recorded this expense or the owner can change it.' })
   // Approved expenses are the books of record — they can no longer be changed.
   if (expense.approved) return res.status(403).json({ message: 'This expense has been approved and can no longer be changed.' })
   await HotelExpense.deleteOne({ _id: expense._id })
@@ -271,10 +274,9 @@ router.delete('/expenses/:expenseId', authenticate, authorize('OWNER', 'KITCHEN'
   res.status(204).end()
 }))
 
-// A chef with the edit permission can correct any unapproved expense until
-// it is signed off. Every edit snapshots what the expense looked like
-// BEFORE the change into `edits`, so the owner sees "changed from X to this"
-// with who made the change and when.
+// A chef with the edit permission can correct their own unapproved expense
+// until it is signed off. Every edit snapshots what the expense looked like
+// BEFORE the change into `edits`, so the owner sees who changed it and when.
 router.patch('/expenses/:expenseId', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
   if (!requireExpenseAccess(req, res)) return
   if (!idIsValid(req.params.expenseId)) return res.status(404).json({ message: 'Expense not found.' })
@@ -284,6 +286,7 @@ router.patch('/expenses/:expenseId', authenticate, authorize('OWNER', 'KITCHEN')
   const scope = hotelScope(req)
   const expense = await HotelExpense.findOne({ _id: req.params.expenseId, hotelId: scope })
   if (!expense) return res.status(404).json({ message: 'Expense not found.' })
+  if (!canEditRecord(expense, req.user)) return res.status(403).json({ message: 'Only the user who recorded this expense or the owner can change it.' })
   // Approved expenses are the books of record — they can no longer be changed.
   if (expense.approved) return res.status(403).json({ message: 'This expense has been approved and can no longer be changed.' })
   const amount = Number(req.body.amount)
@@ -387,6 +390,7 @@ router.get('/damages', authenticate, authorize('OWNER', 'KITCHEN'), cacheHotelRe
       stockItem: damage.stockItemId ? { _id: String(damage.stockItemId._id || damage.stockItemId), name: damage.stockItemId.name || '', imageUrl: damage.stockItemId.imageUrl || '' } : null,
       note: damage.note,
       recordedBy: damage.recordedBy?.name || '',
+      recordedById: damage.recordedBy?._id ? String(damage.recordedBy._id) : '',
       createdAt: damage.createdAt,
       approved: damage.approved,
       approvedAt: damage.approvedAt,
@@ -461,6 +465,7 @@ router.delete('/damages/:damageId', authenticate, authorize('OWNER', 'KITCHEN'),
   const scope = hotelScope(req)
   const damage = await DamageRecord.findOne({ _id: req.params.damageId, hotelId: scope })
   if (!damage) return res.status(404).json({ message: 'Damage record not found.' })
+  if (!canEditRecord(damage, req.user)) return res.status(403).json({ message: 'Only the user who recorded this damage or the owner can change it.' })
   // Approved damages are the books of record — they can no longer be changed.
   if (damage.approved) return res.status(403).json({ message: 'This damage has been approved and can no longer be changed.' })
   await DamageRecord.deleteOne({ _id: damage._id })
@@ -473,8 +478,8 @@ router.delete('/damages/:damageId', authenticate, authorize('OWNER', 'KITCHEN'),
   res.status(204).end()
 }))
 
-// A chef with the edit permission can correct any unapproved damage until
-// it is signed off. The drawn stock follows the correction: the previously
+// A chef with the edit permission can correct their own unapproved damage
+// until it is signed off. The drawn stock follows the correction: the previously
 // recorded quantity is restored to the old stock item and the new amount is
 // deducted (priced from the stock's unit value like a fresh record), or the
 // value is set by hand for records not tied to stock.
@@ -487,6 +492,7 @@ router.patch('/damages/:damageId', authenticate, authorize('OWNER', 'KITCHEN'), 
   const scope = hotelScope(req)
   const damage = await DamageRecord.findOne({ _id: req.params.damageId, hotelId: scope })
   if (!damage) return res.status(404).json({ message: 'Damage record not found.' })
+  if (!canEditRecord(damage, req.user)) return res.status(403).json({ message: 'Only the user who recorded this damage or the owner can change it.' })
   if (damage.approved) return res.status(403).json({ message: 'This damage has been approved and can no longer be changed.' })
   const name = req.body.name === undefined ? damage.name : String(req.body.name || '').trim().slice(0, 60)
   const quantity = req.body.quantity === undefined || req.body.quantity === '' ? damage.quantity : Number(req.body.quantity)
@@ -662,8 +668,10 @@ router.post('/categories/:id/expenses', authenticate, authorize('OWNER', 'KITCHE
 router.delete('/categories/:id/expenses/:expenseId', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
   if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_expenses')) return res.status(403).json({ message: 'The owner has not granted you permission to manage expenses.' })
   if (!idIsValid(req.params.id) || !idIsValid(req.params.expenseId)) return res.status(404).json({ message: 'Expense not found.' })
-  const expense = await Expense.findOneAndDelete({ _id: req.params.expenseId, hotelId: hotelScope(req), category: req.params.id })
+  const expense = await Expense.findOne({ _id: req.params.expenseId, hotelId: hotelScope(req), category: req.params.id })
   if (!expense) return res.status(404).json({ message: 'Expense not found.' })
+  if (!canEditRecord(expense, req.user)) return res.status(403).json({ message: 'Only the user who recorded this expense or the owner can remove it.' })
+  await Expense.deleteOne({ _id: expense._id })
   res.status(204).end()
 }))
 
@@ -731,6 +739,7 @@ router.get('/sales', authenticate, authorize('OWNER', 'KITCHEN'), cacheHotelReso
       customerContact: sale.customerContact || '',
       note: sale.note,
       recordedBy: sale.recordedBy?.name || '',
+      recordedById: sale.recordedBy?._id ? String(sale.recordedBy._id) : '',
       createdAt: sale.createdAt,
       approved: sale.approved,
       approvedAt: sale.approvedAt,
@@ -840,8 +849,9 @@ router.post('/sales', authenticate, authorize('OWNER', 'KITCHEN'), validate(sale
 router.delete('/sales/:saleId', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
   if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_sales')) return res.status(403).json({ message: 'The owner has not granted you permission to record sales.' })
   if (!idIsValid(req.params.saleId)) return res.status(404).json({ message: 'Sale not found.' })
-  const sale = await Sale.findOne({ _id: req.params.saleId, hotelId: hotelScope(req) }).select('approved')
+  const sale = await Sale.findOne({ _id: req.params.saleId, hotelId: hotelScope(req) }).select('approved recordedBy')
   if (!sale) return res.status(404).json({ message: 'Sale not found.' })
+  if (!canEditRecord(sale, req.user)) return res.status(403).json({ message: 'Only the user who recorded this sale or the owner can change it.' })
   // Approved sales are the books of record — they can no longer be changed.
   if (sale.approved) return res.status(403).json({ message: 'This sale has been approved and can no longer be changed.' })
   await Sale.deleteOne({ _id: sale._id })
@@ -883,6 +893,7 @@ router.patch('/sales/:saleId', authenticate, authorize('OWNER', 'KITCHEN'), asyn
   if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
   const sale = await Sale.findOne({ _id: req.params.saleId, hotelId: scope })
   if (!sale) return res.status(404).json({ message: 'Sale not found.' })
+  if (!canEditRecord(sale, req.user)) return res.status(403).json({ message: 'Only the user who recorded this sale or the owner can change it.' })
   // Approved sales are the books of record — they can no longer be changed.
   if (sale.approved) return res.status(403).json({ message: 'This sale has been approved and can no longer be changed.' })
   const parsed = saleEditPayload(req)
@@ -1199,7 +1210,7 @@ async function report(req, res) {
   const stockAdditions = scope
     ? await StockItem.find({ hotelId: scope, createdAt: { $gte: from, $lte: to } })
         .sort({ createdAt: -1 }).limit(500).lean()
-        .select('name unit customUnit plates price approved approvedBy approvedAt createdAt imageUrl')
+        .select('name unit customUnit plates price approved approvedBy approvedAt createdAt imageUrl createdBy')
         .populate('approvedBy', 'name')
     : []
   res.json({
@@ -1222,6 +1233,7 @@ async function report(req, res) {
       approvedAt: item.approvedAt || null,
       createdAt: item.createdAt,
       imageUrl: item.imageUrl || '',
+      createdById: item.createdBy ? String(item.createdBy) : '',
     })),
     damages: (damages || []).map(damage => ({
       _id: damage._id,

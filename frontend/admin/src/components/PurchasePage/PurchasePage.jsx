@@ -6,10 +6,13 @@ import {
 import { money, cx, UNIT_OPTIONS, unitDisplay } from '../../lib/ui.js'
 import { Modal } from '../Modal/Modal.jsx'
 import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
+import { Pagination } from '../Pagination/Pagination.jsx'
+
+const PAGE_SIZE = 10
 
 // Sales and expense records each open their own workspace, like the
 // Food type and expense-category sections in Categories.
-export function PurchasePage({ hotelId, initialView = 'menu', canManageExpenses = true, canApprove = false }) {
+export function PurchasePage({ hotelId, userId, userRole, initialView = 'menu', canManageExpenses = true, canApprove = false }) {
   const [view, setView] = useState(initialView) // 'menu' | 'make-sale' | 'sales' | 'expenses' | 'damages'
   const [saleCount, setSaleCount] = useState(null)
   const [expenseCount, setExpenseCount] = useState(null)
@@ -87,9 +90,9 @@ export function PurchasePage({ hotelId, initialView = 'menu', canManageExpenses 
     </div>}
 
     {view === 'make-sale' && <MakeSaleView onError={setError} onViewSales={() => setView('sales')} />}
-    {view === 'sales' && <SalesView onError={setError} canApprove={canApprove} hotelId={hotelId} />}
-    {view === 'expenses' && <ExpensesView onError={setError} canApprove={canApprove} hotelId={hotelId} />}
-    {view === 'damages' && <DamagesView onError={setError} canApprove={canApprove} hotelId={hotelId} />}
+    {view === 'sales' && <SalesView onError={setError} canApprove={canApprove} hotelId={hotelId} userId={userId} userRole={userRole} />}
+    {view === 'expenses' && <ExpensesView onError={setError} canApprove={canApprove} hotelId={hotelId} userId={userId} userRole={userRole} />}
+    {view === 'damages' && <DamagesView onError={setError} canApprove={canApprove} hotelId={hotelId} userId={userId} userRole={userRole} />}
   </div>
 }
 
@@ -156,7 +159,7 @@ function DateFilterRow({ range, setRange }) {
 // ---- Subsection: Sales — every sale made by the hotel, newest first,   ----
 // ---- each shown with its own ID. Recording lives in the Make sale tab. ----
 
-function SalesView({ onError, canApprove = false, hotelId }) {
+function SalesView({ onError, canApprove = false, hotelId, userId, userRole }) {
   const [sales, setSales] = useState([])
   const [stats, setStats] = useState({ total: 0, count: 0, todayTotal: 0, todayCount: 0 })
   const [busy, setBusy] = useState(false)
@@ -164,6 +167,7 @@ function SalesView({ onError, canApprove = false, hotelId }) {
   const [range, setRange] = useState({ from: '', to: '' }) // Date filter: empty from/to = everything.
   const [editing, setEditing] = useState(null) // Unapproved sale being edited.
   const [historyFor, setHistoryFor] = useState(null) // Sale whose change trail is open.
+  const [page, setPage] = useState(1)
 
   const load = async () => {
     try {
@@ -237,6 +241,9 @@ function SalesView({ onError, canApprove = false, hotelId }) {
   const hasFilter = Boolean(range.from || range.to)
   const filtered = sales.filter(sale => inDayRange(new Date(sale.createdAt).getTime(), fromBound, toBound))
   const filteredTotal = filtered.reduce((sum, sale) => sum + sale.amount, 0)
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const currentPage = Math.min(page, pageCount)
+  const visibleSales = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   return <div className="rounded-xl border border-[#e7ebf0] bg-white p-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -249,9 +256,11 @@ function SalesView({ onError, canApprove = false, hotelId }) {
         <span className="rounded-full bg-[#fff4ec] px-2.5 py-1 text-[9px] font-semibold text-[#ea580c]">All time {money(stats.total)}</span>
       </div>
     </div>
-    <DateFilterRow range={range} setRange={setRange} />
+    <DateFilterRow range={range} setRange={value => { setRange(value); setPage(1) }} />
     {filtered.length > 0 && <ul className="mt-3 divide-y divide-[#f1f5f9]">
-      {filtered.map(sale => <li key={sale._id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
+      {visibleSales.map(sale => {
+        const canEdit = userRole === 'OWNER' || String(sale.recordedById || '') === String(userId || '')
+        return <li key={sale._id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5 text-[11px] font-semibold text-[#0f172a]">
             {(() => { const image = saleItemImage(sale, (Array.isArray(sale.items) && sale.items[0]) || sale); return image
@@ -265,15 +274,17 @@ function SalesView({ onError, canApprove = false, hotelId }) {
           </p>
           {sale.approved
             ? <p className="mt-0.5 flex items-center gap-1 text-[8px] font-bold text-[#16a34a]"><Check size={10} />Approved{sale.approvedByName && ` by ${sale.approvedByName}`}</p>
-            : <p className="mt-0.5 text-[8px] font-bold text-[#b45309]">Awaiting approval · editable</p>}
+            : <p className="mt-0.5 text-[8px] font-bold text-[#b45309]">Awaiting approval · {canEdit ? 'editable by you' : 'editable by recorder'}</p>}
         </div>
         {!sale.approved && canApprove && <button disabled={busy} onClick={() => approveSale(sale)} title={`Approve ${sale.saleId}`} className="flex shrink-0 items-center gap-1 rounded-md bg-[#f0fdf4] px-2 py-1 text-[9px] font-bold text-[#16a34a] transition hover:bg-[#dcfce7] disabled:opacity-50">{busyAction === `approve:${sale._id}` ? <ActionProgress>Approving…</ActionProgress> : <><Check size={11} />Approve</>}</button>}
         {sale.edits?.length > 0 && <button onClick={() => setHistoryFor(sale)} title="See what changed" className="flex shrink-0 items-center gap-1 rounded-md bg-[#fef9ee] px-2 py-1 text-[9px] font-bold text-[#b45309] transition hover:bg-[#fef9ee]"><History size={11} />Edited</button>}
         <span className="shrink-0 text-[11px] font-bold text-[#16a34a]">{money(sale.amount)}</span>
-        {!sale.approved && <button disabled={busy} onClick={() => setEditing(sale)} title={`Edit ${sale.saleId}`} className="shrink-0 rounded-md p-1 text-[#94a3b8] transition hover:bg-[#f1f4f9] hover:text-[#0f172a]"><Pencil size={13} /></button>}
-        <button disabled={busy || sale.approved} onClick={() => removeSale(sale)} title={sale.approved ? 'Approved — cannot be changed' : `Remove ${sale.name}`} aria-label={busyAction === `delete:${sale._id}` ? `Deleting ${sale.name}` : `Remove ${sale.name}`} className="shrink-0 rounded-md p-1 text-[#f87171] hover:bg-[#fef2f2] hover:text-[#dc2626] disabled:opacity-50">{busyAction === `delete:${sale._id}` ? <ActionProgress><span className="sr-only">Deleting sale…</span></ActionProgress> : <Trash2 size={13} />}</button>
-      </li>)}
+        {!sale.approved && canEdit && <button disabled={busy} onClick={() => setEditing(sale)} title={`Edit ${sale.saleId}`} className="shrink-0 rounded-md p-1 text-[#94a3b8] transition hover:bg-[#f1f4f9] hover:text-[#0f172a]"><Pencil size={13} /></button>}
+        {canEdit && <button disabled={busy || sale.approved} onClick={() => removeSale(sale)} title={sale.approved ? 'Approved — cannot be changed' : `Remove ${sale.name}`} aria-label={busyAction === `delete:${sale._id}` ? `Deleting ${sale.name}` : `Remove ${sale.name}`} className="shrink-0 rounded-md p-1 text-[#f87171] hover:bg-[#fef2f2] hover:text-[#dc2626] disabled:opacity-50">{busyAction === `delete:${sale._id}` ? <ActionProgress><span className="sr-only">Deleting sale…</span></ActionProgress> : <Trash2 size={13} />}</button>}
+      </li>
+      })}
     </ul>}
+    <Pagination page={currentPage} pageCount={pageCount} total={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
     {!filtered.length && <p className="mt-3 rounded-xl border border-dashed border-[#e7ebf0] px-3 py-6 text-center text-[10px] text-[#94a3b8]">{hasFilter ? 'No sales in the selected dates — pick another range or choose All.' : 'No sales made yet — open “Make sale” to record the first one.'}</p>}
     {editing && <EditSaleModal sale={editing} onClose={() => setEditing(null)} onSaved={sale => {
       setEditing(null)
@@ -732,7 +743,7 @@ function MakeSaleView({ onError, onViewSales }) {
 // ---- Subsection: Expenses — everything the hotel spends, filed under the ----
 // ---- expense categories managed in Categories > Expenses in the sidebar. ----
 
-function ExpensesView({ onError, canApprove = false, hotelId }) {
+function ExpensesView({ onError, canApprove = false, hotelId, userId, userRole }) {
   const [expenses, setExpenses] = useState([])
   const [byCategory, setByCategory] = useState([])
   const [stats, setStats] = useState({ total: 0, count: 0, todayTotal: 0, todayCount: 0 })
@@ -741,6 +752,7 @@ function ExpensesView({ onError, canApprove = false, hotelId }) {
   const [showPopup, setShowPopup] = useState(false)
   const [editing, setEditing] = useState(null)
   const [historyFor, setHistoryFor] = useState(null)
+  const [page, setPage] = useState(1)
   const [range, setRange] = useState({ from: '', to: '' }) // Date filter: empty from/to = everything.
 
   const load = async () => {
@@ -817,6 +829,9 @@ function ExpensesView({ onError, canApprove = false, hotelId }) {
   const hasFilter = Boolean(range.from || range.to)
   const filtered = expenses.filter(expense => inDayRange(new Date(expense.createdAt).getTime(), fromBound, toBound))
   const filteredTotal = filtered.reduce((sum, expense) => sum + expense.amount, 0)
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const currentPage = Math.min(page, pageCount)
+  const visibleExpenses = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   return <div className="rounded-xl border border-[#e7ebf0] bg-white p-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -830,12 +845,14 @@ function ExpensesView({ onError, canApprove = false, hotelId }) {
         <button onClick={() => setShowPopup(true)} className="flex items-center gap-1.5 rounded-lg bg-[#f97316] px-3 py-2 text-[10px] font-semibold text-white hover:bg-[#ea580c]"><Plus size={13} />Record expense</button>
       </div>
     </div>
-    <DateFilterRow range={range} setRange={setRange} />
+    <DateFilterRow range={range} setRange={value => { setRange(value); setPage(1) }} />
     {byCategory.length > 0 && <div className="mt-2.5 flex flex-wrap gap-1.5">
       {byCategory.map(entry => <span key={entry.category} className="rounded-full bg-[#f8fafc] px-2.5 py-1 text-[9px] font-semibold text-[#64748b]">{entry.category} · {money(entry.total)} ({entry.count})</span>)}
     </div>}
     {filtered.length > 0 && <ul className="mt-4 grid gap-3 md:grid-cols-2">
-      {filtered.map(expense => <li key={expense._id} className="flex min-w-0 flex-col rounded-2xl border border-[#e7ebf0] bg-white p-4 shadow-sm transition hover:border-[#fdba74] hover:shadow-md sm:p-5">
+      {visibleExpenses.map(expense => {
+        const canEdit = userRole === 'OWNER' || String(expense.recordedById || '') === String(userId || '')
+        return <li key={expense._id} className="flex min-w-0 flex-col rounded-2xl border border-[#e7ebf0] bg-white p-4 shadow-sm transition hover:border-[#fdba74] hover:shadow-md sm:p-5">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <p className="break-words text-[14px] font-bold leading-5 text-[#0f172a]">{expense.categoryName}</p>
@@ -846,18 +863,21 @@ function ExpensesView({ onError, canApprove = false, hotelId }) {
         {expense.note && <p className="mt-3 break-words rounded-lg bg-[#f8fafc] px-3 py-2 text-[12px] leading-5 text-[#475569]">{expense.note}</p>}
         {expense.approved
           ? <p className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-[#15803d]"><Check size={13} />Approved{expense.approvedByName && ` by ${expense.approvedByName}`}</p>
-          : <p className="mt-3 text-[10px] font-semibold text-[#b45309]">Awaiting approval · editable</p>}
+          : <p className="mt-3 text-[10px] font-semibold text-[#b45309]">Awaiting approval · {canEdit ? 'editable by you' : 'editable by recorder'}</p>}
         <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[#f1f5f9] pt-3">
           {!expense.approved && canApprove && <button disabled={busy} onClick={() => approveExpense(expense)} title="Approve expense" className="flex items-center gap-1.5 rounded-lg bg-[#f0fdf4] px-3 py-2 text-[11px] font-semibold text-[#15803d] transition hover:bg-[#dcfce7] disabled:opacity-50">{busyAction === `approve:${expense._id}` ? <ActionProgress>Approving…</ActionProgress> : <><Check size={13} />Approve</>}</button>}
-          {!expense.approved && <button disabled={busy} onClick={() => setEditing(expense)} title={`Edit ${expense.categoryName} expense`} className="flex items-center gap-1.5 rounded-lg bg-[#fff4ec] px-3 py-2 text-[11px] font-semibold text-[#c2410c] transition hover:bg-[#ffedd5] disabled:opacity-50"><Pencil size={13} />Edit</button>}
+          {!expense.approved && canEdit && <button disabled={busy} onClick={() => setEditing(expense)} title={`Edit ${expense.categoryName} expense`} className="flex items-center gap-1.5 rounded-lg bg-[#fff4ec] px-3 py-2 text-[11px] font-semibold text-[#c2410c] transition hover:bg-[#ffedd5] disabled:opacity-50"><Pencil size={13} />Edit</button>}
           {expense.edits?.length > 0 && <button onClick={() => setHistoryFor(expense)} title="See what changed" className="flex items-center gap-1.5 rounded-lg bg-[#fef9ee] px-3 py-2 text-[11px] font-semibold text-[#a16207] transition hover:bg-[#fef3c7]"><History size={13} />Edited</button>}
-          <button disabled={busy || expense.approved} onClick={() => removeExpense(expense)} title={expense.approved ? 'Approved — cannot be changed' : `Remove ${expense.categoryName} expense`} aria-label={busyAction === `delete:${expense._id}` ? `Deleting ${expense.categoryName} expense` : `Remove ${expense.categoryName} expense`} className="ml-auto rounded-lg p-2 text-[#f87171] transition hover:bg-[#fef2f2] hover:text-[#dc2626] disabled:opacity-50">{busyAction === `delete:${expense._id}` ? <ActionProgress><span className="sr-only">Deleting expense…</span></ActionProgress> : <Trash2 size={15} />}</button>
+          {canEdit && <button disabled={busy || expense.approved} onClick={() => removeExpense(expense)} title={expense.approved ? 'Approved — cannot be changed' : `Remove ${expense.categoryName} expense`} aria-label={busyAction === `delete:${expense._id}` ? `Deleting ${expense.categoryName} expense` : `Remove ${expense.categoryName} expense`} className="ml-auto rounded-lg p-2 text-[#f87171] transition hover:bg-[#fef2f2] hover:text-[#dc2626] disabled:opacity-50">{busyAction === `delete:${expense._id}` ? <ActionProgress><span className="sr-only">Deleting expense…</span></ActionProgress> : <Trash2 size={15} />}</button>}
         </div>
-      </li>)}
+      </li>
+      })}
     </ul>}
+    <Pagination page={currentPage} pageCount={pageCount} total={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
     {!filtered.length && <p className="mt-3 rounded-xl border border-dashed border-[#e7ebf0] px-3 py-6 text-center text-[10px] text-[#94a3b8]">{hasFilter ? 'No expenses in the selected dates — pick another range or choose All.' : 'No expenses recorded yet — click “Record expense” above to record your first one.'}</p>}
     {showPopup && <RecordExpenseModal onClose={() => setShowPopup(false)} onSaved={expense => {
       setShowPopup(false)
+      setPage(1)
       setExpenses(previous => [expense, ...previous])
       const today = new Date().toDateString() === new Date(expense.createdAt).toDateString()
       setStats(previous => ({
@@ -891,7 +911,7 @@ function ExpensesView({ onError, canApprove = false, hotelId }) {
 // ---- or any custom word. Stock-picked rows price the loss from the    ----
 // ---- stock's unit value; deleting a record restores the stock.        ----
 
-function DamagesView({ onError, canApprove = false, hotelId }) {
+function DamagesView({ onError, canApprove = false, hotelId, userId, userRole }) {
   const [damages, setDamages] = useState([])
   const [stats, setStats] = useState({ total: 0, count: 0, todayTotal: 0, todayCount: 0 })
   const [busy, setBusy] = useState(false)
@@ -899,6 +919,7 @@ function DamagesView({ onError, canApprove = false, hotelId }) {
   const [showPopup, setShowPopup] = useState(false)
   const [editing, setEditing] = useState(null)
   const [historyFor, setHistoryFor] = useState(null)
+  const [page, setPage] = useState(1)
   const [range, setRange] = useState({ from: '', to: '' })
 
   const load = async () => {
@@ -973,6 +994,9 @@ function DamagesView({ onError, canApprove = false, hotelId }) {
   const hasFilter = Boolean(range.from || range.to)
   const filtered = damages.filter(damage => inDayRange(new Date(damage.createdAt).getTime(), fromBound, toBound))
   const filteredTotal = filtered.reduce((sum, damage) => sum + damage.value, 0)
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const currentPage = Math.min(page, pageCount)
+  const visibleDamages = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   return <div className="rounded-xl border border-[#e7ebf0] bg-white p-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -986,9 +1010,11 @@ function DamagesView({ onError, canApprove = false, hotelId }) {
         <button onClick={() => setShowPopup(true)} className="flex items-center gap-1.5 rounded-lg bg-[#f97316] px-3 py-2 text-[10px] font-semibold text-white hover:bg-[#ea580c]"><Plus size={13} />Record damage</button>
       </div>
     </div>
-    <DateFilterRow range={range} setRange={setRange} />
+    <DateFilterRow range={range} setRange={value => { setRange(value); setPage(1) }} />
     {filtered.length > 0 && <ul className="mt-3 divide-y divide-[#f1f5f9]">
-      {filtered.map(damage => <li key={damage._id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
+      {visibleDamages.map(damage => {
+        const canEdit = userRole === 'OWNER' || String(damage.recordedById || '') === String(userId || '')
+        return <li key={damage._id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
         {damage.stockItem?.imageUrl
           ? <img src={apiAssetUrl(damage.stockItem.imageUrl)} alt="" aria-hidden="true" className="size-7 shrink-0 rounded-md object-cover" />
           : null}
@@ -1000,18 +1026,21 @@ function DamagesView({ onError, canApprove = false, hotelId }) {
           <p className="mt-0.5 truncate text-[9px] text-[#94a3b8]">{damageTime(damage.createdAt)}{damage.recordedBy && ` · by ${damage.recordedBy}`}{damage.stockItem && ` · from stock: ${damage.stockItem.name}`}{damage.note && ` · ${damage.note}`}</p>
           {damage.approved
             ? <p className="mt-0.5 flex items-center gap-1 text-[8px] font-bold text-[#16a34a]"><Check size={10} />Approved{damage.approvedByName && ` by ${damage.approvedByName}`}</p>
-            : <p className="mt-0.5 text-[8px] font-bold text-[#b45309]">Awaiting approval · editable</p>}
+            : <p className="mt-0.5 text-[8px] font-bold text-[#b45309]">Awaiting approval · {canEdit ? 'editable by you' : 'editable by recorder'}</p>}
         </div>
         {!damage.approved && canApprove && <button disabled={busy} onClick={() => approveDamage(damage)} title="Approve damage record" className="flex shrink-0 items-center gap-1 rounded-md bg-[#f0fdf4] px-2 py-1 text-[9px] font-bold text-[#16a34a] transition hover:bg-[#dcfce7] disabled:opacity-50">{busyAction === `approve:${damage._id}` ? <ActionProgress>Approving…</ActionProgress> : <><Check size={11} />Approve</>}</button>}
-      {!damage.approved && <button disabled={busy} onClick={() => setEditing(damage)} title={`Edit ${damage.name} damage`} className="flex shrink-0 items-center gap-1 rounded-md bg-[#fff4ec] px-2 py-1 text-[9px] font-bold text-[#ea580c] transition hover:bg-[#ffedd5] disabled:opacity-50"><Pencil size={11} />Edit</button>}
+      {!damage.approved && canEdit && <button disabled={busy} onClick={() => setEditing(damage)} title={`Edit ${damage.name} damage`} className="flex shrink-0 items-center gap-1 rounded-md bg-[#fff4ec] px-2 py-1 text-[9px] font-bold text-[#ea580c] transition hover:bg-[#ffedd5] disabled:opacity-50"><Pencil size={11} />Edit</button>}
       {damage.edits?.length > 0 && <button onClick={() => setHistoryFor(damage)} title="See what changed" className="flex shrink-0 items-center gap-1 rounded-md bg-[#fef9ee] px-2 py-1 text-[9px] font-bold text-[#b45309] transition hover:bg-[#fef3c7]"><History size={11} />Edited</button>}
       <span className="shrink-0 text-[11px] font-bold text-[#dc2626]">−{money(damage.value)}</span>
-      <button disabled={busy || damage.approved} onClick={() => removeDamage(damage)} title={damage.approved ? 'Approved — cannot be changed' : 'Remove record'} aria-label={busyAction === `delete:${damage._id}` ? `Deleting ${damage.name}` : `Remove ${damage.name}`} className="shrink-0 rounded-md p-1 text-[#f87171] hover:bg-[#fef2f2] hover:text-[#dc2626] disabled:opacity-50">{busyAction === `delete:${damage._id}` ? <ActionProgress><span className="sr-only">Deleting damage record…</span></ActionProgress> : <Trash2 size={13} />}</button>
-    </li>)}
+      {canEdit && <button disabled={busy || damage.approved} onClick={() => removeDamage(damage)} title={damage.approved ? 'Approved — cannot be changed' : 'Remove record'} aria-label={busyAction === `delete:${damage._id}` ? `Deleting ${damage.name}` : `Remove ${damage.name}`} className="shrink-0 rounded-md p-1 text-[#f87171] hover:bg-[#fef2f2] hover:text-[#dc2626] disabled:opacity-50">{busyAction === `delete:${damage._id}` ? <ActionProgress><span className="sr-only">Deleting damage record…</span></ActionProgress> : <Trash2 size={13} />}</button>}
+    </li>
+      })}
   </ul>}
+  <Pagination page={currentPage} pageCount={pageCount} total={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
   {!filtered.length && <p className="mt-3 rounded-xl border border-dashed border-[#e7ebf0] px-3 py-6 text-center text-[10px] text-[#94a3b8]">{hasFilter ? 'No damage records in the selected dates — pick another range or choose All.' : 'No damage recorded yet — click “Record damage” above to record your first one.'}</p>}
   {showPopup && <RecordDamageModal onClose={() => setShowPopup(false)} onSaved={damage => {
     setShowPopup(false)
+    setPage(1)
     setDamages(previous => [damage, ...previous])
     const today = new Date().toDateString() === new Date(damage.createdAt).toDateString()
     setStats(previous => ({

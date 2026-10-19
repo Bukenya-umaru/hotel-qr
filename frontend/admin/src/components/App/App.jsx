@@ -309,10 +309,10 @@ export default function App() {
   let content
   if (page === 'Food type') content = <CategoriesPage initialView="foodtype" />
   else if (page === 'Expenses') content = <CategoriesPage initialView="expenses" />
-  else if (page === 'Make sale' && ['OWNER', 'KITCHEN'].includes(role)) content = <PurchasePage hotelId={user?.hotelId} initialView="make-sale" canManageExpenses={hasPermission(user, 'manage_expenses')} canApprove={hasPermission(user, 'approve_records')} />
-  else if (page === 'Sales' && ['OWNER', 'KITCHEN'].includes(role)) content = <PurchasePage hotelId={user?.hotelId} initialView="sales" canManageExpenses={hasPermission(user, 'manage_expenses')} canApprove={hasPermission(user, 'approve_records')} />
-  else if (page === 'Purchase expenses' && ['OWNER', 'KITCHEN'].includes(role)) content = <PurchasePage hotelId={user?.hotelId} initialView="expenses" canManageExpenses={hasPermission(user, 'manage_expenses')} canApprove={hasPermission(user, 'approve_records')} />
-  else if (page === 'Purchase damages' && ['OWNER', 'KITCHEN'].includes(role)) content = <PurchasePage hotelId={user?.hotelId} initialView="damages" canManageExpenses={hasPermission(user, 'manage_expenses')} canApprove={hasPermission(user, 'approve_records')} />
+  else if (page === 'Make sale' && ['OWNER', 'KITCHEN'].includes(role)) content = <PurchasePage hotelId={user?.hotelId} userId={user?._id} userRole={role} initialView="make-sale" canManageExpenses={hasPermission(user, 'manage_expenses')} canApprove={hasPermission(user, 'approve_records')} />
+  else if (page === 'Sales' && ['OWNER', 'KITCHEN'].includes(role)) content = <PurchasePage hotelId={user?.hotelId} userId={user?._id} userRole={role} initialView="sales" canManageExpenses={hasPermission(user, 'manage_expenses')} canApprove={hasPermission(user, 'approve_records')} />
+  else if (page === 'Purchase expenses' && ['OWNER', 'KITCHEN'].includes(role)) content = <PurchasePage hotelId={user?.hotelId} userId={user?._id} userRole={role} initialView="expenses" canManageExpenses={hasPermission(user, 'manage_expenses')} canApprove={hasPermission(user, 'approve_records')} />
+  else if (page === 'Purchase damages' && ['OWNER', 'KITCHEN'].includes(role)) content = <PurchasePage hotelId={user?.hotelId} userId={user?._id} userRole={role} initialView="damages" canManageExpenses={hasPermission(user, 'manage_expenses')} canApprove={hasPermission(user, 'approve_records')} />
   else if (page === 'Stock' && ['OWNER', 'KITCHEN'].includes(role)) content = <StockPage user={user} canManage={canManageStock} />
   else if (page === 'Help & support' && role === 'DEVELOPER') content = <SupportPage />
   else if (page === 'Security' && role === 'DEVELOPER') content = <SecurityPage />
@@ -320,7 +320,7 @@ export default function App() {
   else if (page === 'Reports') content = <Reports analytics={analytics} currency="UGX" onRange={loadReportRange} hotelName={hotelName} reportRange={reportRange} />
   else if (page === 'Accounts' || page === 'Chefs') content = <AccountsPage users={users} role={role} passwordViewable={platformOverview.passwordViewable} passwordLoadingId={passwordLoadingId} onCreate={() => setModal('account')} onToggle={toggleUser} onReset={account => { setResettingUser(account); setModal('reset') }} onEdit={account => { setEditingUser(account); setModal('edit-account') }} onView={account => { setViewingUser(account); setPasswordLoadingId(String(account._id)); setModal('view-password') }} />
   else if (role === 'DEVELOPER') content = <DeveloperDashboard users={users} onNavigate={setPage} overview={platformOverview} />
-  else content = <Overview hotelName={hotelName} onNavigate={setPage} analytics={analytics} currency="UGX" onRange={loadReportRange} reportRange={reportRange} />
+  else content = <Overview hotelName={hotelName} userId={user?._id} userRole={role} onNavigate={setPage} analytics={analytics} currency="UGX" onRange={loadReportRange} reportRange={reportRange} />
 
   // Every section/subsection switch opens behind a full-screen loading gate:
   // the overlay holds for at least 5 seconds (owner's requirement) and longer
