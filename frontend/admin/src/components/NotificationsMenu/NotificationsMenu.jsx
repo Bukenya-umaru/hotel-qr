@@ -34,15 +34,20 @@ export function NotificationsMenu({ hotelId, live }) {
   const [busy, setBusy] = useState('')
   const [freshIds, setFreshIds] = useState(() => new Set())
   const panelRef = useRef(null)
+  const loadSequence = useRef(0)
+  const markingAll = useRef(false)
 
   const load = useCallback(async () => {
+    if (markingAll.current) return
+    const sequence = ++loadSequence.current
     try {
       setLoading(true)
       const data = await api('/api/notifications')
+      if (sequence !== loadSequence.current || markingAll.current) return
       setItems(data.notifications || [])
       setUnread(data.unread || 0)
     } catch { /* the bell keeps its last list if a refresh fails */ } finally {
-      setLoading(false)
+      if (sequence === loadSequence.current) setLoading(false)
     }
   }, [])
 
@@ -83,22 +88,22 @@ export function NotificationsMenu({ hotelId, live }) {
     }
   }
   const markAll = async () => {
+    if (markingAll.current) return
+    markingAll.current = true
+    loadSequence.current += 1
+    setLoading(false)
     setBusy('all')
-    // Optimistic update: clear the list immediately for a snappier feel
-    const previousItems = items
-    const previousUnread = unread
-    setItems([])
-    setUnread(0)
-    setFreshIds(new Set())
-
     try {
-      await api('/api/notifications/read-all', { method: 'PATCH' })
+      const data = await api('/api/notifications/read-all', { method: 'PATCH' })
+      setItems([])
+      setUnread(data.unread || 0)
+      setFreshIds(new Set())
     } catch {
-      // If the request fails, restore the previous state and refresh to be sure
-      setItems(previousItems)
-      setUnread(previousUnread)
+      // Keep the notifications visible unless the server confirms they were read.
+      markingAll.current = false
       load()
     } finally {
+      markingAll.current = false
       setBusy('')
     }
   }

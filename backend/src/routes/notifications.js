@@ -50,9 +50,10 @@ router.patch('/read-all', authenticate, asyncRoute(async (req, res) => {
 
   await Notification.updateMany(
     { hotelId: scope, readBy: { $ne: req.user._id } },
-    { $push: { readBy: req.user._id } },
+    { $addToSet: { readBy: req.user._id } },
   )
-  res.json({ unread: 0 })
+  const unread = await Notification.countDocuments({ hotelId: scope, readBy: { $ne: req.user._id } })
+  res.json({ unread })
 }))
 
 export default router
