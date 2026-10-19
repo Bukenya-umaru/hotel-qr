@@ -48,6 +48,10 @@ export default function App() {
     databaseStatus: 'Disconnected',
     passwordViewable: false,
   })
+  // Tracked so the section gate can lift while a fetch is in flight —
+  // settled (success OR failure) lifts the gate; failure never deadlocks it.
+  const [reportsLoading, setReportsLoading] = useState(false)
+  const [staffLoading, setStaffLoading] = useState(false)
   const [modal, setModal] = useState('')
   const [editingUser, setEditingUser] = useState(null)
   const [resettingUser, setResettingUser] = useState(null)
@@ -99,21 +103,25 @@ export default function App() {
       const today = new Date()
       const from = dateKey(today)
       const to = dateKey(today)
+      setReportsLoading(true)
       api(`/api/owner/analytics/reports?from=${from}&to=${to}`)
         .then(data => setAnalytics({ ...data, isActual: true }))
         .catch(err => setApiError(err.message))
+        .finally(() => setReportsLoading(false))
     }
     if (user?.role === 'OWNER') {
+      setStaffLoading(true)
       api('/api/owner/staff').then(data => {
         setUsers(data.users)
         setPlatformOverview(previous => ({ ...previous, passwordViewable: Boolean(data.passwordViewable) }))
-      }).catch(err => setApiError(err.message))
+      }).catch(err => setApiError(err.message)).finally(() => setStaffLoading(false))
     }
     if (user?.role === 'DEVELOPER') {
+      setStaffLoading(true)
       api('/api/developer/users').then(data => {
         setUsers(data.users)
         setPlatformOverview(previous => ({ ...previous, passwordViewable: Boolean(data.passwordViewable) }))
-      }).catch(err => setApiError(err.message))
+      }).catch(err => setApiError(err.message)).finally(() => setStaffLoading(false))
       api('/api/developer/overview').then(data => setPlatformOverview(data)).catch(err => setApiError(err.message))
     }
   }, [user])
@@ -316,8 +324,8 @@ export default function App() {
   // the overlay holds for at least 5 seconds (owner's requirement) and longer
   // while the section's own data is still arriving.
   let sectionReady = true
-  if (page === 'Reports') sectionReady = analytics.isActual
-  else if (['Accounts', 'Chefs'].includes(page)) sectionReady = users.length > 0
+  if (page === 'Reports') sectionReady = !reportsLoading
+  else if (['Accounts', 'Chefs'].includes(page)) sectionReady = !staffLoading
   else if (['Food type', 'Expenses'].includes(page)) sectionReady = undefined
   content = <SectionGate sectionKey={page} ready={sectionReady}>{content}</SectionGate>
 
