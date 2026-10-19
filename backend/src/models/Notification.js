@@ -9,7 +9,7 @@ const schema = new mongoose.Schema({
   // What happened — drives the icon and wording on the client.
   type: {
     type: String,
-    enum: ['new_sale', 'new_expense', 'new_damage', 'sale_approved', 'expense_approved', 'stock_confirmed', 'stock_pending', 'low_stock'],
+    enum: ['new_sale', 'new_expense', 'new_damage', 'sale_approved', 'expense_approved', 'stock_confirmed', 'stock_pending', 'stock_updated', 'low_stock'],
     required: true,
   },
   title: { type: String, required: true, trim: true, maxlength: 80 },

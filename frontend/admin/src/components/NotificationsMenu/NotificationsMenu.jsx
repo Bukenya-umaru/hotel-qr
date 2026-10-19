@@ -13,6 +13,7 @@ const ICONS = {
   expense_approved: { icon: CircleCheck, bg: 'bg-[#eaf7ef]', color: 'text-[#55a978]' },
   stock_confirmed: { icon: Package, bg: 'bg-[#eef4fd]', color: 'text-[#4a7ded]' },
   stock_pending: { icon: Package, bg: 'bg-[#f3effd]', color: 'text-[#8465d6]' },
+  stock_updated: { icon: Package, bg: 'bg-[#fff4ec]', color: 'text-[#ea580c]' },
   low_stock: { icon: Package, bg: 'bg-[#fdeaea]', color: 'text-[#d9534b]' },
 }
 const DEFAULT_ICON = { icon: Bell, bg: 'bg-[#fbf5f2]', color: 'text-[#8d817b]' }

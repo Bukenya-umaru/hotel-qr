@@ -27,8 +27,8 @@ const schema = new mongoose.Schema({
   totalAdded: { type: Number, required: true, min: 0, default: 0 },
   // Running total of stock deducted by sales (manual reduces excluded).
   totalUsed: { type: Number, required: true, min: 0, default: 0 },
-  // Sign-off on the current count: every stock addition waits for explicit
-  // approval. Approved stock is locked until more stock is added.
+  // Sign-off on the current details and count: edits and additions require
+  // explicit approval again.
   approved: { type: Boolean, default: false, index: true },
   approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   approvedAt: { type: Date, default: null },

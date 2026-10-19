@@ -168,8 +168,6 @@ router.patch('/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadLimiter,
   const scope = hotelScope(req)
   const current = await StockItem.findOne({ _id: req.params.id, hotelId: scope }).select('unit customUnit imageUrl approved plates')
   if (!current) return res.status(404).json({ message: 'Stock not found.' })
-  // Approved stock is the signed-off record — its details can no longer change.
-  if (current.approved) return res.status(403).json({ message: 'This stock has been approved and can no longer be edited.' })
   const updates = {}
   if (req.body.name !== undefined) {
     const name = normalizeName(req.body.name)
@@ -196,6 +194,9 @@ router.patch('/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadLimiter,
   }
   if (req.file) updates.imageUrl = req.file.path
   if (!Object.keys(updates).length) return res.status(400).json({ message: 'No supported changes were provided.' })
+  if (current.approved) {
+    Object.assign(updates, { approved: false, approvedBy: null, approvedAt: null })
+  }
   if (updates.name) {
     const duplicate = await StockItem.findOne({
       _id: { $ne: req.params.id },
@@ -220,6 +221,12 @@ router.patch('/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadLimiter,
   // Editing the count down is the same as reducing it — alert the staff when
   // the edited count has dipped to the low-stock limit.
   if (stock.plates < current.plates) void checkLowStock(req.app.get('io'), String(scope), [stock._id])
+  void notifyHotel(req.app.get('io'), String(scope), {
+    type: 'stock_updated',
+    title: `Stock updated — ${stock.name}`,
+    body: `Updated by ${req.user.name}${current.approved ? ' · approval required again' : ''}`,
+    refId: stock._id,
+  })
   req.app.get('io').to(`hotel:${scope}`).emit('stock_updated')
   res.json({ item: stock })
 }))
@@ -241,8 +248,8 @@ router.delete('/:id', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(as
 }))
 
 // The owner — or staff granted the approval permission — signs the stock's
-// current count off. Approved stock can no longer be edited or removed, and
-// newly added stock goes back to pending until it is approved again.
+// current details and count off. Approved stock cannot be removed; editing it
+// clears the sign-off until it is approved again.
 router.post('/:id/approve', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
   if (!hasPerm(req.user, 'approve_records')) return res.status(403).json({ message: 'You do not have permission to approve stock.' })
   if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Stock not found.' })

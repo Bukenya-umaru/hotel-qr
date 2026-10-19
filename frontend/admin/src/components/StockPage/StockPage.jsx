@@ -274,7 +274,7 @@ export function StockPage({ user, canManage = true }) {
         <div className="w-full min-w-0 text-center">
           <h3 className="font-display flex items-center justify-center gap-1 text-[10px] font-bold leading-[13px] sm:gap-1.5 sm:text-[13px] sm:leading-[17px]">
             <span className="line-clamp-2 break-words">{item.name}</span>
-            {canManage && !item.approved && <button onClick={() => openEdit(item)} title={`Edit ${item.name}`} className="shrink-0 rounded p-0.5 text-[#e2e8f0] hover:bg-[#f1f5f9] hover:text-[#64748b] sm:p-1"><Pencil size={11} className="sm:size-3.5" /></button>}
+            {canManage && <button onClick={() => openEdit(item)} title={`Edit ${item.name}`} className="shrink-0 rounded p-0.5 text-[#e2e8f0] hover:bg-[#f1f5f9] hover:text-[#64748b] sm:p-1"><Pencil size={11} className="sm:size-3.5" /></button>}
           </h3>
           <div className="mt-0.5 flex flex-wrap items-center justify-center gap-1 sm:mt-1.5 sm:gap-1.5">
             {item.foodType && <span className="max-w-full truncate rounded bg-[#fff4ec] px-1.5 py-0.5 text-[7px] font-semibold uppercase tracking-[.6px] text-[#ea580c] sm:px-2 sm:py-1 sm:text-[9px] sm:tracking-[.8px]">{item.foodType}</span>}
@@ -310,6 +310,7 @@ export function StockPage({ user, canManage = true }) {
     </Modal>}
     {showForm && <Modal title={editing ? `Edit ${editing.name}` : 'Add stock'} onClose={() => { setShowForm(false); setEditing(null) }}>
       <form className="space-y-3.5" onSubmit={submitStock}>
+        {editing?.approved && <p className="rounded-lg bg-[#fef9ee] px-3 py-2 text-[10px] leading-4 text-[#b45309]">Saving changes will return this stock to pending approval.</p>}
         <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#64748b]">Food type <span className="text-[#dc2626]">*</span></span>
           <select required value={form.foodType} onChange={event => setForm({ ...form, foodType: event.target.value })} className="w-full rounded-lg border border-[#e7ebf0] bg-white px-3 py-2.5 text-[12px]">
             <option value="">Click to select food type…</option>
