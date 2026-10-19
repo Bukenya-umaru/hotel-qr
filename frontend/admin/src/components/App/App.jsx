@@ -89,9 +89,8 @@ export default function App() {
         setUser(data.user)
         if (data.user.role) setPage(data.user.role === 'DEVELOPER' ? 'Platform overview' : 'Overview')
       })
-      // The login page always comes first: a 401 simply means no saved
-      // session, and even an API hiccup (404/502/timeout) shouldn't block
-      // the screen — the user can sign in and only then see server errors.
+      // A 401 means there is no saved session. API hiccups should still let
+      // the user reach the login page after the session check settles.
       .catch(() => {
         if (!active) return
         setUser(null)
@@ -304,7 +303,8 @@ export default function App() {
     setToast(active ? 'Account reactivated' : 'Account deactivated')
   }
 
-  if (!user) return <LoginPage onLogin={login} loginDisabled={sessionLoading} />
+  if (sessionLoading) return null
+  if (!user) return <LoginPage onLogin={login} />
 
   let content
   if (page === 'Food type') content = <CategoriesPage initialView="foodtype" />
