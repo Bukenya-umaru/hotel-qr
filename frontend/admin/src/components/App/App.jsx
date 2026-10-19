@@ -209,6 +209,7 @@ export default function App() {
   const canManageStock = role === 'OWNER' || hasPermission(user, 'manage_stock')
   const login = async (email, password) => {
     const data = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
+    setPage(data.user.role === 'DEVELOPER' ? 'Platform overview' : 'Overview')
     setUser(data.user)
     setModal('')
     setToast(`Welcome back, ${data.user.name.split(' ')[0]}`)
@@ -303,8 +304,7 @@ export default function App() {
     setToast(active ? 'Account reactivated' : 'Account deactivated')
   }
 
-  if (sessionLoading) return <main className="flex min-h-screen items-center justify-center bg-[#eeeeed] px-4"><p role="status" className="text-[13px] text-[#85817e]">Checking your session…</p></main>
-  if (!user) return <LoginPage onLogin={login} />
+  if (!user) return <LoginPage onLogin={login} loginDisabled={sessionLoading} />
 
   let content
   if (page === 'Food type') content = <CategoriesPage initialView="foodtype" />
@@ -329,8 +329,6 @@ export default function App() {
   if (page === 'Reports') sectionReady = !reportsLoading
   else if (['Accounts', 'Chefs'].includes(page)) sectionReady = !staffLoading
   else if (['Food type', 'Expenses'].includes(page)) sectionReady = undefined
-  content = <SectionGate sectionKey={page} ready={sectionReady}>{content}</SectionGate>
-
   return <div className="min-h-screen bg-[#fbf8f6]">
     <Sidebar role={role} page={page} setPage={setPage} user={user} onLogin={() => setModal('login')} onLogout={logout} loggingOut={loggingOut} onChangePassword={() => setModal('change-password')} hotelName={hotelName} items={currentNav} />
     {mobileNav && <div className="fixed inset-0 z-30 bg-[#0f172a]/30 lg:hidden" onMouseDown={e => { if (e.target === e.currentTarget) setMobileNav(false) }}><div className="flex h-full max-h-[100dvh] w-[min(270px,85vw)] flex-col overflow-y-auto bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" onClick={e => e.stopPropagation()}><div className="flex items-center justify-between px-2 py-2"><Brand /><button onClick={() => setMobileNav(false)} aria-label="Close navigation" className="grid size-9 place-items-center rounded-lg hover:bg-[#f8fafc]"><X size={18} /></button></div><div className="mt-5 rounded-xl border border-[#e7ebf0] p-3"><p className="truncate text-[11px] font-semibold">{hotelName}</p><p className="mt-1 text-[10px] text-[#94a3b8]">{user?.name || 'WAGA BITES'}</p></div><p className="mb-2 mt-6 px-2 text-[10px] font-bold uppercase tracking-[1.3px] text-[#94a3b8]">{role === 'DEVELOPER' ? 'Developer support' : role === 'KITCHEN' ? 'Chef portal' : 'Owner portal'}</p><nav className="space-y-1">{currentNav.map(item => item.children

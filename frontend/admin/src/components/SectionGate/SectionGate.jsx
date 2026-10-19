@@ -1,18 +1,22 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 
-// Every section/subsection switch shows the full-screen loading overlay for
-// AT LEAST five seconds (a deliberate beat, per the owner's request), then
-// hands over to the section — held longer if its data is still loading.
+// Section switches show the full-screen loading overlay for at least five
+// seconds, then hand over to the section — held longer if its data is loading.
 const MINIMUM_MS = 5000
 
-// The gate counts one beat per switch: a change of sectionKey restarts it.
+// The gate applies to navigation after the initial dashboard has mounted.
 export function SectionGate({ sectionKey, ready, children }) {
   const [beat, setBeat] = useState(0)
   const [elapsed, setElapsed] = useState(true)
+  const previousSectionKey = useRef(sectionKey)
 
   useEffect(() => {
-    // New section entered: show the overlay and start the 5s minimum.
+    if (previousSectionKey.current === sectionKey) {
+      return undefined
+    }
+    previousSectionKey.current = sectionKey
+
     setElapsed(false)
     const timer = window.setTimeout(() => setElapsed(true), MINIMUM_MS)
     setBeat(current => current + 1)

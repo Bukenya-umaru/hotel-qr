@@ -4,7 +4,7 @@ import { Brand } from '../Brand/Brand.jsx'
 import { api } from '../../lib/api.js'
 import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
 
-export function LoginPage({ onLogin }) {
+export function LoginPage({ onLogin, loginDisabled = false }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -23,7 +23,7 @@ export function LoginPage({ onLogin }) {
 
   const submit = async event => {
     event.preventDefault()
-    if (loading) return
+    if (loading || loginDisabled) return
     setLoading(true)
     setError('')
     try {
@@ -93,7 +93,7 @@ export function LoginPage({ onLogin }) {
         {error && <p role="alert" className="mt-4 text-[12px] text-[#dc2626]">{error}</p>}
 
         <button
-          disabled={loading}
+          disabled={loading || loginDisabled}
           className="mt-6 h-11 w-full rounded-full bg-[#a93216] text-[14px] font-medium text-white transition hover:bg-[#922b13] disabled:cursor-wait disabled:opacity-60"
         >
           {loading ? <ActionProgress>Signing in…</ActionProgress> : 'Log In'}
