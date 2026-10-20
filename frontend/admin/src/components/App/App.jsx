@@ -322,9 +322,9 @@ export default function App() {
   else if (role === 'DEVELOPER') content = <DeveloperDashboard users={users} onNavigate={setPage} overview={platformOverview} />
   else content = <Overview hotelName={hotelName} userId={user?._id} userRole={role} onNavigate={setPage} analytics={analytics} currency="UGX" onRange={loadReportRange} reportRange={reportRange} />
 
-  // Every section/subsection switch opens behind a full-screen loading gate:
-  // the overlay holds for at least 5 seconds (owner's requirement) and longer
-  // while the section's own data is still arriving.
+  // Every section/subsection switch shows an in-place skeleton in the content
+  // area for at least 5 seconds (owner's requirement) and longer while the
+  // section's own data is still arriving.
   let sectionReady = true
   if (page === 'Reports') sectionReady = !reportsLoading
   else if (['Accounts', 'Chefs'].includes(page)) sectionReady = !staffLoading
