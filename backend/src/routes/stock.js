@@ -197,7 +197,11 @@ router.patch('/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadLimiter,
     if (price === null) return res.status(400).json({ message: 'Price must be zero or more.' })
     updates.price = price
   }
+  // A new upload replaces the photo; `removeImage` clears it when the user no
+  // longer wants the picture on the entry.
+  const removeImage = req.body.removeImage === 'true' || req.body.removeImage === true
   if (req.file) updates.imageUrl = req.file.path
+  else if (removeImage) updates.imageUrl = ''
   if (!Object.keys(updates).length) return res.status(400).json({ message: 'No supported changes were provided.' })
   if (current.approved) {
     Object.assign(updates, { approved: false, approvedBy: null, approvedAt: null })
@@ -223,6 +227,7 @@ router.patch('/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadLimiter,
     return res.status(404).json({ message: 'Stock not found.' })
   }
   if (req.file && current.imageUrl) await removeUploadedImage(current.imageUrl)
+  if (!req.file && removeImage && current.imageUrl) await removeUploadedImage(current.imageUrl)
   // Editing the count down is the same as reducing it — alert the staff when
   // the edited count has dipped to the low-stock limit.
   if (stock.plates < current.plates) void checkLowStock(req.app.get('io'), String(scope), [stock._id])

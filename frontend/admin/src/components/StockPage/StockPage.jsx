@@ -1,12 +1,22 @@
 import { useEffect, useRef, useState } from 'react'
 import { connectSocket, api, apiAssetUrl } from '../../lib/api.js'
-import { Boxes, Check, ImagePlus, Pencil, Plus, Trash2, Wallet } from 'lucide-react'
+import { Boxes, Check, ImagePlus, Pencil, Plus, Trash2, Wallet, X } from 'lucide-react'
 import { hasPermission, money, cx } from '../../lib/ui.js'
 import { Modal } from '../Modal/Modal.jsx'
 import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
 import { Pagination } from '../Pagination/Pagination.jsx'
 
 const PAGE_SIZE = 10
+
+// Photos are optional, and an image URL can stop working (deleted upload, a
+// dropped connection). When that happens show the same empty placeholder as
+// stock without a photo instead of the browser's broken-image icon.
+function StockPhoto({ src, alt, className, fallback }) {
+  const [broken, setBroken] = useState(false)
+  useEffect(() => { setBroken(false) }, [src])
+  if (!src || broken) return fallback
+  return <img src={src} alt={alt} className={className} onError={() => setBroken(true)} />
+}
 
 // Stock is not always counted in plates — gas cylinders, charcoal and boxes
 // are counted as items, milk is served by the cup, and anything else can be
@@ -44,6 +54,9 @@ export function StockPage({ user, canManage = true }) {
   const [form, setForm] = useState({ name: '', foodType: '', price: '', unit: 'plates', customUnit: '', quantity: '' })
   const [image, setImage] = useState(null)
   const [preview, setPreview] = useState('')
+  // Set when the user removes the existing photo — the form submits that as a
+  // request to clear it on the server.
+  const [imageRemoved, setImageRemoved] = useState(false)
   const [page, setPage] = useState(1)
   const fileRef = useRef(null)
   // The owner — or staff granted the approval permission — can sign stock off.
@@ -81,11 +94,18 @@ export function StockPage({ user, canManage = true }) {
     if (fileRef.current) fileRef.current.value = ''
   }
 
+  const removePhoto = () => {
+    clearImageInput()
+    setPreview('')
+    setImageRemoved(true)
+  }
+
   const openPopup = () => {
     setEditing(null)
     setForm({ name: '', foodType: '', price: '', unit: 'plates', customUnit: '', quantity: '' })
     clearImageInput()
     setPreview('')
+    setImageRemoved(false)
     setError('')
     setShowForm(true)
   }
@@ -97,6 +117,7 @@ export function StockPage({ user, canManage = true }) {
     setForm({ name: item.name, foodType: item.foodType || '', price: String(item.price ?? ''), unit: item.unit || 'plates', customUnit: item.customUnit || '', quantity: String(item.plates ?? '') })
     clearImageInput()
     setPreview(item.imageUrl ? apiAssetUrl(item.imageUrl) : '')
+    setImageRemoved(false)
     setError('')
     setShowForm(true)
   }
@@ -120,7 +141,7 @@ export function StockPage({ user, canManage = true }) {
       plates: quantity,
       totalAdded: editing ? editing.totalAdded : quantity,
       totalUsed: editing ? editing.totalUsed : 0,
-      imageUrl: preview || editing?.imageUrl || '',
+      imageUrl: imageRemoved ? '' : (preview || editing?.imageUrl || ''),
       value: stockValue({ price: form.price, plates: quantity }),
       approved: false,
     }
@@ -136,6 +157,7 @@ export function StockPage({ user, canManage = true }) {
       data.append('customUnit', form.unit === 'other' ? form.customUnit : '')
       data.append('quantity', String(Number(form.quantity || 0)))
       if (image) data.append('image', image)
+      else if (imageRemoved) data.append('removeImage', 'true')
       const result = await api(editing ? `/api/stock/${editing._id}` : '/api/stock', { method: editing ? 'PATCH' : 'POST', body: data })
       const savedItem = { ...result.item, value: stockValue(result.item), approvedByName: result.item.approvedByName || '', dishes: result.item.dishes || [] }
       setItems(previous => previous.map(item => item._id === pendingId ? savedItem : item))
@@ -144,6 +166,7 @@ export function StockPage({ user, canManage = true }) {
       setEditing(null)
       clearImageInput()
       setPreview('')
+      setImageRemoved(false)
       setError('')
       void loadStock()
     } catch (err) {
@@ -276,7 +299,7 @@ export function StockPage({ user, canManage = true }) {
     {!items.length ? <div className="rounded-2xl border border-dashed border-[#dbe1ea] bg-white px-5 py-12 text-center"><Boxes className="mx-auto text-[#f97316]" size={26} /><p className="mt-3 text-[12px] font-semibold">No stock tracked yet</p><p className="mt-1 text-[10px] text-[#94a3b8]">{canManage ? 'Click Add stock to record your first batch — pick the food type, how it is counted (plates, items, cups, kg or your own unit), price, and quantity.' : 'Stock entries will appear here once the kitchen adds them.'}</p></div> :
       <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4 lg:gap-4 2xl:grid-cols-5">{visibleItems.map(item => { const unit = unitInfo(item.unit, item.customUnit); const canEdit = user?.role === 'OWNER' || String(item.createdById || '') === String(user?._id || ''); return <article key={item._id} className="flex min-w-0 flex-col items-center gap-1 rounded-xl border border-[#e7ebf0] bg-white p-1.5 transition hover:border-[#fdba74] sm:gap-2.5 sm:p-4">
         <span className="relative block aspect-[4/3] w-full overflow-hidden rounded-lg bg-[#f1f5f9] text-[#e2e8f0] sm:aspect-[16/10] sm:rounded-xl">
-          {item.imageUrl ? <img src={apiAssetUrl(item.imageUrl)} alt={item.name} className="size-full object-cover" /> : <span className="grid size-full place-items-center"><Boxes size={16} className="sm:size-7" /></span>}
+          <StockPhoto src={item.imageUrl ? apiAssetUrl(item.imageUrl) : ''} alt={item.name} className="size-full object-cover" fallback={<span className="grid size-full place-items-center"><Boxes size={16} className="sm:size-7" /></span>} />
           <span title={item.plates === 0 ? 'Out of stock' : lowStock(item.plates) ? 'Running low' : 'In stock'} className={cx('absolute right-1 top-1 size-2 rounded-full ring-2 ring-white sm:right-1.5 sm:top-1.5 sm:size-3', item.plates === 0 ? 'bg-[#ef4444]' : lowStock(item.plates) ? 'bg-[#f59e0b]' : 'bg-[#22c55e]')} />
         </span>
         <div className="w-full min-w-0 text-center">
@@ -353,11 +376,14 @@ export function StockPage({ user, canManage = true }) {
         <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#64748b]">Photo</span>
           <span className="flex items-center gap-2.5">
             <span className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-lg border border-[#e7ebf0] bg-[#f8fafc] text-[#e2e8f0]">
-              {preview ? <img src={preview} alt="Stock preview" className="size-full object-cover" /> : <ImagePlus size={18} />}
+              <StockPhoto src={preview} alt="Stock preview" className="size-full object-cover" fallback={<ImagePlus size={18} />} />
             </span>
-            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={event => setImage(event.target.files?.[0] || null)} className="block w-full rounded-lg border border-[#e7ebf0] bg-white px-3 py-2 text-[10px] file:mr-3 file:rounded-md file:border-0 file:bg-[#fff4ec] file:px-3 file:py-1.5 file:text-[10px] file:font-semibold file:text-[#f97316]" />
+            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={event => { setImage(event.target.files?.[0] || null); setImageRemoved(false) }} className="block w-full rounded-lg border border-[#e7ebf0] bg-white px-3 py-2 text-[10px] file:mr-3 file:rounded-md file:border-0 file:bg-[#fff4ec] file:px-3 file:py-1.5 file:text-[10px] file:font-semibold file:text-[#f97316]" />
           </span>
-          <span className="mt-1 block text-[9px] text-[#94a3b8]">{editing ? 'JPG, PNG or WebP — maximum 5 MB. Leave empty to keep the current photo.' : 'JPG, PNG or WebP — maximum 5 MB. Optional.'}</span>
+          {preview && <button type="button" onClick={removePhoto} className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-semibold text-[#dc2626] hover:underline"><X size={12} />Remove photo</button>}
+          <span className="mt-1 block text-[9px] text-[#94a3b8]">{editing
+            ? imageRemoved ? 'The photo will be removed when you save.' : 'JPG, PNG or WebP — maximum 5 MB. Leave empty to keep the current photo.'
+            : 'JPG, PNG or WebP — maximum 5 MB. Optional.'}</span>
         </label>
         {error && <p className="text-[11px] text-[#dc2626]">{error}</p>}
         <button disabled={busy || (!editing && !foodTypes.length)} className="w-full rounded-lg bg-[#f97316] py-2.5 text-[11px] font-semibold text-white disabled:opacity-60">{busyAction === 'save' ? <ActionProgress>{image ? 'Uploading stock image…' : editing ? 'Updating stock…' : 'Adding stock…'}</ActionProgress> : editing ? 'Save changes' : 'Add stock'}</button>
