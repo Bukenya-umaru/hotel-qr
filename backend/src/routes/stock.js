@@ -161,6 +161,11 @@ router.patch('/:id/adjust', authenticate, authorize('OWNER', 'KITCHEN'), asyncRo
   }
   const nextPlates = stock.plates + delta
   if (nextPlates < 0) return res.status(409).json({ message: `Only ${stock.plates} ${noun} left — you cannot reduce more than are in stock.` })
+  // Approved stock is the signed-off number: it must be used down to zero
+  // before a fresh number can be added.
+  if (delta > 0 && stock.approved && stock.plates > 0) {
+    return res.status(409).json({ message: `This stock is approved with ${stock.plates} ${noun} left. Use it down to zero before adding more.` })
+  }
   stock.plates = nextPlates
   if (delta > 0) {
     stock.totalAdded += delta
@@ -208,6 +213,11 @@ router.patch('/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadLimiter,
   if (req.body.quantity !== undefined || req.body.plates !== undefined) {
     const quantity = normalizeQuantity(req.body.quantity ?? req.body.plates, updates.unit || current.unit || 'plates')
     if (quantity === null) return res.status(400).json({ message: 'Enter a count of zero or more.' })
+    // The edit form cannot add to an approved count either — the stock has to
+    // be used down to zero first.
+    if (current.approved && quantity > current.plates) {
+      return res.status(409).json({ message: `This stock is approved with ${current.plates} left. Use it down to zero before adding more.` })
+    }
     updates.plates = quantity
   }
   if (req.body.foodType !== undefined) updates.foodType = normalizeFoodType(req.body.foodType)
@@ -267,8 +277,11 @@ router.delete('/:id', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(as
   const stock = await StockItem.findOne({ _id: req.params.id, hotelId: scope })
   if (!stock) return res.status(404).json({ message: 'Stock not found.' })
   if (!canEditStock(stock, req.user)) return res.status(403).json({ message: 'Only the user who added this stock or the owner can change it.' })
-  // Approved stock is the signed-off record — it can no longer be removed.
-  if (stock.approved) return res.status(403).json({ message: 'This stock has been approved and can no longer be removed.' })
+  // Approved stock is the signed-off record — it can only be removed once its
+  // count has been used down to zero.
+  if (stock.approved && stock.plates > 0) {
+    return res.status(403).json({ message: `This stock is approved with ${stock.plates} left. Use it down to zero before removing it.` })
+  }
   await StockItem.deleteOne({ _id: stock._id })
   // Detach linked food items so future sales no longer deduct this stock.
   await MenuItem.updateMany({ hotelId: scope, stockItemId: stock._id }, { $unset: { stockItemId: '' } })
@@ -278,8 +291,8 @@ router.delete('/:id', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(as
 }))
 
 // The owner — or staff granted the approval permission — signs the stock's
-// current details and count off. Approved stock cannot be removed; editing it
-// clears the sign-off until it is approved again.
+// current details and count off. Approved stock can only be removed once its
+// count reaches zero; editing it clears the sign-off until it is approved again.
 router.post('/:id/approve', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
   if (!hasPerm(req.user, 'approve_records')) return res.status(403).json({ message: 'You do not have permission to approve stock.' })
   if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Stock not found.' })
