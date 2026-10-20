@@ -21,6 +21,22 @@ const requireStockPermission = (req, res) => {
   return true
 }
 
+// Adding stock needs "Manage stock"; changing an existing entry can also be
+// granted on its own with "Edit all stock entries".
+const requireStockEditPermission = (req, res) => {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_stock') && !hasPerm(req.user, 'edit_business_stock')) {
+    res.status(403).json({ message: 'The owner has not granted you permission to change stock.' })
+    return false
+  }
+  return true
+}
+
+// The owner and the chef who added the entry can change it; a chef granted
+// "Edit all stock entries" can correct anyone's entry too, until it is signed
+// off — approved stock stays the books of record.
+const canEditStock = (stock, user) => canEditRecord(stock, user)
+  || (user?.role === 'KITCHEN' && !stock.approved && hasPerm(user, 'edit_business_stock'))
+
 const normalizeName = value => String(value || '').trim().slice(0, 60)
 const normalizeFoodType = value => String(value || '').trim().slice(0, 60)
 const STOCK_UNITS = ['plates', 'items', 'cups', 'kg', 'other']
@@ -124,12 +140,12 @@ router.post('/', authenticate, authorize('OWNER', 'KITCHEN'), uploadLimiter, upl
 }))
 
 router.patch('/:id/adjust', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
-  if (!requireStockPermission(req, res)) return
+  if (!requireStockEditPermission(req, res)) return
   if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Stock not found.' })
   const scope = hotelScope(req)
   const stock = await StockItem.findOne({ _id: req.params.id, hotelId: scope })
   if (!stock) return res.status(404).json({ message: 'Stock not found.' })
-  if (!canEditRecord(stock, req.user)) return res.status(403).json({ message: 'Only the user who added this stock or the owner can change it.' })
+  if (!canEditStock(stock, req.user)) return res.status(403).json({ message: 'Only the user who added this stock or the owner can change it.' })
   const noun = stock.unit === 'kg' ? 'kg'
     : stock.unit === 'items' ? 'items'
     : stock.unit === 'cups' ? 'cups'
@@ -167,12 +183,12 @@ router.patch('/:id/adjust', authenticate, authorize('OWNER', 'KITCHEN'), asyncRo
   res.json({ item: stock })
 }))
 router.patch('/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadLimiter, uploadMenuImage, asyncRoute(async (req, res) => {
-  if (!requireStockPermission(req, res)) return
+  if (!requireStockEditPermission(req, res)) return
   if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Stock not found.' })
   const scope = hotelScope(req)
   const current = await StockItem.findOne({ _id: req.params.id, hotelId: scope }).select('unit customUnit imageUrl approved plates createdBy')
   if (!current) return res.status(404).json({ message: 'Stock not found.' })
-  if (!canEditRecord(current, req.user)) return res.status(403).json({ message: 'Only the user who added this stock or the owner can change it.' })
+  if (!canEditStock(current, req.user)) return res.status(403).json({ message: 'Only the user who added this stock or the owner can change it.' })
   const updates = {}
   if (req.body.name !== undefined) {
     const name = normalizeName(req.body.name)
@@ -242,12 +258,12 @@ router.patch('/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadLimiter,
 }))
 
 router.delete('/:id', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
-  if (!requireStockPermission(req, res)) return
+  if (!requireStockEditPermission(req, res)) return
   if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Stock not found.' })
   const scope = hotelScope(req)
   const stock = await StockItem.findOne({ _id: req.params.id, hotelId: scope })
   if (!stock) return res.status(404).json({ message: 'Stock not found.' })
-  if (!canEditRecord(stock, req.user)) return res.status(403).json({ message: 'Only the user who added this stock or the owner can change it.' })
+  if (!canEditStock(stock, req.user)) return res.status(403).json({ message: 'Only the user who added this stock or the owner can change it.' })
   // Approved stock is the signed-off record — it can no longer be removed.
   if (stock.approved) return res.status(403).json({ message: 'This stock has been approved and can no longer be changed.' })
   await StockItem.deleteOne({ _id: stock._id })

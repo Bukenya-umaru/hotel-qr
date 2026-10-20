@@ -4,7 +4,7 @@ import { PERMISSIONS } from '../../lib/ui.js'
 import { useState } from 'react'
 import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
 
-const SHORT_LABELS = { view_sales: 'Sales', manage_menu: 'Food items', manage_stock: 'Stock', manage_expenses: 'Expenses', manage_sales: 'Record sales' }
+const SHORT_LABELS = { view_sales: 'Sales', manage_menu: 'Food items', manage_stock: 'Stock', edit_business_stock: 'Edit all stock', manage_expenses: 'Expenses', manage_sales: 'Record sales' }
 const ALL_KEYS = PERMISSIONS.map(permission => permission.key)
 
 export function AccountsPage({ users, role, passwordViewable, passwordLoadingId = '', onCreate, onToggle, onReset, onEdit, onView }) {

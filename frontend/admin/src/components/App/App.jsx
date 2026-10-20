@@ -180,7 +180,7 @@ export default function App() {
 
   const currentNav = useMemo(() => (navItems[role] || navItems.OWNER).flatMap(item => {
     if (role !== 'KITCHEN') return [item]
-    if (item.label === 'Stock' && !hasPermission(user, 'manage_stock')) return []
+    if (item.label === 'Stock' && !hasPermission(user, 'manage_stock') && !hasPermission(user, 'edit_business_stock')) return []
     if (item.label === 'Categories') {
       const children = item.children.filter(child => child.label !== 'Expenses' || hasPermission(user, 'manage_expenses'))
       return [{ ...item, children }]
