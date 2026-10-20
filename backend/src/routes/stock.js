@@ -24,18 +24,21 @@ const requireStockPermission = (req, res) => {
 // Adding stock needs "Manage stock"; changing an existing entry can also be
 // granted on its own with "Edit all stock entries".
 const requireStockEditPermission = (req, res) => {
-  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_stock') && !hasPerm(req.user, 'edit_business_stock')) {
+  if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_stock')
+      && !hasPerm(req.user, 'edit_business_stock') && !hasPerm(req.user, 'edit_approved_stock')) {
     res.status(403).json({ message: 'The owner has not granted you permission to change stock.' })
     return false
   }
   return true
 }
 
-// The owner and the chef who added the entry can change it; a chef granted
-// "Edit all stock entries" can correct anyone's entry too, until it is signed
-// off — approved stock stays the books of record.
+// The owner and the chef who added the entry can change it. "Edit all stock
+// entries until approved" lets a chef correct anyone's pending entry; "Edit
+// stock details even after approval" also unlocks entries that were signed
+// off. Removing approved stock stays blocked for everyone.
 const canEditStock = (stock, user) => canEditRecord(stock, user)
-  || (user?.role === 'KITCHEN' && !stock.approved && hasPerm(user, 'edit_business_stock'))
+  || (user?.role === 'KITCHEN' && (hasPerm(user, 'edit_approved_stock')
+    || (!stock.approved && hasPerm(user, 'edit_business_stock'))))
 
 const normalizeName = value => String(value || '').trim().slice(0, 60)
 const normalizeFoodType = value => String(value || '').trim().slice(0, 60)
@@ -265,7 +268,7 @@ router.delete('/:id', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(as
   if (!stock) return res.status(404).json({ message: 'Stock not found.' })
   if (!canEditStock(stock, req.user)) return res.status(403).json({ message: 'Only the user who added this stock or the owner can change it.' })
   // Approved stock is the signed-off record — it can no longer be removed.
-  if (stock.approved) return res.status(403).json({ message: 'This stock has been approved and can no longer be changed.' })
+  if (stock.approved) return res.status(403).json({ message: 'This stock has been approved and can no longer be removed.' })
   await StockItem.deleteOne({ _id: stock._id })
   // Detach linked food items so future sales no longer deduct this stock.
   await MenuItem.updateMany({ hotelId: scope, stockItemId: stock._id }, { $unset: { stockItemId: '' } })

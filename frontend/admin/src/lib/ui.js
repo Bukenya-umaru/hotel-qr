@@ -48,6 +48,7 @@ export const PERMISSIONS = [
   { key: 'view_sales', label: 'View sales' },
   { key: 'manage_stock', label: 'Manage stock' },
   { key: 'edit_business_stock', label: 'Edit all stock entries until approved' },
+  { key: 'edit_approved_stock', label: 'Edit stock details even after approval' },
   { key: 'manage_expenses', label: 'Manage expenses' },
   { key: 'manage_sales', label: 'Record sales' },
   { key: 'edit_records', label: 'Edit expenses & damages until approved' },
