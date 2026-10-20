@@ -37,6 +37,12 @@ export function apiAssetUrl(path) {
   return path
 }
 
+// Errors are read by the person using the dashboard, so they talk about the
+// internet connection they can fix — never about servers, APIs or proxies.
+const internetMessage = () => (typeof navigator !== 'undefined' && navigator.onLine === false
+  ? "You're offline. Connect to the internet and try again."
+  : "Can't connect right now. Check your internet connection and try again.")
+
 async function readResponse(response) {
   if (response.status === 204) return null
 
@@ -46,9 +52,7 @@ async function readResponse(response) {
   try {
     return JSON.parse(body)
   } catch {
-    const error = new Error(
-      `The API returned an unexpected response (HTTP ${response.status}). The request may not be reaching an API proxy; try again later or contact the site administrator.`,
-    )
+    const error = new Error('Something went wrong while loading this. Please try again.')
     error.status = response.status
     throw error
   }
@@ -69,9 +73,9 @@ export async function api(path, options = {}, retries = 2) {
   try {
     response = await fetch(requestUrl, { credentials: 'include', ...options, headers })
   } catch (error) {
-    if (error instanceof TypeError) {
-      throw new Error('Unable to reach the server. Check that the backend is running and try again.')
-    }
+    // A TypeError here means the request never reached anyone — the device
+    // has no working internet connection, not that the app is broken.
+    if (error instanceof TypeError) throw new Error(internetMessage())
     throw error
   }
 

@@ -86,7 +86,7 @@ app.use('/api/notifications', notificationRoutes)
 app.use('/api/developer', developerRoutes)
 app.use('/api/support', supportRoutes)
 
-app.use('/api', (_req, res) => res.status(404).json({ message: 'API endpoint not found.' }))
+app.use('/api', (_req, res) => res.status(404).json({ message: 'This action is not available.' }))
 
 io.use(async (socket, next) => {
   try {
@@ -135,7 +135,7 @@ app.use((error, _req, res, _next) => {
   }
   if (error.message === 'Menu photos must be JPG, PNG, or WebP.') return res.status(400).json({ message: error.message })
   console.error(error)
-  res.status(500).json({ message: 'An unexpected server error occurred.' })
+  res.status(500).json({ message: 'Something went wrong. Please try again in a moment.' })
 })
 
 const port = Number(process.env.PORT || 4000)
