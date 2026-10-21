@@ -9,7 +9,7 @@ export function MetricCard({ title, value, change, icon: Icon, detail, inverse =
     </div>
     <div className="flex min-w-0 items-center gap-3">
       <span className={cx('grid size-9 shrink-0 place-items-center rounded-full', inverse ? 'bg-[#fde3da] text-[#db6248]' : 'bg-[#fde6dc] text-[#e7654b]')}><Icon size={18} strokeWidth={1.8} /></span>
-      <strong className="font-display min-w-0 break-words text-[20px] font-bold leading-none tracking-[-.5px] text-[#292421] sm:text-[clamp(1.2rem,2vw,1.5rem)]">{value}</strong>
+      <strong className="font-display min-w-0 whitespace-nowrap text-[clamp(.8rem,3.3vw,1.5rem)] font-bold leading-none tracking-[-.5px] tabular-nums text-[#292421] sm:text-[clamp(1.2rem,2vw,1.5rem)]">{value}</strong>
     </div>
     <div className="flex min-h-[18px] min-w-0 items-center gap-1.5">
       {change && <span className="rounded-full bg-[#eaf7ef] px-2 py-0.5 text-[9px] font-semibold text-[#55a978]">{change}</span>}

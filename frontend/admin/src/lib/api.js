@@ -37,23 +37,29 @@ export function apiAssetUrl(path) {
   return path
 }
 
-// ---- Section connection signal ----
-// Sections fetch their own data, so the loading gate watches for requests that
-// never reached the server. Counting them lets a section keep its skeleton in
-// place instead of revealing an empty page when the connection drops mid-load.
+// ---- Section load signal ----
+// Sections fetch their own data, so the loading gate watches the API requests
+// they start. A pending request keeps the skeleton up until the data is ready
+// (no empty page in between), and a request that never reached the server is
+// counted so the section can keep loading while the connection is down.
+let pendingRequests = 0
 let networkFailures = 0
-const networkFailureListeners = new Set()
+const loadListeners = new Set()
+
+const notifyLoadListeners = () => {
+  const snapshot = { pending: pendingRequests, networkFailures }
+  for (const listener of loadListeners) listener(snapshot)
+}
 
 const reportNetworkFailure = () => {
   networkFailures += 1
-  for (const listener of networkFailureListeners) listener(networkFailures)
 }
 
-export const networkFailureCount = () => networkFailures
+export const loadSnapshot = () => ({ pending: pendingRequests, networkFailures })
 
-export function subscribeNetworkFailures(listener) {
-  networkFailureListeners.add(listener)
-  return () => { networkFailureListeners.delete(listener) }
+export function subscribeLoads(listener) {
+  loadListeners.add(listener)
+  return () => { loadListeners.delete(listener) }
 }
 
 // Errors are read by the person using the dashboard, so they talk about the
@@ -88,6 +94,9 @@ export async function api(path, options = {}, retries = 2) {
   // We ensure the path starts with /api to match the redirect rule.
   const requestUrl = path.startsWith('/api') ? path : `/api${path}`
 
+  pendingRequests += 1
+  notifyLoadListeners()
+
   let response
   try {
     response = await fetch(requestUrl, { credentials: 'include', ...options, headers })
@@ -96,10 +105,14 @@ export async function api(path, options = {}, retries = 2) {
     // has no working internet connection, not that the app is broken.
     if (error instanceof TypeError) {
       reportNetworkFailure()
+      pendingRequests -= 1
+      notifyLoadListeners()
       const offline = new Error(internetMessage())
       offline.network = true
       throw offline
     }
+    pendingRequests -= 1
+    notifyLoadListeners()
     throw error
   }
 
@@ -120,5 +133,8 @@ export async function api(path, options = {}, retries = 2) {
     // A retried request reports its own outcome, so the outer attempt stays quiet.
     if (error.network === true) reportNetworkFailure()
     throw error
+  } finally {
+    pendingRequests -= 1
+    notifyLoadListeners()
   }
 }

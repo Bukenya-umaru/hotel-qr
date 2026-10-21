@@ -230,7 +230,7 @@ export function Overview({ hotelName, userId, userRole, onNavigate, analytics, c
             <div><h3 className="font-display text-[16px] font-bold text-[#292421]">Total Revenue</h3><p className="mt-1 text-[10px] text-[#a19690]">Recorded activity, {period.label.toLowerCase()}</p></div>
             <span className="mt-0.5 inline-flex items-center gap-1.5 text-[10px] font-medium text-[#786d67]"><i className="size-2 rounded-sm bg-[#e7654b]" />Sales <i className="ml-2 size-2 rounded-sm bg-[#f2c7bb]" />Expenses</span>
           </div>
-          <div className="mt-4 flex items-baseline gap-2"><strong className="font-display text-[18px] font-bold text-[#292421]">{salesTotal === null ? '—' : money(salesTotal, currency)}</strong><span className="text-[10px] text-[#a19690]">sales {dayWording}</span></div>
+          <div className="mt-4 flex items-baseline gap-2"><strong className="font-display whitespace-nowrap text-[18px] font-bold text-[#292421]">{salesTotal === null ? '—' : money(salesTotal, currency)}</strong><span className="text-[10px] text-[#a19690]">sales {dayWording}</span></div>
           <div className="mt-2 h-[184px] w-full sm:h-[205px]">
             {series.length ? <ResponsiveContainer width="100%" height="100%">
               <BarChart data={series} margin={{ top: 8, right: 4, left: -20, bottom: 0 }} barGap={-15}>
@@ -265,8 +265,8 @@ export function Overview({ hotelName, userId, userRole, onNavigate, analytics, c
             <span>{positiveDays}/{seriesRaw.length} days</span>
           </div>
           <div className="mt-3 border-t border-[#f1eae6] pt-3">
-            <div className="flex items-center justify-between"><span className="text-[10px] text-[#8d817b]">Expenses {dayWording}</span><strong className="text-[12px] font-bold text-[#292421]">{expensesTotal === null ? '—' : money(expensesTotal, currency)}</strong></div>
-            <div className="mt-2 flex items-center justify-between"><span className="text-[10px] text-[#8d817b]">Sales {dayWording}</span><strong className="text-[12px] font-bold text-[#292421]">{salesTotal === null ? '—' : money(salesTotal, currency)}</strong></div>
+            <div className="flex items-center justify-between gap-2"><span className="text-[10px] text-[#8d817b]">Expenses {dayWording}</span><strong className="whitespace-nowrap text-[12px] font-bold text-[#292421]">{expensesTotal === null ? '—' : money(expensesTotal, currency)}</strong></div>
+            <div className="mt-2 flex items-center justify-between gap-2"><span className="text-[10px] text-[#8d817b]">Sales {dayWording}</span><strong className="whitespace-nowrap text-[12px] font-bold text-[#292421]">{salesTotal === null ? '—' : money(salesTotal, currency)}</strong></div>
           </div>
         </section>
 

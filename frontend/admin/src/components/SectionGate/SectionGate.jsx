@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import { networkFailureCount, subscribeNetworkFailures } from '../../lib/api.js'
+import { loadSnapshot, subscribeLoads } from '../../lib/api.js'
 
 // Section switches show an in-place loading skeleton in the content area for
 // at least five seconds, then hand over to the section — held longer if its
@@ -316,16 +316,21 @@ export function SectionSkeleton({ sectionKey }) {
 export function SectionGate({ sectionKey, ready, children }) {
   // `key` is the section behind the skeleton. Comparing it during render means
   // a switch shows the skeleton immediately, without a flash of new content.
-  const [state, setState] = useState({ key: sectionKey, elapsed: true, lost: false, attempt: 0 })
-  const baseline = useRef(networkFailureCount())
+  const [state, setState] = useState({ key: sectionKey, elapsed: true, lost: false, busy: false, attempt: 0 })
+  // Captured during render (before the new section's effects start its
+  // fetches), so only requests started by this section keep the skeleton up.
+  const baseline = useRef(null)
+  if (!baseline.current) baseline.current = { key: sectionKey, ...loadSnapshot() }
   const switched = state.key !== sectionKey
+  if (switched && baseline.current.key !== sectionKey) {
+    baseline.current = { key: sectionKey, ...loadSnapshot() }
+  }
 
   // A fresh section gets a fresh minimum window and forgets any earlier
   // connection failure.
   useEffect(() => {
     if (state.key === sectionKey) return
-    baseline.current = networkFailureCount()
-    setState({ key: sectionKey, elapsed: false, lost: false, attempt: 0 })
+    setState({ key: sectionKey, elapsed: false, lost: false, busy: false, attempt: 0 })
   }, [sectionKey, state.key])
 
   // Hold the skeleton for the minimum window (and again after a retry).
@@ -337,18 +342,24 @@ export function SectionGate({ sectionKey, ready, children }) {
     return () => window.clearTimeout(timer)
   }, [state.elapsed, state.key, sectionKey])
 
-  const gating = switched || !state.elapsed || ready === false || state.lost
+  const gating = switched || !state.elapsed || ready === false || state.lost || state.busy
 
-  // Watch the requests this section started. If one never reached the server,
-  // stay in the loading state instead of revealing a section with no data.
+  // Watch the requests this section started: a pending one keeps the skeleton
+  // up until the data is ready, and one that never reached the server keeps it
+  // loading instead of revealing a section with no data.
   useEffect(() => {
     if (!gating || state.lost) return undefined
     const startedWith = baseline.current
-    return subscribeNetworkFailures(count => {
-      if (count > startedWith) {
+    const sync = snapshot => {
+      if (snapshot.networkFailures > startedWith.networkFailures) {
         setState(previous => previous.lost ? previous : { ...previous, lost: true })
+        return
       }
-    })
+      const busy = snapshot.pending > startedWith.pending
+      setState(previous => previous.busy === busy ? previous : { ...previous, busy })
+    }
+    sync(loadSnapshot())
+    return subscribeLoads(sync)
   }, [gating, state.lost])
 
   // When the connection returns, remount the section so its requests retry and
@@ -356,8 +367,8 @@ export function SectionGate({ sectionKey, ready, children }) {
   useEffect(() => {
     if (!state.lost) return undefined
     const retry = () => {
-      baseline.current = networkFailureCount()
-      setState(previous => ({ ...previous, lost: false, elapsed: false, attempt: previous.attempt + 1 }))
+      baseline.current = { key: sectionKey, ...loadSnapshot() }
+      setState(previous => ({ ...previous, lost: false, busy: false, elapsed: false, attempt: previous.attempt + 1 }))
     }
     window.addEventListener('online', retry)
     return () => window.removeEventListener('online', retry)
