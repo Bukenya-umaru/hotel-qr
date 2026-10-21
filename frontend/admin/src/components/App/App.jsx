@@ -49,8 +49,9 @@ export default function App() {
     databaseStatus: 'Disconnected',
     passwordViewable: false,
   })
-  // Tracked so the section gate can lift while a fetch is in flight —
-  // settled (success OR failure) lifts the gate; failure never deadlocks it.
+  // Tracked so the section gate can hold its skeleton while the section's
+  // fetch is still in flight. A dropped connection is reported by lib/api.js
+  // instead, so the gate stays in its loading state rather than showing no data.
   const [reportsLoading, setReportsLoading] = useState(false)
   const [staffLoading, setStaffLoading] = useState(false)
   const [modal, setModal] = useState('')
@@ -324,7 +325,7 @@ export default function App() {
 
   // Every section/subsection switch shows an in-place skeleton in the content
   // area for at least 5 seconds (owner's requirement) and longer while the
-  // section's own data is still arriving.
+  // section's own data is still arriving — or while the connection is down.
   let sectionReady = true
   if (page === 'Reports') sectionReady = !reportsLoading
   else if (['Accounts', 'Chefs'].includes(page)) sectionReady = !staffLoading

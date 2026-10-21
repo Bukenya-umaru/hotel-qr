@@ -37,6 +37,25 @@ export function apiAssetUrl(path) {
   return path
 }
 
+// ---- Section connection signal ----
+// Sections fetch their own data, so the loading gate watches for requests that
+// never reached the server. Counting them lets a section keep its skeleton in
+// place instead of revealing an empty page when the connection drops mid-load.
+let networkFailures = 0
+const networkFailureListeners = new Set()
+
+const reportNetworkFailure = () => {
+  networkFailures += 1
+  for (const listener of networkFailureListeners) listener(networkFailures)
+}
+
+export const networkFailureCount = () => networkFailures
+
+export function subscribeNetworkFailures(listener) {
+  networkFailureListeners.add(listener)
+  return () => { networkFailureListeners.delete(listener) }
+}
+
 // Errors are read by the person using the dashboard, so they talk about the
 // internet connection they can fix — never about servers, APIs or proxies.
 const internetMessage = () => (typeof navigator !== 'undefined' && navigator.onLine === false
@@ -75,7 +94,12 @@ export async function api(path, options = {}, retries = 2) {
   } catch (error) {
     // A TypeError here means the request never reached anyone — the device
     // has no working internet connection, not that the app is broken.
-    if (error instanceof TypeError) throw new Error(internetMessage())
+    if (error instanceof TypeError) {
+      reportNetworkFailure()
+      const offline = new Error(internetMessage())
+      offline.network = true
+      throw offline
+    }
     throw error
   }
 
@@ -84,6 +108,7 @@ export async function api(path, options = {}, retries = 2) {
     if (!response.ok) {
       const error = new Error(data?.message || 'Something went wrong. Please try again.')
       error.status = response.status
+      error.network = [502, 503, 504].includes(response.status)
       throw error
     }
     return data
@@ -92,6 +117,8 @@ export async function api(path, options = {}, retries = 2) {
       await new Promise(resolve => setTimeout(resolve, 2000))
       return api(path, options, retries - 1)
     }
+    // A retried request reports its own outcome, so the outer attempt stays quiet.
+    if (error.network === true) reportNetworkFailure()
     throw error
   }
 }
