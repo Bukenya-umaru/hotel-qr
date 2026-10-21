@@ -114,7 +114,11 @@ export function StockPage({ user, canManage = true }) {
   // the entry can be changed in one place.
   const openEdit = item => {
     setEditing(item)
-    setForm({ name: item.name, foodType: item.foodType || '', price: String(item.price ?? ''), unit: item.unit || 'plates', customUnit: item.customUnit || '', quantity: String(item.plates ?? '') })
+    // A signed-off batch is locked at its count, so the form opens showing it
+    // read-only. Once that batch has been used down to zero the form asks for
+    // the new stock number instead of pre-filling zero.
+    const quantity = item.approved ? (Number(item.plates) > 0 ? String(item.plates) : '') : String(item.plates ?? '')
+    setForm({ name: item.name, foodType: item.foodType || '', price: String(item.price ?? ''), unit: item.unit || 'plates', customUnit: item.customUnit || '', quantity })
     clearImageInput()
     setPreview(item.imageUrl ? apiAssetUrl(item.imageUrl) : '')
     setImageRemoved(false)
@@ -129,7 +133,9 @@ export function StockPage({ user, canManage = true }) {
     setBusyAction('save')
     const previousItems = items
     const pendingId = editing?._id || `pending-${Date.now()}`
-    const quantity = Number(form.quantity || 0)
+    // The count of an approved batch is never sent as a change; only name,
+    // food type, price, unit and photo can be edited while it is signed off.
+    const quantity = editing?.approved && Number(editing.plates) > 0 ? Number(editing.plates) : Number(form.quantity || 0)
     const optimisticItem = {
       ...(editing || {}),
       _id: pendingId,
@@ -155,7 +161,7 @@ export function StockPage({ user, canManage = true }) {
       data.append('price', String(Number(form.price || 0)))
       data.append('unit', form.unit)
       data.append('customUnit', form.unit === 'other' ? form.customUnit : '')
-      data.append('quantity', String(Number(form.quantity || 0)))
+      data.append('quantity', String(quantity))
       if (image) data.append('image', image)
       else if (imageRemoved) data.append('removeImage', 'true')
       const result = await api(editing ? `/api/stock/${editing._id}` : '/api/stock', { method: editing ? 'PATCH' : 'POST', body: data })
@@ -268,6 +274,11 @@ export function StockPage({ user, canManage = true }) {
   // deleted since it was chosen.
   const typeOptions = form.foodType && !foodTypes.includes(form.foodType) ? [form.foodType, ...foodTypes] : foodTypes
   const formUnit = unitInfo(form.unit, form.customUnit)
+  // Approved stock keeps the number it was signed off with. Editing the entry
+  // cannot change that count until the batch reaches zero; at zero the form
+  // switches to asking for the new stock number to add.
+  const countLocked = Boolean(editing?.approved && Number(editing.plates) > 0)
+  const addingToApproved = Boolean(editing?.approved && Number(editing.plates) === 0)
 
   // Money tied up in the stock on hand (per-unit price × count), plus how
   // much of it is running out.
@@ -366,9 +377,10 @@ export function StockPage({ user, canManage = true }) {
             <span className="mt-1 block text-[9px] leading-4 text-[#94a3b8]">The price of one {formUnit.singular}. Total value is worked out from the number you enter below.</span>
             <span className="mt-1.5 flex items-center gap-1.5 rounded-lg bg-[#f0fdf4] px-2.5 py-2 text-[10px] font-semibold text-[#16a34a]"><Wallet size={12} />Total value {money((Number(form.price) || 0) * (Number(form.quantity) || 0))}</span>
           </label>
-          <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#64748b]">Number of {formUnit.plural} <span className="text-[#dc2626]">*</span></span>
-            <input required type="number" min="0" step={formUnit.step} max={editing?.approved && editing.plates > 0 ? editing.plates : undefined} value={form.quantity} onChange={event => setForm({ ...form, quantity: event.target.value })} placeholder={form.unit === 'kg' ? 'e.g. 12.5' : form.unit === 'items' ? 'e.g. 4' : form.unit === 'cups' ? 'e.g. 30' : 'e.g. 20'} className="w-full rounded-lg border border-[#e7ebf0] bg-white px-3 py-2.5 text-[12px]" />
-            {editing?.approved && editing.plates > 0 && <span className="mt-1 block text-[9px] leading-4 text-[#b45309]">Approved stock can only be used down to zero — bring the count to zero before adding more.</span>}
+          <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#64748b]">{addingToApproved ? 'New stock number' : countLocked ? 'Stock number' : `Number of ${formUnit.plural}`} <span className="text-[#dc2626]">*</span></span>
+            <input required disabled={countLocked} type="number" min="0" step={formUnit.step} value={form.quantity} onChange={event => setForm({ ...form, quantity: event.target.value })} placeholder={form.unit === 'kg' ? 'e.g. 12.5' : form.unit === 'items' ? 'e.g. 4' : form.unit === 'cups' ? 'e.g. 30' : 'e.g. 20'} className={cx('w-full rounded-lg border border-[#e7ebf0] px-3 py-2.5 text-[12px]', countLocked ? 'cursor-not-allowed bg-[#f8fafc] text-[#94a3b8]' : 'bg-white')} />
+            {countLocked && <span className="mt-1 block rounded-lg bg-[#fef9ee] px-2.5 py-2 text-[9px] leading-4 text-[#b45309]">This stock is approved at {editing.plates} {formUnit.plural}. The number cannot be edited — use it down to zero, then come back here to add a new stock number.</span>}
+            {addingToApproved && <span className="mt-1 block rounded-lg bg-[#fff4ec] px-2.5 py-2 text-[9px] leading-4 text-[#c2410c]">This approved stock has reached zero. Enter the new stock number to add a fresh batch — saving will return it to pending approval.</span>}
           </label>
         </div>
         <label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#64748b]">Stock name <span className="text-[#dc2626]">*</span></span>

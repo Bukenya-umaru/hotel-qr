@@ -194,7 +194,7 @@ router.patch('/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadLimiter,
   if (!requireStockEditPermission(req, res)) return
   if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Stock not found.' })
   const scope = hotelScope(req)
-  const current = await StockItem.findOne({ _id: req.params.id, hotelId: scope }).select('unit customUnit imageUrl approved plates createdBy')
+  const current = await StockItem.findOne({ _id: req.params.id, hotelId: scope }).select('unit customUnit imageUrl approved plates totalAdded createdBy')
   if (!current) return res.status(404).json({ message: 'Stock not found.' })
   if (!canEditStock(current, req.user)) return res.status(403).json({ message: 'Only the user who added this stock or the owner can change it.' })
   const updates = {}
@@ -213,12 +213,19 @@ router.patch('/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadLimiter,
   if (req.body.quantity !== undefined || req.body.plates !== undefined) {
     const quantity = normalizeQuantity(req.body.quantity ?? req.body.plates, updates.unit || current.unit || 'plates')
     if (quantity === null) return res.status(400).json({ message: 'Enter a count of zero or more.' })
-    // The edit form cannot add to an approved count either — the stock has to
-    // be used down to zero first.
-    if (current.approved && quantity > current.plates) {
-      return res.status(409).json({ message: `This stock is approved with ${current.plates} left. Use it down to zero before adding more.` })
+    // A signed-off batch's count is locked — it cannot be raised or lowered
+    // from the edit form. Other details (name, price, photo) stay editable;
+    // the client simply omits the count. Once the batch reaches zero a new
+    // stock number is allowed and the entry goes back to pending approval.
+    if (current.approved && current.plates > 0 && quantity !== current.plates) {
+      return res.status(409).json({ message: `This stock is approved with ${current.plates} ${noun(current)} left. Use it down to zero before changing the count.` })
     }
     updates.plates = quantity
+    // A fresh batch entered after an approved batch reaches zero is a real
+    // addition, so it counts toward the entry's added total like the + button.
+    if (current.approved && current.plates === 0 && quantity > 0) {
+      updates.totalAdded = (current.totalAdded || 0) + quantity
+    }
   }
   if (req.body.foodType !== undefined) updates.foodType = normalizeFoodType(req.body.foodType)
   if (req.body.price !== undefined) {
