@@ -1,7 +1,5 @@
 import { SecurityEvent } from '../models/SecurityEvent.js'
 
-// One line of defense everywhere: recording an event must never break or slow
-// down the request it was triggered by. Errors are logged server-side only.
 export function recordSecurityEvent({
   type,
   severity = 'low',
@@ -26,8 +24,6 @@ export function recordSecurityEvent({
   }).catch(error => console.error(`Unable to record security event: ${error.message}`))
 }
 
-// Friendly, dashboard-facing names for each event type. Kept beside the
-// helper so backend and frontend descriptions stay consistent.
 export const SECURITY_EVENT_LABELS = {
   login_failed: 'Sign-in failed',
   password_change_failed: 'Password change blocked',

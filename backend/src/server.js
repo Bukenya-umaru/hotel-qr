@@ -22,24 +22,16 @@ import notificationRoutes from './routes/notifications.js'
 
 const app = express()
 const server = http.createServer(app)
-// Allowed CORS origins must come from .env — no hard-coded fallback.
 const origins = String(process.env.CLIENT_URLS || '')
   .split(',').map(origin => origin.trim()).filter(Boolean)
-// Only trust X-Forwarded-For when explicitly enabled for the deployment
-// (e.g. TRUST_PROXY=1 behind a single reverse proxy), so the client IPs used
-// by rate limiting are the real ones and headers from random clients are ignored.
 if (process.env.TRUST_PROXY) app.set('trust proxy', process.env.TRUST_PROXY === 'true' ? 1 : process.env.TRUST_PROXY)
 const io = new SocketServer(server, { cors: { origin: origins, credentials: true } })
 app.set('io', io)
 
-// Secure HTTP response headers. HSTS is only sent in production so that
-// local development over plain HTTP is not forced onto https://.
 const isProduction = process.env.NODE_ENV === 'production'
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
-      // The backend only serves JSON APIs and uploaded images — no scripts,
-      // styles, frames, or plugins should ever load from these responses.
       scriptSrc: ["'none'"],
       scriptSrcAttr: ["'none'"],
       styleSrc: ["'none'"],
@@ -48,24 +40,18 @@ app.use(helmet({
       formAction: ["'none'"],
       baseUri: ["'none'"],
       imgSrc: ["'self'", 'data:'],
-      // Only enforce https:// in production; dev may run plain HTTP.
       upgradeInsecureRequests: isProduction ? [] : null,
     },
   },
-  // Uploaded images must remain loadable from the frontend origins.
   crossOriginResourcePolicy: { policy: 'cross-origin' },
   strictTransportSecurity: isProduction
     ? { maxAge: 31536000, includeSubDomains: true, preload: true }
     : false,
 }))
-// Compress responses (gzip) so API payloads transfer faster over the network.
-// Only compressible content types are compressed; uploaded images (JPG/PNG/WebP)
-// and already-compressed responses are left untouched.
 app.use(compression())
 app.use(cors({ origin: origins, credentials: true }))
 app.use(express.json({ limit: '32kb' }))
 app.use(cookieParser())
-// Backstop against abuse and traffic spikes on every API endpoint.
 app.use('/api', apiLimiter)
 
 app.use('/uploads', express.static(uploadDirectory, {

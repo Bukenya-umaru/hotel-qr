@@ -14,7 +14,6 @@ export const safeMenuItem = item => ({
   imageUrl: item.imageUrl,
 })
 
-// Public-safe view of the help & support details shown to customers.
 export const safeSupport = support => ({
   phone: support?.phone || '',
   whatsapp: support?.whatsapp || '',

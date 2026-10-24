@@ -2,7 +2,6 @@ import { v2 as cloudinary } from 'cloudinary'
 import multer from 'multer'
 import { CloudinaryStorage } from 'multer-storage-cloudinary'
 
-// Configure Cloudinary
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -15,7 +14,6 @@ const mimeExtensions = new Set([
   'image/webp',
 ])
 
-// Configure Cloudinary Storage for Multer
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
@@ -39,13 +37,11 @@ export async function removeUploadedImage(imageUrl) {
   if (!imageUrl) return
 
   try {
-    // Extract the public ID from the Cloudinary URL
-    // Example URL: https://res.cloudinary.com/cloudname/image/upload/v12345/folder/image_id.jpg
+    // Cloudinary URLs end in <folder>/<publicId>.<ext>; destroy() needs the public id.
     const parts = imageUrl.split('/')
     const filenameWithExt = parts.pop()
     const publicIdWithExt = filenameWithExt.split('.')[0]
 
-    // Cloudinary needs the folder path if you used one
     const folder = 'hotel-qr-uploads'
     const fullPublicId = `${folder}/${publicIdWithExt}`
 
@@ -55,5 +51,4 @@ export async function removeUploadedImage(imageUrl) {
   }
 }
 
-// Keeping this for backward compatibility with any code using the constant
 export const uploadDirectory = 'cloudinary'

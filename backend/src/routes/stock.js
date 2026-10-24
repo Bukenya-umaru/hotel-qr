@@ -21,8 +21,6 @@ const requireStockPermission = (req, res) => {
   return true
 }
 
-// Adding stock needs "Manage stock"; changing an existing entry can also be
-// granted on its own with "Edit all stock entries".
 const requireStockEditPermission = (req, res) => {
   if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_stock')
       && !hasPerm(req.user, 'edit_business_stock') && !hasPerm(req.user, 'edit_approved_stock')) {
@@ -32,10 +30,6 @@ const requireStockEditPermission = (req, res) => {
   return true
 }
 
-// The owner and the chef who added the entry can change it. "Edit all stock
-// entries until approved" lets a chef correct anyone's pending entry; "Edit
-// stock details even after approval" also unlocks entries that were signed
-// off. Removing approved stock stays blocked for everyone.
 const canEditStock = (stock, user) => canEditRecord(stock, user)
   || (user?.role === 'KITCHEN' && (hasPerm(user, 'edit_approved_stock')
     || (!stock.approved && hasPerm(user, 'edit_business_stock'))))
@@ -47,9 +41,7 @@ const normalizeUnit = value => {
   const unit = String(value || '').trim().toLowerCase()
   return STOCK_UNITS.includes(unit) ? unit : 'plates'
 }
-// Free-named measure used when `unit` is 'other', e.g. "crate", "tray".
 const normalizeCustomUnit = value => String(value || '').trim().toLowerCase().slice(0, 20)
-// Weight can be fractional (2.5 kg); counted things are always whole.
 const normalizeQuantity = (value, unit) => {
   const number = Number(value ?? 0)
   if (!Number.isFinite(number) || number < 0) return null
@@ -60,8 +52,6 @@ const safeAmount = value => {
   return Number.isFinite(number) && number >= 0 ? Math.round(number * 100) / 100 : null
 }
 
-// Every stock entry plus linked food names, so the chef sees which sale items
-// deduct from each stock item without extra requests.
 router.get('/', authenticate, authorize('OWNER', 'KITCHEN'), cacheHotelResource('stock'), asyncRoute(async (req, res) => {
   const scope = hotelScope(req)
   if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
@@ -77,7 +67,6 @@ router.get('/', authenticate, authorize('OWNER', 'KITCHEN'), cacheHotelResource(
     customUnit: item.customUnit || '',
     imageUrl: item.imageUrl || '',
     price: item.price ?? 0,
-    // Money this entry is worth right now: per-unit price × count on hand.
     value: Math.round((item.price ?? 0) * (item.plates ?? 0) * 100) / 100,
     plates: item.plates,
     totalAdded: item.totalAdded,
@@ -125,7 +114,6 @@ router.post('/', authenticate, authorize('OWNER', 'KITCHEN'), uploadLimiter, upl
     price,
     plates: quantity,
     totalAdded: quantity,
-    // Every stock addition remains editable until someone explicitly signs it off.
     approved: false,
     approvedBy: null,
     approvedAt: null,
@@ -161,22 +149,16 @@ router.patch('/:id/adjust', authenticate, authorize('OWNER', 'KITCHEN'), asyncRo
   }
   const nextPlates = stock.plates + delta
   if (nextPlates < 0) return res.status(409).json({ message: `Only ${stock.plates} ${noun} left — you cannot reduce more than are in stock.` })
-  // Approved stock is the signed-off number: it must be used down to zero
-  // before a fresh number can be added.
   if (delta > 0 && stock.approved && stock.plates > 0) {
     return res.status(409).json({ message: `This stock is approved with ${stock.plates} ${noun} left. Use it down to zero before adding more.` })
   }
   stock.plates = nextPlates
   if (delta > 0) {
     stock.totalAdded += delta
-    // Every stock addition remains editable until someone explicitly signs it off.
-    // Reducing (waste, spoilage) never touches the approval.
     stock.approved = false
     stock.approvedBy = null
     stock.approvedAt = null
   }
-  // `price` is the rate for one plate/item/kg, so it never changes with the
-  // count — the money value of the entry moves on its own (price × count).
   await stock.save()
   if (delta > 0) {
     void notifyHotel(req.app.get('io'), String(scope), {
@@ -205,7 +187,6 @@ router.patch('/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadLimiter,
   }
   if (req.body.unit !== undefined) updates.unit = normalizeUnit(req.body.unit)
   if (req.body.customUnit !== undefined) updates.customUnit = normalizeCustomUnit(req.body.customUnit)
-  // A named measure only makes sense for the 'other' unit.
   if (updates.unit && updates.unit !== 'other') updates.customUnit = ''
   const nextUnit = updates.unit || current.unit || 'plates'
   const nextCustomUnit = updates.customUnit !== undefined ? updates.customUnit : (current.customUnit || '')
@@ -213,16 +194,10 @@ router.patch('/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadLimiter,
   if (req.body.quantity !== undefined || req.body.plates !== undefined) {
     const quantity = normalizeQuantity(req.body.quantity ?? req.body.plates, updates.unit || current.unit || 'plates')
     if (quantity === null) return res.status(400).json({ message: 'Enter a count of zero or more.' })
-    // A signed-off batch's count is locked — it cannot be raised or lowered
-    // from the edit form. Other details (name, price, photo) stay editable;
-    // the client simply omits the count. Once the batch reaches zero a new
-    // stock number is allowed and the entry goes back to pending approval.
     if (current.approved && current.plates > 0 && quantity !== current.plates) {
       return res.status(409).json({ message: `This stock is approved with ${current.plates} ${noun(current)} left. Use it down to zero before changing the count.` })
     }
     updates.plates = quantity
-    // A fresh batch entered after an approved batch reaches zero is a real
-    // addition, so it counts toward the entry's added total like the + button.
     if (current.approved && current.plates === 0 && quantity > 0) {
       updates.totalAdded = (current.totalAdded || 0) + quantity
     }
@@ -233,8 +208,6 @@ router.patch('/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadLimiter,
     if (price === null) return res.status(400).json({ message: 'Price must be zero or more.' })
     updates.price = price
   }
-  // A new upload replaces the photo; `removeImage` clears it when the user no
-  // longer wants the picture on the entry.
   const removeImage = req.body.removeImage === 'true' || req.body.removeImage === true
   if (req.file) updates.imageUrl = req.file.path
   else if (removeImage) updates.imageUrl = ''
@@ -264,8 +237,6 @@ router.patch('/:id', authenticate, authorize('OWNER', 'KITCHEN'), uploadLimiter,
   }
   if (req.file && current.imageUrl) await removeUploadedImage(current.imageUrl)
   if (!req.file && removeImage && current.imageUrl) await removeUploadedImage(current.imageUrl)
-  // Editing the count down is the same as reducing it — alert the staff when
-  // the edited count has dipped to the low-stock limit.
   if (stock.plates < current.plates) void checkLowStock(req.app.get('io'), String(scope), [stock._id])
   void notifyHotel(req.app.get('io'), String(scope), {
     type: 'stock_updated',
@@ -284,22 +255,16 @@ router.delete('/:id', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(as
   const stock = await StockItem.findOne({ _id: req.params.id, hotelId: scope })
   if (!stock) return res.status(404).json({ message: 'Stock not found.' })
   if (!canEditStock(stock, req.user)) return res.status(403).json({ message: 'Only the user who added this stock or the owner can change it.' })
-  // Approved stock is the signed-off record — it can only be removed once its
-  // count has been used down to zero.
   if (stock.approved && stock.plates > 0) {
     return res.status(403).json({ message: `This stock is approved with ${stock.plates} left. Use it down to zero before removing it.` })
   }
   await StockItem.deleteOne({ _id: stock._id })
-  // Detach linked food items so future sales no longer deduct this stock.
   await MenuItem.updateMany({ hotelId: scope, stockItemId: stock._id }, { $unset: { stockItemId: '' } })
   await removeUploadedImage(stock.imageUrl)
   req.app.get('io').to(`hotel:${scope}`).emit('stock_updated')
   res.status(204).end()
 }))
 
-// The owner — or staff granted the approval permission — signs the stock's
-// current details and count off. Approved stock can only be removed once its
-// count reaches zero; editing it clears the sign-off until it is approved again.
 router.post('/:id/approve', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
   if (!hasPerm(req.user, 'approve_records')) return res.status(403).json({ message: 'You do not have permission to approve stock.' })
   if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Stock not found.' })

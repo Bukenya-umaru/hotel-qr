@@ -6,8 +6,6 @@ import { TextField } from '../TextField/TextField.jsx'
 import { PasswordStrengthMeter } from '../PasswordStrengthMeter/PasswordStrengthMeter.jsx'
 import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
 
-// Lets any signed-in user (owner, chef, or developer) change their own
-// password. The current password must be confirmed first.
 export function ChangePasswordModal({ onClose, onSubmit }) {
   const [form, setForm] = useState({ current: '', next: '', confirm: '' })
   const [show, setShow] = useState({ current: false, next: false, confirm: false })

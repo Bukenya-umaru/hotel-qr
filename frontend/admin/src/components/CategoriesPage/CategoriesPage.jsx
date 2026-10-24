@@ -5,11 +5,8 @@ import {
 import { api } from '../../lib/api.js'
 import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
 
-// The independent Categories page. Clicking "Categories" in the sidebar
-// lands here and shows only the two subsections — Food type and Expenses —
-// each opening its own workspace.
 export function CategoriesPage({ initialView = 'menu' }) {
-  const [view, setView] = useState(initialView) // 'menu' | 'foodtype' | 'expenses'
+  const [view, setView] = useState(initialView)
   const [categories, setCategories] = useState([])
   const [expenseCategoryCount, setExpenseCategoryCount] = useState(0)
   const [error, setError] = useState('')
@@ -29,13 +26,10 @@ export function CategoriesPage({ initialView = 'menu' }) {
     try {
       const data = await api('/api/owner/expense-categories')
       setExpenseCategoryCount(data.categories.length)
-    } catch {
-      // Count on the card is a nice-to-have.
-    }
+    } catch {}
   }
 
   useEffect(() => { load(); loadExpenseCategoryCount() }, [])
-  // Follow sidebar navigation between the Food type and Expenses subsections.
   useEffect(() => { setView(initialView) }, [initialView])
 
   const SUBSECTIONS = [
@@ -88,8 +82,6 @@ export function CategoriesPage({ initialView = 'menu' }) {
     />}
   </div>
 }
-
-// ---- Subsection: Food type — add food-type categories and see them here ----
 
 function FoodTypeView({ categories, setCategories, busy, setBusy, onError }) {
   const [newCategory, setNewCategory] = useState('')
@@ -185,8 +177,6 @@ function FoodTypeView({ categories, setCategories, busy, setBusy, onError }) {
     {!categories.length && <p className="mt-3 rounded-xl border border-dashed border-[#e7ebf0] px-3 py-6 text-center text-[10px] text-[#94a3b8]">No food-type categories yet — add your first one above.</p>}
   </div>
 }
-
-// ---- Subsection: Expenses — add name-only expense categories ----
 
 function ExpensesView({ busy, setBusy, onError }) {
   const [newName, setNewName] = useState('')

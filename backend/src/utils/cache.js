@@ -1,20 +1,9 @@
 import Redis from 'ioredis'
 import mongoose from 'mongoose'
 
-// Two-tier response cache for read-heavy endpoints:
-//  1. Redis (shared, multi-instance) whenever REDIS_URL is set in backend/.env
-//  2. A small in-process fallback otherwise, so a single-instance deployment
-//     still rides out traffic spikes. Set CACHE_ENABLED=false to disable both.
-//
-// Freshness: every cached key lives for CACHE_TTL_SECONDS (default 60) and —
-// more importantly — the post-write hooks below (attached by each model file
-// through attachCachePurge BEFORE the model compiles) purge the affected
-// business's whole cache namespace the instant any record of that model
-// changes, so owners and chefs never see stale sales, expenses, menu, stock,
-// or staff data.
 const ENABLED = process.env.CACHE_ENABLED !== 'false'
 const TTL_SECONDS = Math.max(1, Number(process.env.CACHE_TTL_SECONDS) || 60)
-const memory = new Map() // key -> { value, expiresAt }
+const memory = new Map()
 let redis = null
 let redisErrorLogged = false
 
@@ -24,7 +13,6 @@ if (ENABLED && process.env.REDIS_URL) {
     enableOfflineQueue: false,
   })
   redis.on('error', error => {
-    // Redis outages must degrade to cache-miss, never break requests.
     if (!redisErrorLogged) {
       console.warn(`Redis cache unavailable (${error.message}); serving uncached responses.`)
       redisErrorLogged = true
@@ -71,8 +59,6 @@ export function cacheSet(key, payload) {
   memory.set(key, { value: raw, expiresAt: Date.now() + TTL_SECONDS * 1000 })
 }
 
-// Closes the Redis connection (used at process shutdown) and clears the
-// in-process fallback so a warm restart starts empty.
 export async function cacheClose() {
   if (redis) {
     try {
@@ -117,9 +103,6 @@ export async function cachePurgeAll() {
   memory.clear()
 }
 
-// Per-endpoint caching middleware. keyOf(req) returns the cache key or a
-// falsy value to skip caching (e.g. scope not a valid business id — the
-// handler will answer 400 itself). Error responses (>=400) are never cached.
 export function cacheResponse(keyOf) {
   return async (req, res, next) => {
     if (!ENABLED) return next()
@@ -153,10 +136,6 @@ export function cacheResponse(keyOf) {
   }
 }
 
-// Caches a GET handler scoped to one business. `resource` names the logical
-// payload (e.g. 'sales'); `variantOf(req)` may add role/date-range parts.
-// Owner/chef routes only, so the business scope is always the signed-in
-// account's business (developer-only routes use cacheResponse directly).
 export function cacheHotelResource(resource, variantOf = () => '') {
   return cacheResponse(req => {
     const scope = req.user?.hotelId?._id || req.user?.hotelId || null
@@ -166,10 +145,6 @@ export function cacheHotelResource(resource, variantOf = () => '') {
   })
 }
 
-// Registers write-through invalidation MIDDLEWARE on a schema. Must be called
-// before mongoose.model() compiles it — middleware added after compilation
-// does not run. `purgeAll: true` (business-level schemas) clears every cached
-// response, including the developer /overview payload.
 export function attachCachePurge(schema, { purgeAll = false } = {}) {
   const purgeNow = async function (doc, next) {
     try {

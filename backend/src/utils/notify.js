@@ -1,17 +1,11 @@
 import { Notification } from '../models/Notification.js'
 import { StockItem } from '../models/StockItem.js'
 
-// Broadcasts a data-changed event to the whole business room. Screens that
-// graph sales or expenses listen to these and re-fetch instantly, so a new
-// record appears on the dashboard without a page refresh.
 export function broadcastChange(io, hotelId, event) {
   if (!io || !hotelId) return
   io.to(`hotel:${hotelId}`).emit(event)
 }
 
-// Creates a notification and pushes it live to every signed-in device of the
-// business's staff watching the hotel room. Never throws into the route — a
-// notification failure must not fail the record being saved.
 export async function notifyHotel(io, hotelId, { type, title, body = '', refId = null }) {
   if (!io || !hotelId) return
   try {
@@ -36,19 +30,14 @@ export async function notifyHotel(io, hotelId, { type, title, body = '', refId =
   }
 }
 
-// Stock is called low below this many units.
 export const LOW_STOCK_LIMIT = 5
 
-// Human name of a count unit — 'other' uses its custom name.
 export const noun = stock => stock.unit === 'kg' ? 'kg'
   : stock.unit === 'items' ? 'items'
   : stock.unit === 'cups' ? 'cups'
   : stock.unit === 'other' && stock.customUnit ? stock.customUnit
   : 'plates'
 
-// Alerts when names in `stockIds` have dipped to LOW_STOCK_LIMIT or below.
-// Reads the current count after deduction and skips names already alerted
-// recently (12h) so a busy service doesn't spam the bell.
 export async function checkLowStock(io, hotelId, stockIds = []) {
   if (!io || !hotelId || !stockIds.length) return
   try {

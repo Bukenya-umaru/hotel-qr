@@ -1,8 +1,6 @@
 import mongoose from 'mongoose'
 import { attachCachePurge } from '../utils/cache.js'
 
-// A single recorded kitchen expense, filed under one of the business's menu
-// sections. Amount is in the business currency (UGX).
 const schema = new mongoose.Schema({
   hotelId: { type: mongoose.Schema.Types.ObjectId, ref: 'Hotel', required: true, index: true },
   category: { type: mongoose.Schema.Types.ObjectId, ref: 'MenuCategory', required: true, index: true },

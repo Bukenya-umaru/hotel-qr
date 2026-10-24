@@ -2,12 +2,6 @@ import { useEffect, useState } from 'react'
 import { Download, X } from 'lucide-react'
 import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
 
-// Browsers fire beforeinstallprompt once they judge the app installable; we
-// hold the event so a custom popup — shown as the site opens — can trigger
-// Chrome's own install dialog on the user's tap rather than racing them.
-// "Once, then quiet": dismissing hides the popup for that browser forever
-// unless the storage is cleared; installing marks it standalone so it never
-// shows again.
 const DISMISS_KEY = 'wagabits-install-dismissed'
 
 const alreadyInstalled = () => window.matchMedia('(display-mode: standalone)').matches
@@ -39,7 +33,7 @@ export function InstallPrompt() {
   const install = async () => {
     if (installing) return
     setInstalling(true)
-    try { await event.prompt(); await event.userChoice } catch { /* the dialog was closed — the popup simply stays away */ }
+    try { await event.prompt(); await event.userChoice } catch {}
     finally {
       setEvent(null)
       setVisible(false)
@@ -47,7 +41,7 @@ export function InstallPrompt() {
     }
   }
   const dismiss = () => {
-    try { localStorage.setItem(DISMISS_KEY, '1') } catch { /* private mode may block storage — still hide the popup */ }
+    try { localStorage.setItem(DISMISS_KEY, '1') } catch {}
     setVisible(false)
   }
 

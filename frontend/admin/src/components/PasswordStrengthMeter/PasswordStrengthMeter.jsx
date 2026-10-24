@@ -1,7 +1,5 @@
 import { PASSWORD_RULE, STRENGTH_STEPS, passwordStrength } from '../../lib/ui.js'
 
-// Live strength bar rendered under a password input as the user types.
-// Shows the minimum rule until the password passes it, then the score.
 export function PasswordStrengthMeter({ password }) {
   const score = passwordStrength(password)
   const step = STRENGTH_STEPS[score - 1]

@@ -7,8 +7,6 @@ import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
 
 const ALL_KEYS = PERMISSIONS.map(permission => permission.key)
 
-// The owner creates chefs only; the developer creates either a business
-// owner or a chef, so a role selector appears for the developer.
 export function AccountModal({ onClose, onSubmit, viewerRole = 'OWNER', businessConfigured = true }) {
   const isDeveloper = viewerRole === 'DEVELOPER'
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'KITCHEN', permissions: [...ALL_KEYS] })

@@ -17,16 +17,13 @@ button { cursor: pointer; }
 ::selection { background: #fcd9c9; color: #292421; }
 .font-display { font-family: "Poppins", sans-serif; }
 .soft-shadow { box-shadow: 0 8px 32px rgba(53, 42, 36, .06); }
-/* Image-style cards: white, square corners, flat — only the faintest hairline shadow. */
 .border,
 .border-t,
 .border-b,
 .border-l,
 .border-r { border-color: #f0e8e4; }
 .card { border: 1px solid #efe7e3; background: #fff; }
-/* Elevated interactive cards (subsection tiles) lift on hover. */
 button.rounded-2xl.border.transition:hover { box-shadow: 0 2px 4px rgba(53, 42, 36, .05), 0 10px 24px rgba(53, 42, 36, .08); transform: translateY(-1px); }
-/* Slim, unobtrusive scrollbars for panels and lists. */
 * { scrollbar-width: thin; scrollbar-color: #ddcfc8 transparent; }
 *::-webkit-scrollbar { width: 8px; height: 8px; }
 *::-webkit-scrollbar-thumb { background: #ddcfc8; border-radius: 8px; }
@@ -37,7 +34,6 @@ button.rounded-2xl.border.transition:hover { box-shadow: 0 2px 4px rgba(53, 42, 
 .pulse-dot { animation: pulse-dot 1.8s infinite; }
 @keyframes pulse-dot { 50% { box-shadow: 0 0 0 5px rgba(231, 101, 75, .15); } }
 
-/* Print support: hide the dashboard shell, show only the selected ticket. */
 @media print {
   #root { display: none !important; }
   .print-ticket {
@@ -62,16 +58,9 @@ button.rounded-2xl.border.transition:hover { box-shadow: 0 2px 4px rgba(53, 42, 
   .print-total { font-weight: 800; margin: 2mm 0 0; }
 }
 
-/* Screen: the print area stays invisible until printing. */
 .print-ticket { display: none; }
 @media print { .print-ticket { display: block; } }
 
-/* ---------------------------------------------------------------------------
-   Dark theme
-   The dashboard paints light surfaces with hard-coded Tailwind colour
-   utilities, so the theme remaps those utilities under [data-theme="dark"].
-   These rules are unlayered, which outranks Tailwind's @layer utilities.
---------------------------------------------------------------------------- */
 [data-theme="dark"] { color-scheme: dark; }
 [data-theme="dark"] body { background: #171412; color: #f2ece7; }
 [data-theme="dark"] ::selection { background: #4a2b23; color: #f7efe9; }
@@ -79,7 +68,6 @@ button.rounded-2xl.border.transition:hover { box-shadow: 0 2px 4px rgba(53, 42, 
 [data-theme="dark"] select,
 [data-theme="dark"] textarea { color: #f2ece7; }
 
-/* Surfaces: page, cards and elevated panels. */
 [data-theme="dark"] .bg-white { background-color: #211d1b; }
 [data-theme="dark"] .card { background: #211d1b; border-color: #332c28; }
 [data-theme="dark"] .bg-\[\#fbf8f6\],
@@ -104,7 +92,6 @@ button.rounded-2xl.border.transition:hover { box-shadow: 0 2px 4px rgba(53, 42, 
 [data-theme="dark"] .bg-\[\#e7ebf0\],
 [data-theme="dark"] .bg-\[\#eee4df\] { background-color: #332c28; }
 
-/* Tinted status surfaces. */
 [data-theme="dark"] .bg-\[\#fde3da\],
 [data-theme="dark"] .bg-\[\#fdece5\],
 [data-theme="dark"] .bg-\[\#fde6dc\] { background-color: #3a2721; }
@@ -121,7 +108,6 @@ button.rounded-2xl.border.transition:hover { box-shadow: 0 2px 4px rgba(53, 42, 
 [data-theme="dark"] .bg-\[\#f3effd\] { background-color: #26203a; }
 [data-theme="dark"] .bg-\[\#eef4fd\] { background-color: #1e2635; }
 
-/* Hover surfaces (brand hovers are left untouched). */
 [data-theme="dark"] .hover\:bg-\[\#fff8f5\]:hover,
 [data-theme="dark"] .hover\:bg-\[\#f1f4f9\]:hover,
 [data-theme="dark"] .hover\:bg-\[\#f8fafc\]:hover,
@@ -140,10 +126,8 @@ button.rounded-2xl.border.transition:hover { box-shadow: 0 2px 4px rgba(53, 42, 
 [data-theme="dark"] .hover\:bg-\[\#fef2f2\]:hover { background-color: #3a2222; }
 [data-theme="dark"] .hover\:bg-\[\#dcfce7\]:hover { background-color: #1b3222; }
 
-/* Total Profit inverse card (keeps a subtle warm tint in dark). */
 [data-theme="dark"] .dark-surface-inverse { background-color: #2a211d; border-color: #44382d; }
 
-/* Primary text. */
 [data-theme="dark"] .text-\[\#292421\],
 [data-theme="dark"] .text-\[\#0f172a\],
 [data-theme="dark"] .text-\[\#1e293b\],
@@ -154,7 +138,6 @@ button.rounded-2xl.border.transition:hover { box-shadow: 0 2px 4px rgba(53, 42, 
 [data-theme="dark"] .text-\[\#635149\],
 [data-theme="dark"] .text-\[\#4b3a33\] { color: #cfc6bf; }
 
-/* Muted text. */
 [data-theme="dark"] .text-\[\#64748b\] { color: #9aa6b5; }
 [data-theme="dark"] .text-\[\#94a3b8\] { color: #7d8899; }
 [data-theme="dark"] .text-\[\#8d817b\],
@@ -169,7 +152,6 @@ button.rounded-2xl.border.transition:hover { box-shadow: 0 2px 4px rgba(53, 42, 
 [data-theme="dark"] .text-\[\#a8b3c4\] { color: #6d7888; }
 [data-theme="dark"] .text-\[\#e2e8f0\] { color: #6b615b; }
 
-/* Borders and dividers. */
 [data-theme="dark"] .border,
 [data-theme="dark"] .border-t,
 [data-theme="dark"] .border-b,
@@ -178,13 +160,11 @@ button.rounded-2xl.border.transition:hover { box-shadow: 0 2px 4px rgba(53, 42, 
 [data-theme="dark"] .divide-\[\#f1f5f9\] > :not([hidden]) ~ :not([hidden]),
 [data-theme="dark"] .divide-\[\#f1eae6\] > :not([hidden]) ~ :not([hidden]) { border-color: #332c28; }
 
-/* Focus rings and placeholders. */
 [data-theme="dark"] .focus\:ring-\[\#fff4ec\]:focus { --tw-ring-color: #4a3f38; }
 [data-theme="dark"] .placeholder\:text-\[\#a8b3c4\]::placeholder { color: #6d7888; }
 [data-theme="dark"] .placeholder\:text-\[\#999592\]::placeholder,
 [data-theme="dark"] .placeholder\:text-\[\#a19690\]::placeholder { color: #8a8079; }
 
-/* Scrollbars. */
 [data-theme="dark"] * { scrollbar-color: #4a423d transparent; }
 [data-theme="dark"] *::-webkit-scrollbar-thumb { background: #4a423d; }
 [data-theme="dark"] *::-webkit-scrollbar-thumb:hover { background: #5d534c; }

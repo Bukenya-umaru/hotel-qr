@@ -9,8 +9,6 @@ const schema = new mongoose.Schema({
   currency: { type: String, default: 'UGX', enum: ['UGX'] },
   taxRate: { type: Number, default: 0, min: 0, max: 100 },
   isActive: { type: Boolean, default: true },
-  // Help & support details shown to customers on the menu page. The owner and
-  // the developer both may edit these; customers only ever read them.
   support: {
     phone: { type: String, default: '', trim: true, maxlength: 40 },
     whatsapp: { type: String, default: '', trim: true, maxlength: 40 },
@@ -20,7 +18,6 @@ const schema = new mongoose.Schema({
   },
 }, { timestamps: true })
 
-// Business-level schema: any write clears the whole response cache.
 attachCachePurge(schema, { purgeAll: true })
 
 export const Hotel = mongoose.model('Hotel', schema)

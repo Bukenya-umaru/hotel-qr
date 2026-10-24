@@ -1,7 +1,3 @@
-// Report export: builds a fully-styled report document from the analytics
-// data the Reports page already holds and lets the user save it to their
-// device. PDF uses the browser's built-in "Save as PDF" (no extra
-// dependencies), CSV writes the raw records as a spreadsheet-friendly file.
 
 import { money } from './ui.js'
 
@@ -16,7 +12,6 @@ const formatDateTime = value => value
   ? new Date(value).toLocaleString('en-UG', { dateStyle: 'medium', timeStyle: 'short' })
   : '—'
 
-// Printable period label, e.g. "1 Jan 2026 – 7 Jan 2026".
 const periodLabel = (from, to) => {
   const options = { day: 'numeric', month: 'short', year: 'numeric' }
   const start = from ? new Date(`${String(from).slice(0, 10)}T12:00:00`) : null
@@ -42,10 +37,6 @@ const expenseRow = expense => ({
   amount: expense.amount || 0,
 })
 
-/* ------------------------------------------------------------------ */
-/* Summary cards (top of the PDF)                                      */
-/* ------------------------------------------------------------------ */
-
 const summaryCards = (analytics, currency) => {
   const cards = [
     { label: 'Food sales', value: money(analytics.totalRevenue, currency), count: `${analytics.totalSalesCount || 0} records` },
@@ -60,10 +51,6 @@ const summaryCards = (analytics, currency) => {
       <p class="summary-count">${escapeHtml(card.count)}</p>
     </div>`).join('')
 }
-
-/* ------------------------------------------------------------------ */
-/* Record tables                                                       */
-/* ------------------------------------------------------------------ */
 
 const table = (title, subtitle, headers, rows, currency, emptyText) => {
   const body = rows.length
@@ -89,10 +76,6 @@ const table = (title, subtitle, headers, rows, currency, emptyText) => {
     </section>`
 }
 
-/* ------------------------------------------------------------------ */
-/* Document                                                            */
-/* ------------------------------------------------------------------ */
-
 const buildDocument = ({ analytics, currency, from, to, hotelName }) => {
   const sales = (analytics.sales || []).map(saleRow)
   const expenses = (analytics.expenses || []).map(expenseRow)
@@ -109,7 +92,6 @@ const buildDocument = ({ analytics, currency, from, to, hotelName }) => {
   body { font-family: "DM Sans", "Segoe UI", Arial, sans-serif; color: #292421; background: #fff }
   .page { max-width: 780px; margin: 0 auto; padding: 28px 32px 18px }
 
-  /* Header */
   .brand-row { display: flex; align-items: center; justify-content: space-between; gap: 16px }
   .brand { display: flex; align-items: center; gap: 10px }
   .brand-mark { width: 34px; height: 34px; border-radius: 10px; background: #e7654b; color: #fff;
@@ -123,14 +105,12 @@ const buildDocument = ({ analytics, currency, from, to, hotelName }) => {
 
   .rule { height: 1px; background: #eee4df; margin: 16px 0 18px }
 
-  /* Summary cards */
   .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px }
   .summary-card { border: 1px solid #eee4df; border-radius: 10px; padding: 12px 14px }
   .summary-label { font-size: 9px; font-weight: 700; letter-spacing: 1.1px; text-transform: uppercase; color: #a19690 }
   .summary-value { margin-top: 4px; font-size: 17px; font-weight: 800; letter-spacing: -.3px }
   .summary-count { margin-top: 3px; font-size: 9.5px; color: #8d817b }
 
-  /* Tables */
   .table-block { margin-top: 20px; page-break-inside: avoid }
   .table-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px }
   .table-head h2 { font-size: 13px; font-weight: 800; letter-spacing: -.2px }
@@ -144,7 +124,6 @@ const buildDocument = ({ analytics, currency, from, to, hotelName }) => {
   th.amount, th:last-child { text-align: right }
   td.empty { text-align: center; color: #a19690; padding: 18px 8px; font-size: 10px; background: #fbf8f6 }
 
-  /* Footer */
   .footer { margin-top: 26px; padding-top: 12px; border-top: 1px solid #eee4df;
     display: flex; align-items: center; justify-content: space-between; gap: 12px }
   .footer .generated { font-size: 9px; color: #a19690 }
@@ -220,15 +199,6 @@ const buildDocument = ({ analytics, currency, from, to, hotelName }) => {
 </html>`
 }
 
-/* ------------------------------------------------------------------ */
-/* Device-facing helpers                                               */
-/* ------------------------------------------------------------------ */
-
-// Opens the report in a hidden iframe and triggers the browser's print
-// dialog, which offers "Save as PDF" on Windows, macOS, Android and iOS —
-// the file lands in the user's Downloads (or chosen) folder. `srcdoc` is
-// used so the load event is deterministic: a blank iframe can finish
-// loading before the handler is attached, which would skip the print.
 export function downloadReportPdf({ analytics, currency, from, to, hotelName }) {
   const html = buildDocument({ analytics, currency, from, to, hotelName })
   const iframe = document.createElement('iframe')
@@ -240,6 +210,7 @@ export function downloadReportPdf({ analytics, currency, from, to, hotelName }) 
   iframe.style.height = '0'
   iframe.style.border = '0'
   iframe.style.visibility = 'hidden'
+  // srcdoc fires load after onload is attached, so the print dialog is never skipped.
   iframe.srcdoc = html
   const cleanup = () => setTimeout(() => iframe.remove(), 800)
   iframe.onload = () => {
@@ -253,8 +224,6 @@ export function downloadReportPdf({ analytics, currency, from, to, hotelName }) 
   document.body.appendChild(iframe)
 }
 
-// CSV of the raw records, saved straight to the user's device via a
-// temporary object URL + download anchor.
 export function downloadReportCsv({ analytics, currency, from, to }) {
   const lines = ['Type,Reference,Description,Customer,Recorded,Amount']
   const push = cells => lines.push(cells.map(cell => {

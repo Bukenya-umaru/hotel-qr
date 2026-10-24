@@ -16,14 +16,9 @@ const initialRange = () => {
 }
 const formatTime = value => new Date(value).toLocaleString('en-UG', { dateStyle: 'medium', timeStyle: 'short' })
 
-// Photo of a sale line's stock item, from the sale's stockImages map the
-// analytics API returns; empty when the line is not stock-linked or has no photo.
 const saleItemImage = (sale, item) => (sale.stockImages ? sale.stockImages[String(item?.stockItemId || '')] || '' : '')
 
 export function Reports({ analytics, currency, onRange, hotelName = 'Your business', reportRange }) {
-  // Seed the filter from the range the dashboard already applied and
-  // persisted in App (reportRange), so leaving and coming back to Reports
-  // shows the applied range instead of resetting to the default week.
   const [range, setRange] = useState(reportRange || initialRange)
   const [loadingRange, setLoadingRange] = useState('')
   const applyRange = async (from, to, action) => {

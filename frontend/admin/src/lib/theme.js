@@ -10,7 +10,7 @@ export const applyTheme = theme => {
   document.documentElement.setAttribute('data-theme', next)
   const meta = document.querySelector('meta[name="theme-color"]')
   if (meta) meta.setAttribute('content', next === 'dark' ? '#171412' : '#faf3f0')
-  try { localStorage.setItem(THEME_KEY, next) } catch { /* storage may be blocked */ }
+  try { localStorage.setItem(THEME_KEY, next) } catch {}
   return next
 }
 

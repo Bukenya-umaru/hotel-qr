@@ -17,7 +17,6 @@ import { developerUserBody, validate } from '../validation/schemas.js'
 const router = express.Router()
 router.use(authenticate, authorize('DEVELOPER'))
 
-// Business contact details the developer maintains for the information page.
 router.get('/support', asyncRoute(async (_req, res) => {
   const hotel = await Hotel.findOne({ isActive: true }).select('support')
   res.json({ support: safeSupport(hotel?.support), businessConfigured: Boolean(hotel) })
@@ -38,9 +37,6 @@ router.patch('/support', asyncRoute(async (req, res) => {
   res.json({ support: safeSupport(hotel.support) })
 }))
 
-// The developer creates business accounts directly — an OWNER with full
-// access, or a KITCHEN chef with an optional permission list. Mirrors the
-// owner's POST /api/owner/staff flow but is scoped to the business.
 router.post('/users', validate(developerUserBody), asyncRoute(async (req, res) => {
   const { name, email, password, role } = req.body
   const permissions = req.body.permissions === undefined ? undefined : req.body.permissions
@@ -92,9 +88,6 @@ router.post('/users', validate(developerUserBody), asyncRoute(async (req, res) =
       password: await bcrypt.hash(password, 12),
       role,
       hotelId: business._id,
-      // Owners always have full access; chefs keep whichever permissions the
-      // developer picked (undefined = every capability, like owner-created
-      // chefs with no restrictions).
       permissions: role === 'KITCHEN' ? permissions ?? ALL_PERMISSIONS : undefined,
     })
     storePassword(user, String(password))
@@ -110,9 +103,6 @@ router.post('/users', validate(developerUserBody), asyncRoute(async (req, res) =
   }
 }))
 
-// Security feed: newest suspicious activity first (failed sign-ins, brute
-// force, tampered tokens, forbidden access, password reveals). Optional
-// filters: ?type= and ?limit= capped at 200 rows.
 router.get('/security', asyncRoute(async (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 60, 1), 200)
   const type = String(req.query.type || '')
@@ -122,7 +112,7 @@ router.get('/security', asyncRoute(async (req, res) => {
     SecurityEvent.aggregate([{ $group: { _id: '$type', count: { $sum: 1 } } }, { $sort: { count: -1 } }]),
   ])
   res.json({
-    events, // _id, type, severity, detail, email, ip, userAgent, actorId, createdAt
+    events,
     summary: summary.map(entry => ({ type: entry._id, count: entry.count })),
   })
 }))
@@ -168,12 +158,7 @@ router.patch('/users/:id', asyncRoute(async (req, res) => {
   res.json({ user: publicUser(user) })
 }))
 
-// Reveal the stored password of a business owner or chef account. The
-// plaintext is decrypted server-side only for authenticated developers and
-// never included in any list or login response.
 router.get('/users/:id/password', sensitiveLimiter, asyncRoute(async (req, res) => {
-  // A reveal hands a real password to the brower, so every decryption is
-  // timestamped with who did it and from where.
   if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Account not found.' })
   const business = await Hotel.findOne({ isActive: true }).select('_id')
   if (!business) return res.status(404).json({ message: 'The business could not be found.' })
@@ -181,11 +166,6 @@ router.get('/users/:id/password', sensitiveLimiter, asyncRoute(async (req, res) 
   if (!user) return res.status(404).json({ message: 'Account not found.' })
   const password = revealPassword(user)
   if (password === null) {
-    // Two different situations read the same on the outside — an account that
-    // was never updated after the vault went live, and one whose stored copy
-    // was encrypted with a vault key that no longer matches (rotated or lost).
-    // Both recover the same way: one password reset re-encrypts under the
-    // current key — but the message must not lie about which happened.
     const explanation = user.passwordVault
       ? 'A stored password exists for this account, but it was encrypted with an earlier vault key and cannot be decrypted anymore. Reset the password once — after that you can view the current password anytime.'
       : 'No viewable password is stored for this account yet. Reset the password once — after that you can view the current password anytime.'

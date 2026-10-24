@@ -5,8 +5,6 @@ import { api } from '../../lib/api.js'
 import { cx } from '../../lib/ui.js'
 import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
 
-// How each recorded event reads on screen. Types come from the backend's
-// SecurityEvent enum; unknown types still show their raw key.
 const TYPES = {
   login_failed: { label: 'Sign-in failed', tone: 'amber', text: 'Wrong credentials were submitted' },
   password_change_failed: { label: 'Password change blocked', tone: 'red', text: 'Wrong current password on a signed-in session' },

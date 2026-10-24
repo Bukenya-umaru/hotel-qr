@@ -21,14 +21,11 @@ export function issueToken(user) {
 }
 
 export function cookieOptions() {
-  // Secure instances (HTTPS, e.g. the Render deployment) must ship
-  // SameSite=None so browsers also attach the session cookie to the
-  // cross-origin Socket.IO wss:// handshake that streams live
-  // notifications. Insecure dev cookies stay Lax for plain HTTP.
   const secure = process.env.COOKIE_SECURE === 'true' || process.env.NODE_ENV === 'production'
   return {
     httpOnly: true,
     secure,
+    // SameSite=None (Secure only) lets the cross-origin Socket.IO handshake carry the cookie.
     sameSite: secure ? 'none' : 'lax',
     path: '/',
     maxAge: SESSION_MAX_AGE_MS,
@@ -45,8 +42,7 @@ export async function authenticate(req, res, next) {
       return res.status(401).json({ message: 'Your session is no longer valid.' })
     }
     if (user.role !== 'DEVELOPER' && (!user.hotelId || !user.hotelId.isActive)) {
-      // A signed-in account pointing at a switched-off business is probed
-      // access; record it so the developer sees the attempt.
+      // Log once per request even if this middleware runs more than once.
       if (req.user === undefined) recordSecurityEvent({ type: 'access_denied', detail: 'Attempt to reach a deactivated business', actorId: user._id }, req)
       return res.status(403).json({ message: 'This business is not active.' })
     }
@@ -55,8 +51,6 @@ export async function authenticate(req, res, next) {
     next()
   } catch (error) {
     if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
-      // Only a malformed signature is a tampering signal — an expired
-      // session is normal usage and would just be noise in the log.
       if (error.name === 'JsonWebTokenError') {
         recordSecurityEvent({ type: 'token_rejected', severity: 'high', detail: `Invalid session token: ${error.message}` }, req)
       }
@@ -70,8 +64,6 @@ export function authorize(...roles) {
   return (req, res, next) => {
     if (!req.user) return res.status(401).json({ message: 'Authentication required.' })
     if (!roles.includes(req.user.role)) {
-      // A signed-in user probing an endpoint outside their role (e.g. a chef
-      // hitting developer endpoints) is a real escalation attempt.
       recordSecurityEvent({ type: 'access_denied', severity: 'high', detail: `${req.user.role} attempted a ${roles.join('/')} endpoint: ${req.method} ${req.originalUrl}`, actorId: req.user._id, email: req.user.email }, req)
       return res.status(403).json({ message: 'You do not have permission to access this resource.' })
     }

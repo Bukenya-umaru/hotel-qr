@@ -6,7 +6,6 @@ import { asyncRoute } from '../utils/http.js'
 
 const router = express.Router()
 
-// Notifications are per business, shared by owner and kitchen staff.
 router.get('/', authenticate, asyncRoute(async (req, res) => {
   const scope = hotelScope(req)
   if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
@@ -30,7 +29,6 @@ router.get('/', authenticate, asyncRoute(async (req, res) => {
   })
 }))
 
-// Marks one notification read for the signed-in user only.
 router.patch('/:id/read', authenticate, asyncRoute(async (req, res) => {
   const scope = hotelScope(req)
   if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
@@ -43,7 +41,6 @@ router.patch('/:id/read', authenticate, asyncRoute(async (req, res) => {
   res.json({ unread })
 }))
 
-// Marks every notification read for the signed-in user only.
 router.patch('/read-all', authenticate, asyncRoute(async (req, res) => {
   const scope = hotelScope(req)
   if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })

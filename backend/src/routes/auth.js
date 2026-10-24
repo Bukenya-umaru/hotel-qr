@@ -11,17 +11,12 @@ import { isStrongPassword, PASSWORD_RULE_MESSAGE } from '../utils/passwordPolicy
 
 const router = express.Router()
 
-// Per-account shield runs first: an IP rotating against one account is
-// stopped here, and ordinary per-IP brute force by loginLimiter below.
 router.post('/login', accountLimiter, loginLimiter, validate(loginBody), asyncRoute(async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase()
   const password = String(req.body.password || '')
   if (!email || !password) return res.status(400).json({ message: 'Email and password are required.' })
   const user = await User.findOne({ email }).select('+password').populate('hotelId', 'name slug currency taxRate isActive')
   if (!user || !user.isActive || !(await bcrypt.compare(password, user.password))) {
-    // Every wrong credential pair is recorded with the attempted email, IP,
-    // and device signature — the core data the developer needs to identify
-    // a credential-stuffing or brute-force attack.
     const attemptedEmail = email
     recordSecurityEvent({ type: 'login_failed', detail: user && !user.isActive ? 'Attempt against a deactivated account' : 'Invalid credentials', email: attemptedEmail }, req)
     return res.status(401).json({ message: 'Invalid email or password.' })
@@ -36,9 +31,6 @@ router.post('/login', accountLimiter, loginLimiter, validate(loginBody), asyncRo
 
 router.get('/me', authenticate, (req, res) => res.json({ user: publicUser(req.user) }))
 
-// Any signed-in user (owner, chef, or developer) can change their own
-// password by confirming the current one. A fresh session cookie is issued
-// so the user stays signed in with the new password active immediately.
 router.patch('/change-password', authenticate, sensitiveLimiter, validate(changePasswordBody), asyncRoute(async (req, res) => {
   const currentPassword = String(req.body.currentPassword || '')
   const newPassword = String(req.body.newPassword || '')
@@ -47,8 +39,6 @@ router.patch('/change-password', authenticate, sensitiveLimiter, validate(change
   if (newPassword === currentPassword) return res.status(400).json({ message: 'Choose a password different from your current one.' })
   const user = await User.findById(req.user._id).select('+password')
   if (!user || !(await bcrypt.compare(currentPassword, user.password))) {
-    // Repeated wrong current-password confirmations can mean someone else
-    // already controls the session and is trying to take the account over.
     recordSecurityEvent({ type: 'password_change_failed', severity: 'high', detail: 'Current password did not match', email: user?.email || req.user.email, actorId: req.user._id }, req)
     return res.status(401).json({ message: 'Your current password is incorrect.' })
   }

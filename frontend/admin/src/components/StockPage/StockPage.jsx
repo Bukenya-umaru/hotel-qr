@@ -8,9 +8,6 @@ import { Pagination } from '../Pagination/Pagination.jsx'
 
 const PAGE_SIZE = 10
 
-// Photos are optional, and an image URL can stop working (deleted upload, a
-// dropped connection). When that happens show the same empty placeholder as
-// stock without a photo instead of the browser's broken-image icon.
 function StockPhoto({ src, alt, className, fallback }) {
   const [broken, setBroken] = useState(false)
   useEffect(() => { setBroken(false) }, [src])
@@ -18,10 +15,6 @@ function StockPhoto({ src, alt, className, fallback }) {
   return <img src={src} alt={alt} className={className} onError={() => setBroken(true)} />
 }
 
-// Stock is not always counted in plates — gas cylinders, charcoal and boxes
-// are counted as items, milk is served by the cup, and anything else can be
-// named with the Other option (crates, trays, bottles…). The unit decides
-// what the number on a card means and what the add/reduce buttons adjust.
 const UNITS = [
   { value: 'plates', label: 'Plates', singular: 'plate', plural: 'plates', hint: 'Portions ready to serve, e.g. 20 plates of beef.', step: '1' },
   { value: 'items', label: 'Items', singular: 'item', plural: 'items', hint: 'Counted pieces, e.g. 4 gas cylinders or 200 boxes.', step: '1' },
@@ -29,7 +22,6 @@ const UNITS = [
   { value: 'kg', label: 'Weight (KG)', singular: 'kg', plural: 'kg', hint: 'Weighed stock, e.g. 12.5 kg of charcoal.', step: '0.01' },
   { value: 'other', label: 'Other', singular: 'unit', plural: 'units', hint: 'Anything else — name the unit yourself, e.g. crate, tray or bottle.', step: '1' },
 ]
-// The 'other' unit takes its name from the entry's customUnit, e.g. "crate".
 const unitInfo = (value, customUnit = '') => {
   const found = UNITS.find(entry => entry.value === value)
   if (!found) return UNITS[0]
@@ -37,8 +29,6 @@ const unitInfo = (value, customUnit = '') => {
     ? { ...found, singular: customUnit, plural: customUnit, label: customUnit }
     : found
 }
-// The price entered is for ONE unit, so the money the entry is worth is that
-// rate multiplied by what is left in stock.
 const stockValue = item => Math.round((Number(item.price) || 0) * (Number(item.plates) || 0) * 100) / 100
 
 export function StockPage({ user, canManage = true }) {
@@ -48,18 +38,15 @@ export function StockPage({ user, canManage = true }) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [busyAction, setBusyAction] = useState('')
-  const [adjusting, setAdjusting] = useState(null) // { item, mode: 'add' | 'reduce' }
+  const [adjusting, setAdjusting] = useState(null)
   const [adjustAmount, setAdjustAmount] = useState('')
-  const [editing, setEditing] = useState(null) // stock entry being edited; null = creating a new one
+  const [editing, setEditing] = useState(null)
   const [form, setForm] = useState({ name: '', foodType: '', price: '', unit: 'plates', customUnit: '', quantity: '' })
   const [image, setImage] = useState(null)
   const [preview, setPreview] = useState('')
-  // Set when the user removes the existing photo — the form submits that as a
-  // request to clear it on the server.
   const [imageRemoved, setImageRemoved] = useState(false)
   const [page, setPage] = useState(1)
   const fileRef = useRef(null)
-  // The owner — or staff granted the approval permission — can sign stock off.
   const canApprove = hasPermission(user, 'approve_records')
 
   const loadStock = async () => {
@@ -110,13 +97,8 @@ export function StockPage({ user, canManage = true }) {
     setShowForm(true)
   }
 
-  // Opens the same form the add button uses, pre-filled so every field of
-  // the entry can be changed in one place.
   const openEdit = item => {
     setEditing(item)
-    // A signed-off batch is locked at its count, so the form opens showing it
-    // read-only. Once that batch has been used down to zero the form asks for
-    // the new stock number instead of pre-filling zero.
     const quantity = item.approved ? (Number(item.plates) > 0 ? String(item.plates) : '') : String(item.plates ?? '')
     setForm({ name: item.name, foodType: item.foodType || '', price: String(item.price ?? ''), unit: item.unit || 'plates', customUnit: item.customUnit || '', quantity })
     clearImageInput()
@@ -133,8 +115,6 @@ export function StockPage({ user, canManage = true }) {
     setBusyAction('save')
     const previousItems = items
     const pendingId = editing?._id || `pending-${Date.now()}`
-    // The count of an approved batch is never sent as a change; only name,
-    // food type, price, unit and photo can be edited while it is signed off.
     const quantity = editing?.approved && Number(editing.plates) > 0 ? Number(editing.plates) : Number(form.quantity || 0)
     const optimisticItem = {
       ...(editing || {}),
@@ -190,8 +170,6 @@ export function StockPage({ user, canManage = true }) {
     const unit = unitInfo(adjusting?.item?.unit, adjusting?.item?.customUnit)
     const whole = unit.value === 'kg' ? Math.abs(amount * 100 - Math.round(amount * 100)) < 0.001 : Number.isInteger(amount)
     if (!adjusting || !whole || amount === 0) {
-      // The living units (plates, items, cups, a named other) are counted one
-      // by one — say so plainly; kg’s two decimal places follow the server.
       setError(unit.value === 'kg'
         ? `Enter an amount of ${unit.plural} to ${adjusting?.mode === 'add' ? 'add' : 'reduce'} — up to two decimal places.`
         : `Enter a whole number of ${unit.plural} (e.g. 5 or 20) to ${adjusting?.mode === 'add' ? 'add' : 'reduce'}.`)
@@ -245,8 +223,6 @@ export function StockPage({ user, canManage = true }) {
     }
   }
 
-  // Signs the stock's current count off. Approved entries lock: no more
-  // edits or removals, and newly added stock goes back to pending.
   const approveStock = async stock => {
     if (busy) return
     setBusy(true)
@@ -270,18 +246,11 @@ export function StockPage({ user, canManage = true }) {
   }
 
   const lowStock = plates => plates <= 5
-  // Keep the entry's current food type selectable even if its category was
-  // deleted since it was chosen.
   const typeOptions = form.foodType && !foodTypes.includes(form.foodType) ? [form.foodType, ...foodTypes] : foodTypes
   const formUnit = unitInfo(form.unit, form.customUnit)
-  // Approved stock keeps the number it was signed off with. Editing the entry
-  // cannot change that count until the batch reaches zero; at zero the form
-  // switches to asking for the new stock number to add.
   const countLocked = Boolean(editing?.approved && Number(editing.plates) > 0)
   const addingToApproved = Boolean(editing?.approved && Number(editing.plates) === 0)
 
-  // Money tied up in the stock on hand (per-unit price × count), plus how
-  // much of it is running out.
   const totalValue = items.reduce((sum, item) => sum + stockValue(item), 0)
   const outCount = items.filter(item => item.plates === 0).length
   const lowCount = items.filter(item => item.plates > 0 && lowStock(item.plates)).length

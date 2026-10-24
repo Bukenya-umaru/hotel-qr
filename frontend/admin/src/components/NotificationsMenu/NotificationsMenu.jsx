@@ -46,16 +46,13 @@ export function NotificationsMenu({ hotelId, live }) {
       if (sequence !== loadSequence.current || markingAll.current) return
       setItems(data.notifications || [])
       setUnread(data.unread || 0)
-    } catch { /* the bell keeps its last list if a refresh fails */ } finally {
+    } catch {} finally {
       if (sequence === loadSequence.current) setLoading(false)
     }
   }, [])
 
   useEffect(() => { load() }, [load])
 
-  // Live push: the backend emits 'notification' to the hotel room. socket.io
-  // sockets use .on/.off (not DOM addEventListener). Re-fetch keeps read-state
-  // honest across devices; the flash marks the new rows.
   useEffect(() => {
     if (!live?.on) return undefined
     const onNotification = payload => {
@@ -83,7 +80,7 @@ export function NotificationsMenu({ hotelId, live }) {
       const data = await api(`/api/notifications/${id}/read`, { method: 'PATCH' })
       setItems(previous => previous.filter(item => String(item._id) !== String(id)))
       setUnread(data.unread || 0)
-    } catch { /* keep the row; user can retry */ } finally {
+    } catch {} finally {
       setBusy('')
     }
   }
@@ -99,7 +96,6 @@ export function NotificationsMenu({ hotelId, live }) {
       setUnread(data.unread || 0)
       setFreshIds(new Set())
     } catch {
-      // Keep the notifications visible unless the server confirms they were read.
       markingAll.current = false
       load()
     } finally {

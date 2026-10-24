@@ -2,9 +2,7 @@ import { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
 
-// Small standalone month-grid date picker for the dashboard filter.
-// One click picks a single day; two clicks pick a from→to range. No
-// dependency added — uses the same warm palette as the dashboard.
+// Kampala calendar day as YYYY-MM-DD, independent of the device timezone.
 const bigDay = value => new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Africa/Kampala', year: 'numeric', month: '2-digit', day: '2-digit',
 }).format(value)
@@ -15,14 +13,13 @@ export function DateCalendar({ from, to, onApply, onClose }) {
     const base = from ? new Date(`${from}T12:00:00`) : new Date()
     return { year: base.getFullYear(), month: base.getMonth() }
   })
-  // Picking model: first click sets the start (and applies a single-day
-  // range immediately), second click completes the range.
   const [draftStart, setDraftStart] = useState(from)
   const [applyingDay, setApplyingDay] = useState('')
 
   const grid = useMemo(() => {
     const first = new Date(view.year, view.month, 1)
-    const startOffset = (first.getDay() + 6) % 7 // Monday-first grid
+    // Monday-first grid; getDay() counts from Sunday.
+    const startOffset = (first.getDay() + 6) % 7
     const daysInMonth = new Date(view.year, view.month + 1, 0).getDate()
     const cells = []
     for (let i = 0; i < startOffset; i++) cells.push(null)

@@ -108,7 +108,6 @@ router.delete('/categories/:id', authenticate, authorize('OWNER', 'KITCHEN'), as
   res.status(204).end()
 }))
 
-// Name-only expense categories the chef defines (e.g. "Cooking gas").
 router.get('/expense-categories', authenticate, authorize('OWNER', 'KITCHEN'), cacheHotelResource('expense-categories'), asyncRoute(async (req, res) => {
   if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_expenses')) return res.status(403).json({ message: 'The owner has not granted you permission to manage expenses.' })
   const scope = hotelScope(req)
@@ -156,9 +155,6 @@ router.delete('/expense-categories/:id', authenticate, authorize('OWNER', 'KITCH
   res.status(204).end()
 }))
 
-// The hotel-wide expense ledger: everything the business spends, filed
-// under the expense categories managed in Categories > Expenses. Recording
-// with a brand-new category name creates the bucket on the fly.
 const requireExpenseAccess = (req, res) => {
   if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_expenses')) {
     res.status(403).json({ message: 'The owner has not granted you permission to manage expenses.' })
@@ -207,8 +203,6 @@ router.get('/expenses', authenticate, authorize('OWNER', 'KITCHEN'), cacheHotelR
       approved: expense.approved,
       approvedAt: expense.approvedAt,
       approvedByName: expense.approvedBy?.name || '',
-      // Change trail for the owner: what the expense looked like before each
-      // edit, newest last.
       edits: (expense.edits || []).map(edit => ({
         amount: edit.amount,
         note: edit.note || '',
@@ -267,16 +261,12 @@ router.delete('/expenses/:expenseId', authenticate, authorize('OWNER', 'KITCHEN'
   const expense = await HotelExpense.findOne({ _id: req.params.expenseId, hotelId: hotelScope(req) }).select('approved recordedBy')
   if (!expense) return res.status(404).json({ message: 'Expense not found.' })
   if (!canEditRecord(expense, req.user)) return res.status(403).json({ message: 'Only the user who recorded this expense or the owner can change it.' })
-  // Approved expenses are the books of record — they can no longer be changed.
   if (expense.approved) return res.status(403).json({ message: 'This expense has been approved and can no longer be changed.' })
   await HotelExpense.deleteOne({ _id: expense._id })
   broadcastChange(req.app.get('io'), String(hotelScope(req)), 'expenses_changed')
   res.status(204).end()
 }))
 
-// A chef with the edit permission can correct their own unapproved expense
-// until it is signed off. Every edit snapshots what the expense looked like
-// BEFORE the change into `edits`, so the owner sees who changed it and when.
 router.patch('/expenses/:expenseId', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
   if (!requireExpenseAccess(req, res)) return
   if (!idIsValid(req.params.expenseId)) return res.status(404).json({ message: 'Expense not found.' })
@@ -287,13 +277,10 @@ router.patch('/expenses/:expenseId', authenticate, authorize('OWNER', 'KITCHEN')
   const expense = await HotelExpense.findOne({ _id: req.params.expenseId, hotelId: scope })
   if (!expense) return res.status(404).json({ message: 'Expense not found.' })
   if (!canEditRecord(expense, req.user)) return res.status(403).json({ message: 'Only the user who recorded this expense or the owner can change it.' })
-  // Approved expenses are the books of record — they can no longer be changed.
   if (expense.approved) return res.status(403).json({ message: 'This expense has been approved and can no longer be changed.' })
   const amount = Number(req.body.amount)
   const note = String(req.body.note || '').trim().slice(0, 200)
   if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ message: 'Enter an expense amount greater than zero.' })
-  // Category can be re-picked by id or created by name, exactly as when
-  // recording. Omitted means the expense keeps its current category.
   let category = null
   let categoryName = expense.categoryName
   if (req.body.categoryId !== undefined || req.body.categoryName !== undefined) {
@@ -334,8 +321,6 @@ router.patch('/expenses/:expenseId', authenticate, authorize('OWNER', 'KITCHEN')
   res.json({ expense: { ...expense.toObject(), editedByName: req.user.name } })
 }))
 
-// The owner — or staff granted the approval permission — signs an expense off.
-// Once approved the expense is locked and can no longer be deleted.
 router.post('/expenses/:expenseId/approve', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
   if (!hasPerm(req.user, 'approve_records')) return res.status(403).json({ message: 'You do not have permission to approve expenses.' })
   if (!idIsValid(req.params.expenseId)) return res.status(404).json({ message: 'Expense not found.' })
@@ -354,10 +339,6 @@ router.post('/expenses/:expenseId/approve', authenticate, authorize('OWNER', 'KI
   })
   res.json({ expense: { ...expense.toObject(), approvedByName: req.user.name } })
 }))
-
-// ---- Damaged goods: stock lost to spoilage, breakage, spillage etc. ----
-// ---- Records drawn from stock reduce its count; deleting a record   ----
-// ---- restores it. Entries not tied to stock are recorded as-is.     ----
 
 router.get('/damages', authenticate, authorize('OWNER', 'KITCHEN'), cacheHotelResource('damages'), asyncRoute(async (req, res) => {
   if (!requireExpenseAccess(req, res)) return
@@ -417,8 +398,6 @@ router.post('/damages', authenticate, authorize('OWNER', 'KITCHEN'), validate(da
   const note = String(req.body.note || '').trim().slice(0, 200)
   if (!name) return res.status(400).json({ message: 'Give the damaged item a name, e.g. Beef plates.' })
   if (!Number.isFinite(quantity) || quantity <= 0) return res.status(400).json({ message: 'Enter the quantity that was damaged.' })
-  // Stock-picked damages price themselves from the stock's unit price ×
-  // quantity; a tampered client cannot set its own value for those.
   let stockItem = null
   let value = 0
   if (idIsValid(req.body.stockItemId)) {
@@ -439,7 +418,6 @@ router.post('/damages', authenticate, authorize('OWNER', 'KITCHEN'), validate(da
     stockItemId: stockItem ? stockItem._id : null,
     note,
     recordedBy: req.user._id,
-    // Every damage record remains editable until someone explicitly signs it off.
     approved: false,
     approvedBy: null,
     approvedAt: null,
@@ -466,10 +444,8 @@ router.delete('/damages/:damageId', authenticate, authorize('OWNER', 'KITCHEN'),
   const damage = await DamageRecord.findOne({ _id: req.params.damageId, hotelId: scope })
   if (!damage) return res.status(404).json({ message: 'Damage record not found.' })
   if (!canEditRecord(damage, req.user)) return res.status(403).json({ message: 'Only the user who recorded this damage or the owner can change it.' })
-  // Approved damages are the books of record — they can no longer be changed.
   if (damage.approved) return res.status(403).json({ message: 'This damage has been approved and can no longer be changed.' })
   await DamageRecord.deleteOne({ _id: damage._id })
-  // Restoring stock on delete keeps the ledger consistent with the count.
   if (damage.stockItemId && damage.quantity > 0) {
     await StockItem.updateOne({ _id: damage.stockItemId, hotelId: scope }, { $inc: { plates: damage.quantity, totalUsed: -damage.quantity } }).catch(() => {})
     req.app.get('io').to(`hotel:${scope}`).emit('stock_updated')
@@ -478,11 +454,6 @@ router.delete('/damages/:damageId', authenticate, authorize('OWNER', 'KITCHEN'),
   res.status(204).end()
 }))
 
-// A chef with the edit permission can correct their own unapproved damage
-// until it is signed off. The drawn stock follows the correction: the previously
-// recorded quantity is restored to the old stock item and the new amount is
-// deducted (priced from the stock's unit value like a fresh record), or the
-// value is set by hand for records not tied to stock.
 router.patch('/damages/:damageId', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
   if (!requireExpenseAccess(req, res)) return
   if (!idIsValid(req.params.damageId)) return res.status(404).json({ message: 'Damage record not found.' })
@@ -499,8 +470,6 @@ router.patch('/damages/:damageId', authenticate, authorize('OWNER', 'KITCHEN'), 
   const note = req.body.note === undefined ? damage.note : String(req.body.note || '').trim().slice(0, 200)
   if (!name) return res.status(400).json({ message: 'Give the damaged item a name, e.g. Beef plates.' })
   if (!Number.isFinite(quantity) || quantity <= 0) return res.status(400).json({ message: 'Enter the quantity that was damaged.' })
-  // The stock link can be re-picked by id (or dropped with null); omitted
-  // means the record keeps its current link.
   let stockItem = null
   let value = 0
   const wantsStock = req.body.stockItemId !== undefined
@@ -544,8 +513,6 @@ router.patch('/damages/:damageId', authenticate, authorize('OWNER', 'KITCHEN'), 
   damage.stockItemId = stockItem ? stockItem._id : null
   damage.note = note
   await damage.save()
-  // Stock follows the corrected record: restore what the earlier record
-  // drew down, then deduct the new quantity (subject to availability).
   const oldStockId = (damage.edits[damage.edits.length - 1].stockItemId || null) && String(damage.edits[damage.edits.length - 1].stockItemId)
   const newStockId = stockItem ? String(stockItem._id) : null
   const adjusted = new Set()
@@ -568,8 +535,6 @@ router.patch('/damages/:damageId', authenticate, authorize('OWNER', 'KITCHEN'), 
   res.json({ damage: { ...damage.toObject(), editedByName: req.user.name } })
 }))
 
-// The owner — or staff granted the approval permission — signs a damage off.
-// Once approved the damage is locked and can no longer be edited or deleted.
 router.post('/damages/:damageId/approve', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
   if (!requireExpenseAccess(req, res)) return
   if (!hasPerm(req.user, 'approve_records')) return res.status(403).json({ message: 'You do not have permission to approve damage records.' })
@@ -590,7 +555,6 @@ router.post('/damages/:damageId/approve', authenticate, authorize('OWNER', 'KITC
   res.json({ damage: { ...damage.toObject(), approvedByName: req.user.name } })
 }))
 
-// Spending totals per section, newest expense included for a quick glance.
 router.get('/categories/expenses-summary', authenticate, authorize('OWNER', 'KITCHEN'), cacheHotelResource('expense-summary'), asyncRoute(async (req, res) => {
   if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_expenses')) return res.status(403).json({ message: 'The owner has not granted you permission to manage expenses.' })
   const scope = hotelScope(req)
@@ -675,25 +639,14 @@ router.delete('/categories/:id/expenses/:expenseId', authenticate, authorize('OW
   res.status(204).end()
 }))
 
-// Manually recorded sales, e.g. walk-in cash sales or items sold outside
-// the app. A sale can hold several items recorded in one go, with an optional
-// customer name and contact. Amount is the total money the sale brought in.
-// Every sale is scoped to one hotel and carries a receipt-style ID (e.g.
-// SAL-000042); a stable fallback is derived from the record itself for sales
-// that predate receipt numbers so an ID is always available.
 const displaySaleId = sale => formatSaleId(sale.saleNumber) || `SAL-${String(sale._id).slice(-6).toUpperCase()}`
 
-// The line items of a sale. Multi-item sales store them in `items`; sales
-// recorded before multi-item support (and legacy single-item API calls) only
-// have the top-level name/quantity/unit, presented as a single line.
 const saleItems = sale => (Array.isArray(sale.items) && sale.items.length
   ? sale.items.map(item => ({ name: item.name, quantity: item.quantity, unit: item.unit || '', amount: item.amount, stockItemId: item.stockItemId || null }))
   : sale.name
     ? [{ name: sale.name, quantity: sale.quantity, unit: sale.unit || '', amount: sale.amount, stockItemId: null }]
     : [])
 
-// Stock images for the line items, so every screen showing the items can
-// present the same photo the kitchen put on the stock entry.
 const saleItemImages = sales => {
   const ids = [...new Set(sales.flatMap(sale => saleItems(sale).map(item => String(item.stockItemId || '')).filter(Boolean)))]
   if (!ids.length) return {}
@@ -728,8 +681,6 @@ router.get('/sales', authenticate, authorize('OWNER', 'KITCHEN'), cacheHotelReso
       _id: sale._id,
       saleId: displaySaleId(sale),
       name: sale.name,
-      // Stock item images by id, so image-capable screens can show the same
-      // photo the kitchen put on the stock entry.
       stockImages,
       items: saleItems(sale),
       quantity: sale.quantity,
@@ -744,8 +695,6 @@ router.get('/sales', authenticate, authorize('OWNER', 'KITCHEN'), cacheHotelReso
       approved: sale.approved,
       approvedAt: sale.approvedAt,
       approvedByName: sale.approvedBy?.name || '',
-      // Change trail for the owner: what the sale looked like before each
-      // edit, newest last.
       edits: (sale.edits || []).map(edit => ({
         name: edit.name,
         items: (edit.items || []).map(item => ({ name: item.name, quantity: item.quantity, unit: item.unit || '', amount: item.amount })),
@@ -763,8 +712,6 @@ router.post('/sales', authenticate, authorize('OWNER', 'KITCHEN'), validate(sale
   if (req.user.role === 'KITCHEN' && !hasPerm(req.user, 'manage_sales')) return res.status(403).json({ message: 'The owner has not granted you permission to record sales.' })
   const scope = hotelScope(req)
   if (!scope || !mongoose.isValidObjectId(scope)) return res.status(400).json({ message: 'This account is not linked to the business.' })
-  // A sale can record several items at once. The older single-item fields
-  // (name/quantity/unit/amount) still work and are treated as one item.
   const rawItems = Array.isArray(req.body.items) && req.body.items.length
     ? req.body.items
     : [{ name: req.body.name, quantity: req.body.quantity, unit: req.body.unit, amount: req.body.amount }]
@@ -782,26 +729,20 @@ router.post('/sales', authenticate, authorize('OWNER', 'KITCHEN'), validate(sale
       quantity: Math.round(quantity * 100) / 100,
       unit: String(raw?.unit || '').trim().toLowerCase().slice(0, 20),
       amount: Math.round(amount * 100) / 100,
-      // Lines picked from the stock search carry the stock they draw down.
       stockItemId: idIsValid(raw?.stockItemId) ? raw.stockItemId : null,
     })
   }
-  // The sale's total is the sum of its items, computed here so a tampered
-  // client can never record a total that disagrees with the lines.
   const total = Math.round(items.reduce((sum, item) => sum + item.amount, 0) * 100) / 100
   const customerName = String(req.body.customerName || '').trim().slice(0, 80)
   const customerContact = String(req.body.customerContact || '').trim().slice(0, 60)
-  // Receipt numbers are sequential per hotel: take the highest used number
-  // and add one. If two staff record at the same instant the unique index
-  // rejects the loser, and it retries with a freshly read number.
   let sale
+  // (hotelId, saleNumber) is unique, so a concurrent sale can take the number and force a retry.
   for (let attempt = 0; attempt < 5 && !sale; attempt++) {
     const highest = await Sale.findOne({ hotelId: scope }).sort({ saleNumber: -1 }).select('saleNumber')
     try {
       sale = await Sale.create({
         hotelId: scope,
         saleNumber: (highest?.saleNumber || 0) + 1,
-        // Short summary for older screens; the full breakdown lives in items.
         name: (items.length > 1 ? `${items[0].name} +${items.length - 1} more` : items[0].name).slice(0, 60),
         items,
         quantity: items.length > 1 ? 1 : items[0].quantity,
@@ -820,9 +761,6 @@ router.post('/sales', authenticate, authorize('OWNER', 'KITCHEN'), validate(sale
     }
   }
   if (!sale) return res.status(409).json({ message: 'Could not assign the sale an ID, please try again.' })
-  // Best-effort stock deduction: a missing or
-  // already-empty stock never blocks a recorded sale, and the $gte guard
-  // keeps the count from dipping below zero when records race.
   const stockUsage = new Map()
   for (const item of items) {
     if (!item.stockItemId || !(item.quantity > 0)) continue
@@ -852,16 +790,12 @@ router.delete('/sales/:saleId', authenticate, authorize('OWNER', 'KITCHEN'), asy
   const sale = await Sale.findOne({ _id: req.params.saleId, hotelId: hotelScope(req) }).select('approved recordedBy')
   if (!sale) return res.status(404).json({ message: 'Sale not found.' })
   if (!canEditRecord(sale, req.user)) return res.status(403).json({ message: 'Only the user who recorded this sale or the owner can change it.' })
-  // Approved sales are the books of record — they can no longer be changed.
   if (sale.approved) return res.status(403).json({ message: 'This sale has been approved and can no longer be changed.' })
   await Sale.deleteOne({ _id: sale._id })
   broadcastChange(req.app.get('io'), String(hotelScope(req)), 'sales_changed')
   res.status(204).end()
 }))
 
-// A chef can edit their own unapproved sale until it is approved. Every edit
-// snapshots the sale as it was BEFORE the change into `edits`, so the owner
-// can see "changed from X to this" with who made the change and when.
 const saleEditPayload = req => {
   const rawItems = Array.isArray(req.body.items) && req.body.items.length
     ? req.body.items
@@ -894,7 +828,6 @@ router.patch('/sales/:saleId', authenticate, authorize('OWNER', 'KITCHEN'), asyn
   const sale = await Sale.findOne({ _id: req.params.saleId, hotelId: scope })
   if (!sale) return res.status(404).json({ message: 'Sale not found.' })
   if (!canEditRecord(sale, req.user)) return res.status(403).json({ message: 'Only the user who recorded this sale or the owner can change it.' })
-  // Approved sales are the books of record — they can no longer be changed.
   if (sale.approved) return res.status(403).json({ message: 'This sale has been approved and can no longer be changed.' })
   const parsed = saleEditPayload(req)
   if (parsed.error) return res.status(400).json({ message: parsed.error })
@@ -907,7 +840,6 @@ router.patch('/sales/:saleId', authenticate, authorize('OWNER', 'KITCHEN'), asyn
     && item.unit === items[index].unit && item.amount === items[index].amount)
   const unchanged = sameItems && sale.customerName === customerName && sale.customerContact === customerContact && sale.note === note
   if (unchanged) return res.status(400).json({ message: 'Nothing changed — update the items, customer or note before saving.' })
-  // Snapshot the sale as it stands BEFORE applying the edit.
   sale.edits = [...(sale.edits || []), {
     name: sale.name,
     items: saleItems(sale).map(item => ({ name: item.name, quantity: item.quantity, unit: item.unit, amount: item.amount, stockItemId: item.stockItemId })),
@@ -927,8 +859,6 @@ router.patch('/sales/:saleId', authenticate, authorize('OWNER', 'KITCHEN'), asyn
   sale.customerContact = customerContact
   sale.note = note
   await sale.save()
-  // Stock follows the corrected quantities: restore what the previous lines
-  // drew down, then deduct the new ones. Best-effort, same as when recording.
   const stockDelta = new Map()
   for (const item of sale.edits[sale.edits.length - 1].items || []) {
     const stockId = item.stockItemId && idIsValid(item.stockItemId) ? String(item.stockItemId) : null
@@ -948,8 +878,6 @@ router.patch('/sales/:saleId', authenticate, authorize('OWNER', 'KITCHEN'), asyn
   res.json({ sale: { ...sale.toObject(), saleId: displaySaleId(sale), items: saleItems(sale), recordedBy: req.user.name } })
 }))
 
-// The owner — or staff granted the approval permission — signs a sale off.
-// Once approved the sale is locked and can no longer be deleted.
 router.post('/sales/:saleId/approve', authenticate, authorize('OWNER', 'KITCHEN'), asyncRoute(async (req, res) => {
   if (!hasPerm(req.user, 'approve_records')) return res.status(403).json({ message: 'You do not have permission to approve sales.' })
   if (!idIsValid(req.params.saleId)) return res.status(404).json({ message: 'Sale not found.' })
@@ -977,11 +905,6 @@ router.get('/staff', authenticate, authorize('OWNER'), cacheHotelResource('staff
   })
 }))
 
-// Reveal the stored password of one of the owner's own chef accounts.
-// Owners are scoped to KITCHEN accounts in their own hotel only — they can
-// never view another owner's or the developer's password. The plaintext is
-// decrypted server-side only for authenticated owners and never included in
-// any list or login response.
 router.get('/staff/:id/password', authenticate, authorize('OWNER'), sensitiveLimiter, asyncRoute(async (req, res) => {
   if (!idIsValid(req.params.id)) return res.status(404).json({ message: 'Chef account not found.' })
   const user = await User.findOne({ _id: req.params.id, hotelId: req.user.hotelId._id, role: 'KITCHEN' }).select('+passwordVault')
@@ -1187,26 +1110,18 @@ async function report(req, res) {
   }))
   const totalRevenue = salesTotals[0]?.totalRevenue || 0
   const totalExpenses = expenseTotals[0]?.totalExpenses || 0
-  // Stock images by id, so every screen showing the sale lines can show
-  // the same photo the kitchen put on the stock entry.
   const stockImages = await saleItemImages(sales)
   const saleRecords = sales.map(sale => ({
     ...sale,
     saleId: displaySaleId(sale),
     stockImages,
   }))
-  // Damages refer to stock items; photos are fetched in one query so each
-  // record can show the item's face.
   const damageStockIds = [...new Set((damages || []).map(damage => String(damage.stockItemId || '')).filter(id => idIsValid(id)))]
   const damageStockImages = damageStockIds.length
     ? Object.fromEntries(await StockItem.find({ _id: { $in: damageStockIds } }).select('imageUrl').then(docs =>
       docs.map(doc => [String(doc._id), doc.imageUrl || ''])))
     : {}
-  // Damages are a loss, priced from the stock's unit value at record time.
   const totalDamages = (damages || []).reduce((sum, damage) => sum + (damage.value || 0), 0)
-  // The owner's per-day view of what the kitchen added to stock in the
-  // selected window — new entries only; count adjustments on older entries
-  // stay in the stock page's own add/reduce history.
   const stockAdditions = scope
     ? await StockItem.find({ hotelId: scope, createdAt: { $gte: from, $lte: to } })
         .sort({ createdAt: -1 }).limit(500).lean()
@@ -1243,15 +1158,12 @@ async function report(req, res) {
       value: damage.value,
       note: damage.note || '',
       createdAt: damage.createdAt,
-      // The stock item's photo when the damage drew from tracked stock.
       imageUrl: damageStockImages[String(damage.stockItemId || '')] || '',
     })),
     netBalance: canViewSales && canViewExpenses ? totalRevenue - totalExpenses : null,
     netBalanceAfterDamages: canViewSales && canViewExpenses ? totalRevenue - totalExpenses - totalDamages : null,
     canViewSales,
     canViewExpenses,
-    // Whether the requesting user may approve pending stock entries — the
-    // dashboard shows approve actions only to them.
     canApproveStock: hasPerm(req.user, 'approve_records'),
     series,
     sales: saleRecords,

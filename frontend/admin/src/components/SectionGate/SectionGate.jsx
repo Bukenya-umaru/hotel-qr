@@ -2,9 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { loadSnapshot, subscribeLoads } from '../../lib/api.js'
 
-// Section switches show an in-place loading skeleton in the content area for
-// at least five seconds, then hand over to the section — held longer if its
-// data is still arriving. Nothing covers the page or the navigation.
+// Minimum skeleton time so fast responses do not flash.
 const MINIMUM_MS = 5000
 
 const Bar = ({ className = '' }) => <span className={`block animate-pulse rounded bg-[#eef1f5] ${className}`} />
@@ -23,8 +21,6 @@ const PageHeader = ({ actions = 1 }) => <div className="flex flex-wrap items-cen
   </div>}
 </div>
 
-// Dashboard: title and period controls, six metric cards, then the 5-column
-// chart/report grid next to the 300px activity sidebar.
 function OverviewSkeleton() {
   return <div className="space-y-4">
     <PageHeader actions={2} />
@@ -46,8 +42,6 @@ function OverviewSkeleton() {
   </div>
 }
 
-// Reports: filter and export row, four metric cards, a wide chart panel, then
-// the sales/expenses/damage record lists.
 function ReportsSkeleton() {
   return <div className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -90,8 +84,6 @@ function ReportsSkeleton() {
   </div>
 }
 
-// Stock: title plus Add stock, the totals chips, then the photo card grid and
-// pagination.
 function StockSkeleton() {
   return <div className="space-y-5">
     <PageHeader actions={1} />
@@ -114,8 +106,6 @@ function StockSkeleton() {
   </div>
 }
 
-// Make sale: one record-sale card holding item lines, customer fields and the
-// total/save footer.
 function MakeSaleSkeleton() {
   return <div className="mx-auto w-full max-w-2xl rounded-xl border border-[#e7ebf0] bg-white p-4">
     <Bar className="h-3.5 w-32" />
@@ -134,8 +124,6 @@ function MakeSaleSkeleton() {
   </div>
 }
 
-// Sales, expenses and damage records: header chips, the From/To filter row,
-// then rows (or two-column cards for expenses) and pagination.
 function RecordsSkeleton({ cards = false }) {
   return <div className="rounded-xl border border-[#e7ebf0] bg-white p-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -161,8 +149,6 @@ function RecordsSkeleton({ cards = false }) {
   </div>
 }
 
-// Categories > Food type / Expenses: add-category form and the grid of
-// category tiles.
 function CategoriesSkeleton() {
   return <div className="space-y-5">
     <PageHeader actions={0} />
@@ -176,8 +162,6 @@ function CategoriesSkeleton() {
   </div>
 }
 
-// Chefs and Accounts: description with the create action, then the account
-// table with its role, permissions and status columns.
 function AccountsSkeleton() {
   return <div className="space-y-5">
     <PageHeader actions={1} />
@@ -194,8 +178,6 @@ function AccountsSkeleton() {
   </div>
 }
 
-// Profile: heading with the edit action, the identity banner and the account
-// field grid.
 function ProfileSkeleton() {
   return <div className="mx-auto max-w-2xl">
     <div className="mb-6 flex items-center justify-between gap-3">
@@ -216,7 +198,6 @@ function ProfileSkeleton() {
   </div>
 }
 
-// Security: the four signal counters above the filtered event list.
 function SecuritySkeleton() {
   return <div className="space-y-5">
     <PageHeader actions={1} />
@@ -238,7 +219,6 @@ function SecuritySkeleton() {
   </div>
 }
 
-// Help & support: the contact field grid, the message box and the save row.
 function SupportSkeleton() {
   return <div className="space-y-5">
     <PageHeader actions={0} />
@@ -254,8 +234,6 @@ function SupportSkeleton() {
   </div>
 }
 
-// Developer platform overview: the system status line, three counters and the
-// business/health panels.
 function PlatformSkeleton() {
   return <div className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -283,9 +261,6 @@ function ListSkeleton() {
   </div>
 }
 
-// Each skeleton mirrors the shape of the section it replaces — cards, table
-// rows, form fields or record lists — so the loading state sits exactly where
-// the fetched content will appear.
 export function SectionSkeleton({ sectionKey }) {
   const body = sectionKey === 'Overview' ? <OverviewSkeleton />
     : sectionKey === 'Platform overview' ? <PlatformSkeleton />
@@ -312,28 +287,21 @@ export function SectionSkeleton({ sectionKey }) {
   </div>
 }
 
-// The gate applies to navigation after the initial dashboard has mounted.
 export function SectionGate({ sectionKey, ready, children }) {
-  // `key` is the section behind the skeleton. Comparing it during render means
-  // a switch shows the skeleton immediately, without a flash of new content.
   const [state, setState] = useState({ key: sectionKey, elapsed: true, lost: false, busy: false, attempt: 0 })
-  // Captured during render (before the new section's effects start its
-  // fetches), so only requests started by this section keep the skeleton up.
   const baseline = useRef(null)
+  // Only loads started after the section opened may gate it, so compare against this snapshot.
   if (!baseline.current) baseline.current = { key: sectionKey, ...loadSnapshot() }
   const switched = state.key !== sectionKey
   if (switched && baseline.current.key !== sectionKey) {
     baseline.current = { key: sectionKey, ...loadSnapshot() }
   }
 
-  // A fresh section gets a fresh minimum window and forgets any earlier
-  // connection failure.
   useEffect(() => {
     if (state.key === sectionKey) return
     setState({ key: sectionKey, elapsed: false, lost: false, busy: false, attempt: 0 })
   }, [sectionKey, state.key])
 
-  // Hold the skeleton for the minimum window (and again after a retry).
   useEffect(() => {
     if (state.elapsed) return undefined
     const timer = window.setTimeout(() => {
@@ -344,9 +312,6 @@ export function SectionGate({ sectionKey, ready, children }) {
 
   const gating = switched || !state.elapsed || ready === false || state.lost || state.busy
 
-  // Watch the requests this section started: a pending one keeps the skeleton
-  // up until the data is ready, and one that never reached the server keeps it
-  // loading instead of revealing a section with no data.
   useEffect(() => {
     if (!gating || state.lost) return undefined
     const startedWith = baseline.current
@@ -362,8 +327,6 @@ export function SectionGate({ sectionKey, ready, children }) {
     return subscribeLoads(sync)
   }, [gating, state.lost])
 
-  // When the connection returns, remount the section so its requests retry and
-  // the skeleton can finish normally.
   useEffect(() => {
     if (!state.lost) return undefined
     const retry = () => {
@@ -374,8 +337,6 @@ export function SectionGate({ sectionKey, ready, children }) {
     return () => window.removeEventListener('online', retry)
   }, [state.lost])
 
-  // Children are mounted (so their fetches start immediately) but hidden while
-  // the skeleton fills the same content area; they appear when loading ends.
   return (
     <div aria-busy={gating}>
       {gating && <SectionSkeleton key={`${sectionKey}:${state.attempt}`} sectionKey={sectionKey} />}

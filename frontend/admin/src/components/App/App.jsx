@@ -49,9 +49,6 @@ export default function App() {
     databaseStatus: 'Disconnected',
     passwordViewable: false,
   })
-  // Tracked so the section gate can hold its skeleton while the section's
-  // fetch is still in flight. A dropped connection is reported by lib/api.js
-  // instead, so the gate stays in its loading state rather than showing no data.
   const [reportsLoading, setReportsLoading] = useState(false)
   const [staffLoading, setStaffLoading] = useState(false)
   const [modal, setModal] = useState('')
@@ -65,18 +62,12 @@ export default function App() {
   const [mobileNav, setMobileNav] = useState(false)
   const [theme, setTheme] = useState(readTheme)
   const flipTheme = () => setTheme(toggleTheme(theme))
-  // One shared live socket for real-time notifications; 'live' is the node the
-  // bell-listeners attach to. A toast pops while the dropdown is closed.
   const [live, setLive] = useState(null)
   const [notificationToast, setNotificationToast] = useState(null)
-  // The dashboard's selected range, kept in App so the live re-fetch below
-  // and the Overview's filter stay in sync. Defaults to the current date.
   const [reportRange, setReportRange] = useState(() => {
     const today = new Date()
     return { from: dateKey(today), to: dateKey(today) }
   })
-  // Mobile drawer accordion state: sections with children collapse, and at
-  // most one of them is expanded at a time.
   const [openMobileGroups, setOpenMobileGroups] = useState(() => new Set())
   const hotelName = user?.hotel?.name || (role === 'DEVELOPER' ? 'WAGA BITES support' : 'Your business')
 
@@ -90,8 +81,6 @@ export default function App() {
         setUser(data.user)
         if (data.user.role) setPage(data.user.role === 'DEVELOPER' ? 'Platform overview' : 'Overview')
       })
-      // A 401 means there is no saved session. API hiccups should still let
-      // the user reach the login page after the session check settles.
       .catch(() => {
         if (!active) return
         setUser(null)
@@ -138,9 +127,6 @@ export default function App() {
     return () => window.clearTimeout(timeout)
   }, [notificationToast])
 
-  // Connect on sign-in, disconnect cleanly on sign-out. connectSocket tries
-  // same-origin first (proxied), falling back to the direct Render socket on
-  // hosts that can't stream Socket.IO's handshake (e.g. Vercel serverless).
   useEffect(() => {
     if (!user) return undefined
     const socket = connectSocket()
@@ -151,13 +137,9 @@ export default function App() {
     return () => { socket.disconnect(); setLive(null) }
   }, [user])
 
-  // Toast on new pushes — the dropdown itself re-fetches via its own listener.
-  // socket.io-client sockets use .on/.off, not DOM addEventListener.
   useEffect(() => {
     if (!live || !user) return undefined
 
-    // Any record that shapes the dashboard graphs (sales or expenses) triggers
-    // an instant re-fetch of the visible date range.
     const evts = ['sales_changed', 'expenses_changed']
     for (const evt of evts) live.on(evt, refreshLiveRange)
     return () => { for (const evt of evts) live.off(evt, refreshLiveRange) }
@@ -169,11 +151,10 @@ export default function App() {
       if (!payload) return
       setNotificationToast(payload)
       try {
-        // Small ping; audio may be blocked until first interaction.
         const audio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==')
         audio.volume = 0.25
         audio.play().catch(() => {})
-      } catch { /* audio is optional */ }
+      } catch {}
     }
     live.on('notification', onNotification)
     return () => live.off('notification', onNotification)
@@ -197,10 +178,6 @@ export default function App() {
     })
     return children.length ? [{ ...item, children }] : []
   }), [role, user])
-  // Single-open accordion: expanding a section hides the subsections of any
-  // other section, and the section owning the current page opens itself.
-  // Children may carry their own target page (Purchases > Expenses vs the
-  // Categories subsection with the same label).
   useEffect(() => {
     const active = currentNav.find(item => item.children?.some(child => (child.target || child.label) === page))
     if (active) setOpenMobileGroups(previous => previous.has(active.label) && previous.size === 1 ? previous : new Set([active.label]))
@@ -233,8 +210,6 @@ export default function App() {
   }
   const createAccount = async form => {
     if (!user || !['OWNER', 'DEVELOPER'].includes(user.role)) throw new Error('Sign in as the developer or business owner to create an account.')
-    // The developer creates owner or chef accounts directly from the
-    // support dashboard; the owner creates their own chefs.
     const endpoint = user.role === 'DEVELOPER' ? '/api/developer/users' : '/api/owner/staff'
     const data = await api(endpoint, { method: 'POST', body: JSON.stringify(form) })
     setUsers(previous => [data.user, ...previous])
@@ -257,13 +232,11 @@ export default function App() {
       setReportRange({ from, to })
     } catch (err) { setToast(err.message) }
   }
-  // Live dashboards: sales/expense mutations broadcast these events, so the
-  // visible period re-fetches instantly — no page refresh needed.
   const refreshLiveRange = () => {
     if (!user || !['OWNER', 'KITCHEN'].includes(user.role)) return
     api(`/api/owner/analytics/reports?from=${reportRange.from}&to=${reportRange.to}`)
       .then(data => setAnalytics({ ...data, isActual: true }))
-      .catch(() => { /* transient; next event or navigation retries */ })
+      .catch(() => {})
   }
   const resetUserPassword = async password => {
     if (!user || user.role !== 'DEVELOPER') throw new Error('Sign in as a developer to manage accounts.')
@@ -323,9 +296,6 @@ export default function App() {
   else if (role === 'DEVELOPER') content = <DeveloperDashboard users={users} onNavigate={setPage} overview={platformOverview} />
   else content = <Overview hotelName={hotelName} userId={user?._id} userRole={role} onNavigate={setPage} analytics={analytics} currency="UGX" onRange={loadReportRange} reportRange={reportRange} />
 
-  // Every section/subsection switch shows an in-place skeleton in the content
-  // area for at least 5 seconds (owner's requirement) and longer while the
-  // section's own data is still arriving — or while the connection is down.
   let sectionReady = true
   if (page === 'Reports') sectionReady = !reportsLoading
   else if (['Accounts', 'Chefs'].includes(page)) sectionReady = !staffLoading

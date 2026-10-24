@@ -5,9 +5,6 @@ import { Modal } from '../Modal/Modal.jsx'
 
 const VIEW_SECONDS = 15
 
-// Reveals an account's actual password for 15 seconds, then hides it and
-// closes. Used by the developer (any account) and by the business owner for
-// their own chefs; `endpoint` decides which API reveal route to call.
 export function ViewPasswordModal({ account, endpoint, onClose, onLoaded }) {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(true)

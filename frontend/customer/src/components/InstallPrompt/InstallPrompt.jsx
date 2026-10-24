@@ -1,9 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Download, X } from 'lucide-react'
 
-// The same install flow as the dashboard, re-styled for the info page: hold
-// the beforeinstallprompt event, show a small popup as the site opens, and go
-// quiet for that browser once the user says "Not now" or installs.
 const DISMISS_KEY = 'wagabits-install-dismissed'
 
 const alreadyInstalled = () => window.matchMedia('(display-mode: standalone)').matches
@@ -33,11 +30,11 @@ export function InstallPrompt() {
 
   const install = async () => {
     setVisible(false)
-    try { await event.prompt(); await event.userChoice } catch { /* the dialog was closed — the popup simply stays away */ }
+    try { await event.prompt(); await event.userChoice } catch {}
     setEvent(null)
   }
   const dismiss = () => {
-    try { localStorage.setItem(DISMISS_KEY, '1') } catch { /* private mode may block storage — still hide the popup */ }
+    try { localStorage.setItem(DISMISS_KEY, '1') } catch {}
     setVisible(false)
   }
 

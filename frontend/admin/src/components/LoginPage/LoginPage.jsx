@@ -10,15 +10,13 @@ export function LoginPage({ onLogin }) {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  // Contact details come straight from the Help & support section, so an
-  // updated number is reflected on this form automatically on refresh.
   const [support, setSupport] = useState(null)
 
   useEffect(() => {
     api('/api/support').then(data => {
       const support = data?.support
       setSupport(support?.phone || support?.whatsapp || support?.email ? support : null)
-    }).catch(() => { /* the sign-in flow must not depend on this card */ })
+    }).catch(() => {})
   }, [])
 
   const submit = async event => {

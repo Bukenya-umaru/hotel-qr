@@ -10,21 +10,15 @@ import { Pagination } from '../Pagination/Pagination.jsx'
 
 const PAGE_SIZE = 10
 
-// Sales and expense records each open their own workspace, like the
-// Food type and expense-category sections in Categories.
 export function PurchasePage({ hotelId, userId, userRole, initialView = 'menu', canManageExpenses = true, canApprove = false }) {
-  const [view, setView] = useState(initialView) // 'menu' | 'make-sale' | 'sales' | 'expenses' | 'damages'
+  const [view, setView] = useState(initialView)
   const [saleCount, setSaleCount] = useState(null)
   const [expenseCount, setExpenseCount] = useState(null)
   const [damageCount, setDamageCount] = useState(null)
   const [error, setError] = useState('')
 
-  // Follow sidebar navigation while keeping expense-only permissions scoped
-  // to expense records.
   useEffect(() => { setView((initialView === 'expenses' || initialView === 'damages') && !canManageExpenses ? 'menu' : initialView) }, [initialView, canManageExpenses])
 
-  // The counts on the subsection cards are a nice-to-have; probe the APIs
-  // quietly so a failure never blocks the page.
   useEffect(() => {
     api('/api/owner/sales').then(data => setSaleCount(data.count)).catch(() => {})
     if (canManageExpenses) {
@@ -96,24 +90,14 @@ export function PurchasePage({ hotelId, userId, userRole, initialView = 'menu', 
   </div>
 }
 
-// Units the sale form knows natively; anything else is treated as a custom
-// word carried in `customUnit`.
 const UNIT_KEYS = UNIT_OPTIONS.map(option => option.key)
 
-// One-line summary of what a sale contains, e.g. "Beef plates ×3, Soda ×2".
-// Multi-item sales carry an items array; older single-item sales are shown
-// from their top-level name/quantity/unit.
 const saleLine = sale => ((Array.isArray(sale.items) && sale.items.length ? sale.items : [{ name: sale.name, quantity: sale.quantity, unit: sale.unit }])
   .map(item => `${item.name || 'Item'}${Number(item.quantity) !== 1 ? ` ×${item.quantity}${item.unit ? ` ${item.unit}` : ''}` : ''}`)
   .join(', '))
 
-// Image of a sale line's stock item, from the sale's stockImages map returned
-// by the API; empty when the line is not stock-linked or has no photo.
 const saleItemImage = (sale, item) => (sale.stockImages ? sale.stockImages[String(item.stockItemId || '')] || '' : '')
 
-// ---- Shared date filter (Sales and Expenses) — a From/To range over the ----
-// ---- record times with quick presets. Empty from/to mean no filter, and ----
-// ---- days parse in local time so boundaries hit the hotel's own midnight. ----
 const isoDay = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 const dayBound = (value, end) => {
   if (!value) return null
@@ -130,8 +114,6 @@ const presetRange = preset => {
 }
 const inDayRange = (time, fromBound, toBound) => (fromBound == null || time >= fromBound) && (toBound == null || time <= toBound)
 
-// The From/To date inputs and preset chips shared by the Sales and
-// Expenses filters — styled to match the dashboard's date + Filter chips.
 function DateFilterRow({ range, setRange }) {
   const inputClass = 'bg-white text-[10px] font-medium text-[#292421] outline-none '
     + '[color-scheme:light] [&::-webkit-calendar-picker-indicator]:opacity-60'
@@ -156,17 +138,14 @@ function DateFilterRow({ range, setRange }) {
   </div>
 }
 
-// ---- Subsection: Sales — every sale made by the hotel, newest first,   ----
-// ---- each shown with its own ID. Recording lives in the Make sale tab. ----
-
 function SalesView({ onError, canApprove = false, hotelId, userId, userRole }) {
   const [sales, setSales] = useState([])
   const [stats, setStats] = useState({ total: 0, count: 0, todayTotal: 0, todayCount: 0 })
   const [busy, setBusy] = useState(false)
   const [busyAction, setBusyAction] = useState('')
-  const [range, setRange] = useState({ from: '', to: '' }) // Date filter: empty from/to = everything.
-  const [editing, setEditing] = useState(null) // Unapproved sale being edited.
-  const [historyFor, setHistoryFor] = useState(null) // Sale whose change trail is open.
+  const [range, setRange] = useState({ from: '', to: '' })
+  const [editing, setEditing] = useState(null)
+  const [historyFor, setHistoryFor] = useState(null)
   const [page, setPage] = useState(1)
 
   const load = async () => {
@@ -181,8 +160,6 @@ function SalesView({ onError, canApprove = false, hotelId, userId, userRole }) {
   }
   useEffect(() => { load() }, [])
 
-  // Live list: the backend broadcasts sales_changed on every record,
-  // approve, edit or delete — the list refreshes instantly, no page reload.
   useEffect(() => {
     const socket = connectSocket()
     socket.on('connect', () => {
@@ -211,8 +188,6 @@ function SalesView({ onError, canApprove = false, hotelId, userId, userRole }) {
     }
   }
 
-  // The owner — or staff granted the approval permission — signs a sale off.
-  // Approved sales are locked: they can no longer be removed.
   const approveSale = async sale => {
     if (busy) return
     setBusy(true)
@@ -234,8 +209,6 @@ function SalesView({ onError, canApprove = false, hotelId, userId, userRole }) {
 
   const saleTime = value => new Date(value).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 
-  // Date filter — a From/To range over the sale times plus quick presets.
-  // Empty from/to mean no filter.
   const fromBound = dayBound(range.from, false)
   const toBound = dayBound(range.to, true)
   const hasFilter = Boolean(range.from || range.to)
@@ -294,8 +267,6 @@ function SalesView({ onError, canApprove = false, hotelId, userId, userRole }) {
   </div>
 }
 
-// Edit an unapproved sale. Approved sales can no longer be changed — the
-// backend rejects it and the edit button is hidden for them anyway.
 function EditSaleModal({ sale, onClose, onSaved }) {
   const [items, setItems] = useState(() => (Array.isArray(sale.items) && sale.items.length
     ? sale.items.map(item => ({ name: item.name, quantity: String(item.quantity ?? 1), unit: UNIT_KEYS.includes(item.unit) ? item.unit : 'other', customUnit: UNIT_KEYS.includes(item.unit) ? '' : (item.unit || ''), price: item.quantity ? Math.round((item.amount / item.quantity) * 100) / 100 : item.amount, amount: item.amount, unitPrice: item.quantity ? Math.round((item.amount / item.quantity) * 100) / 100 : null, stockId: item.stockItemId || '', pendingStockId: '', committed: true }))
@@ -305,8 +276,6 @@ function EditSaleModal({ sale, onClose, onSaved }) {
   const [note, setNote] = useState(sale.note || '')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  // The hotel's stock supplies the photos shown beside stock-linked lines.
-  // A quiet load — if stock cannot be read, lines simply show no photo.
   const [stock, setStock] = useState([])
   useEffect(() => {
     let cancelled = false
@@ -424,9 +393,6 @@ function EditSaleModal({ sale, onClose, onSaved }) {
   </Modal>
 }
 
-// The change trail: each edit snapshots what the sale looked like before it.
-// Shown to whoever inspects the sale — the owner sees "changed from this to
-// this" with who made the change and when.
 function SaleHistoryModal({ sale, onClose }) {
   const previous = sale.edits?.length ? sale.edits[sale.edits.length - 1] : null
   return <Modal title={`Changes to ${sale.saleId}`} onClose={onClose}>
@@ -458,10 +424,6 @@ function SaleSnapshot({ name, items, amount, customerName, note, sale }) {
   </div>
 }
 
-// ---- Subsection: Make sale — record one sale holding any number of    ----
-// ---- items (plates, sodas…), plus an optional customer name and       ----
-// ---- contact. The backend stamps every sale with an ID, SAL-000042.   ----
-
 const EMPTY_ITEM = () => ({ name: '', quantity: '1', unit: 'plates', customUnit: '', price: '', amount: '', stockId: '', pendingStockId: '', unitPrice: null, committed: false })
 
 function MakeSaleView({ onError, onViewSales }) {
@@ -471,14 +433,10 @@ function MakeSaleView({ onError, onViewSales }) {
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [recorded, setRecorded] = useState(null) // The sale just saved, with its ID.
-  // The hotel's stock powers the item search: picking a stock item fills in
-  // its unit and per-unit price, and the line total then follows the qty.
+  const [recorded, setRecorded] = useState(null)
   const [stock, setStock] = useState([])
-  const [openSearch, setOpenSearch] = useState(null) // Row whose stock search is open.
+  const [openSearch, setOpenSearch] = useState(null)
 
-  // A quiet load — if stock cannot be read, every item is simply filled in
-  // by hand exactly as before.
   useEffect(() => {
     let cancelled = false
     api('/api/stock').then(data => { if (!cancelled) setStock(data.items || []) }).catch(() => {})
@@ -486,24 +444,17 @@ function MakeSaleView({ onError, onViewSales }) {
   }, [])
 
   const setItem = (index, patch) => setItems(previous => previous.map((item, i) => (i === index ? { ...item, ...patch } : item)))
-  // Every list ends with one empty draft row — that row is the adder.
   const withDraft = rows => (rows.some(row => !row.stockId && !row.committed) ? rows : [...rows, EMPTY_ITEM()])
   const removeItem = index => setItems(previous => withDraft(previous.filter((_, i) => i !== index)))
 
-  // Typing a name by hand detaches the row from the stock item (no stock
-  // badge, no stock reduction) but keeps the price typed so far.
   const changeName = (index, value) => setItem(index, { name: value, stockId: '', pendingStockId: '' })
 
-  // Searching the hotel's stock by the text typed so far.
   const stockMatches = query => {
     const text = String(query || '').trim().toLowerCase()
     const list = text ? stock.filter(entry => entry.name.toLowerCase().includes(text)) : stock
     return list.slice(0, 8)
   }
 
-  // Picking a stock item fills the row with its unit and the price of one
-  // item; the line total is price × qty. The row only joins the sale when
-  // Add is clicked, so the user can still adjust the quantity or price.
   const pickStock = (index, stockItem) => {
     setItems(previous => previous.map((item, i) => {
       if (i !== index) return item
@@ -514,7 +465,6 @@ function MakeSaleView({ onError, onViewSales }) {
     setOpenSearch(null)
   }
 
-  // While a line has a per-item price, changing the qty re-prices the total.
   const changeQuantity = (index, value) => setItems(previous => previous.map((item, i) => {
     if (i !== index) return item
     const qty = value === '' ? 1 : Number(value)
@@ -522,8 +472,6 @@ function MakeSaleView({ onError, onViewSales }) {
     return { ...item, quantity: value, amount: autoPrice ? Math.round(item.unitPrice * qty * 100) / 100 : item.amount }
   }))
 
-  // The price input holds the price of ONE item — the line total is
-  // price × qty and follows along as the quantity changes.
   const changePrice = (index, value) => setItems(previous => previous.map((item, i) => {
     if (i !== index) return item
     const unitPrice = value === '' ? null : Number(value)
@@ -532,9 +480,6 @@ function MakeSaleView({ onError, onViewSales }) {
     return { ...item, price: value, unitPrice: ok ? unitPrice : null, amount: ok ? Math.round(unitPrice * qty * 100) / 100 : '' }
   }))
 
-  // The +/− steppers on added lines: change the quantity without typing and
-  // re-price the line from its per-unit price. Never below one — use × to
-  // drop the line entirely.
   const stepQuantity = (index, delta) => setItems(previous => previous.map((item, i) => {
     if (i !== index) return item
     const qty = Math.max(1, (Number(item.quantity) || 0) + delta)
@@ -542,10 +487,6 @@ function MakeSaleView({ onError, onViewSales }) {
     return { ...item, quantity: String(qty), amount: autoPrice ? Math.round(item.unitPrice * qty * 100) / 100 : item.amount }
   }))
 
-  // The Add button (or Enter) commits the row into the read-only list:
-  // stock-picked rows keep their stock link — merging into an existing line
-  // of the same item — and typed rows remember their per-item price so the
-  // steppers can re-price them later.
   const addRow = index => {
     const item = items[index]
     if (!item || item.committed) return
@@ -561,8 +502,6 @@ function MakeSaleView({ onError, onViewSales }) {
         const duplicateAt = previous.findIndex((row, i) =>
           i !== index && row.name.trim().toLowerCase() === item.name.trim().toLowerCase())
         if (duplicateAt !== -1) {
-          // Same item is already on the sale: add this row's qty there and
-          // drop the row instead of duplicating it.
           const addedQty = Math.max(1, qty)
           return withDraft(previous
             .map((row, i) => {
@@ -579,14 +518,12 @@ function MakeSaleView({ onError, onViewSales }) {
     })
   }
 
-  // Live total of everything typed so far, shown above the record button.
   const runningTotal = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
 
   const submit = async event => {
     event.preventDefault()
     if (busy) return
     const payload = []
-    // A fully empty trailing draft row is just the adder — skip it.
     const entries = items.filter(item => item.stockId || item.committed || item.pendingStockId || item.name.trim() || item.price.trim() || String(item.amount).trim())
     if (!entries.length) { setError('Add at least one item to record.'); return }
     for (const [index, item] of entries.entries()) {
@@ -626,7 +563,6 @@ function MakeSaleView({ onError, onViewSales }) {
 
   const inputClass = 'rounded-md border border-[#e7ebf0] bg-white px-2 py-1.5 text-[11px] outline-none transition placeholder:text-[#a8b3c4] focus:border-[#fdba74] focus:ring-2 focus:ring-[#fff4ec]'
 
-  // After a successful save, confirm the sale and show the ID it was given.
   if (recorded) return <div className="mx-auto w-full max-w-xl rounded-xl border border-[#e7ebf0] bg-white p-5">
     <div className="flex flex-col items-center gap-1.5 py-4 text-center">
       <span className="grid size-12 place-items-center rounded-full bg-[#f0fdf4] text-[#16a34a]"><Check size={22} /></span>
@@ -659,16 +595,11 @@ function MakeSaleView({ onError, onViewSales }) {
         </div>
         {items.map((item, index) => {
           const locked = item.stockId || item.committed
-          // Stock-picked lines show the stock entry's photo so the staff sees
-          // the same item face everywhere.
           const stockImage = (item.stockId || item.pendingStockId) && stock.length
             ? stock.find(entry => String(entry._id) === String(item.stockId || item.pendingStockId))?.imageUrl || ''
             : ''
           return <div key={index} className="py-1 first:pt-0">
             {locked ? (
-              // Added lines — picked from stock or typed in — show as plain
-              // text: no borders and nothing to type. The steppers change the
-              // quantity, and × removes the line.
               <div className="flex flex-wrap items-center gap-1">
                 <div className="min-w-0 flex-[1_1_100%] sm:flex-[2_1_0%]">
                   <p className="flex items-center gap-1.5 px-1 text-[11px] font-semibold text-[#0f172a]">
@@ -740,9 +671,6 @@ function MakeSaleView({ onError, onViewSales }) {
   </div>
 }
 
-// ---- Subsection: Expenses — everything the hotel spends, filed under the ----
-// ---- expense categories managed in Categories > Expenses in the sidebar. ----
-
 function ExpensesView({ onError, canApprove = false, hotelId, userId, userRole }) {
   const [expenses, setExpenses] = useState([])
   const [byCategory, setByCategory] = useState([])
@@ -753,7 +681,7 @@ function ExpensesView({ onError, canApprove = false, hotelId, userId, userRole }
   const [editing, setEditing] = useState(null)
   const [historyFor, setHistoryFor] = useState(null)
   const [page, setPage] = useState(1)
-  const [range, setRange] = useState({ from: '', to: '' }) // Date filter: empty from/to = everything.
+  const [range, setRange] = useState({ from: '', to: '' })
 
   const load = async () => {
     try {
@@ -768,8 +696,6 @@ function ExpensesView({ onError, canApprove = false, hotelId, userId, userRole }
   }
   useEffect(() => { load() }, [])
 
-  // Live list: expenses broadcast expenses_changed on record, approve or
-  // delete — the list refreshes instantly, no page reload.
   useEffect(() => {
     const socket = connectSocket()
     socket.on('connect', () => {
@@ -799,8 +725,6 @@ function ExpensesView({ onError, canApprove = false, hotelId, userId, userRole }
     }
   }
 
-  // The owner — or staff granted the approval permission — signs an expense
-  // off. Approved expenses are locked: they can no longer be removed.
   const approveExpense = async expense => {
     if (busy) return
     setBusy(true)
@@ -823,7 +747,6 @@ function ExpensesView({ onError, canApprove = false, hotelId, userId, userRole }
 
   const expenseTime = value => new Date(value).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 
-  // Date filter — the same From/To range and presets as the Sales list.
   const fromBound = dayBound(range.from, false)
   const toBound = dayBound(range.to, true)
   const hasFilter = Boolean(range.from || range.to)
@@ -905,12 +828,6 @@ function ExpensesView({ onError, canApprove = false, hotelId, userId, userRole }
   </div>
 }
 
-// ---- Subsection: Damage — record goods lost to spoilage, breakage or  ----
-// ---- spillage, either from tracked stock (its count drops) or items   ----
-// ---- not in stock. Units follow the system: plates, items, cups, kg,  ----
-// ---- or any custom word. Stock-picked rows price the loss from the    ----
-// ---- stock's unit value; deleting a record restores the stock.        ----
-
 function DamagesView({ onError, canApprove = false, hotelId, userId, userRole }) {
   const [damages, setDamages] = useState([])
   const [stats, setStats] = useState({ total: 0, count: 0, todayTotal: 0, todayCount: 0 })
@@ -934,7 +851,6 @@ function DamagesView({ onError, canApprove = false, hotelId, userId, userRole })
   }
   useEffect(() => { load() }, [])
 
-  // Live list: damages broadcast damages_changed on record or delete.
   useEffect(() => {
     const socket = connectSocket()
     socket.on('connect', () => {
@@ -964,8 +880,6 @@ function DamagesView({ onError, canApprove = false, hotelId, userId, userRole })
     }
   }
 
-  // The owner — or staff granted the approval permission — signs a damage
-  // off. Once approved it is locked: no more edits or removals.
   const approveDamage = async damage => {
     if (busy) return
     setBusy(true)
@@ -988,7 +902,6 @@ function DamagesView({ onError, canApprove = false, hotelId, userId, userRole })
 
   const damageTime = value => new Date(value).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 
-  // Date filter — the same From/To range and presets as Sales and Expenses.
   const fromBound = dayBound(range.from, false)
   const toBound = dayBound(range.to, true)
   const hasFilter = Boolean(range.from || range.to)
@@ -1060,14 +973,9 @@ function DamagesView({ onError, canApprove = false, hotelId, userId, userRole })
   </div>
 }
 
-// ---- Popup for recording one damage — pick an item from the hotel's ----
-// ---- stock (its count drops and the loss is priced from the stock's ----
-// ---- unit value) or record something not in stock with its own value. ----
-
 function RecordDamageModal({ onClose, onSaved }) {
-  // The hotel's stock powers the item search, exactly as in Make sale.
   const [stock, setStock] = useState([])
-  const [mode, setMode] = useState(null) // 'stock' | 'other'
+  const [mode, setMode] = useState(null)
   const [name, setName] = useState('')
   const [stockId, setStockId] = useState('')
   const [quantity, setQuantity] = useState('1')
@@ -1078,7 +986,6 @@ function RecordDamageModal({ onClose, onSaved }) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
-  // A quiet load — if stock cannot be read, 'other' mode still works.
   useEffect(() => {
     let cancelled = false
     api('/api/stock').then(data => {
@@ -1095,8 +1002,6 @@ function RecordDamageModal({ onClose, onSaved }) {
     return list.slice(0, 8)
   }
 
-  // Picking a stock item fills in its unit and shows the per-unit value;
-  // the loss value is computed from the unit price × quantity.
   const pickedStock = stock.find(entry => String(entry._id) === stockId) || null
   const unitWord = pickedStock
     ? unitDisplay(pickedStock.unit, pickedStock.customUnit || '')
@@ -1170,7 +1075,6 @@ function RecordDamageModal({ onClose, onSaved }) {
         : <label className="block"><span className={labelClass}>Damaged item name <span className="text-[#dc2626]">*</span></span>
             <input required autoFocus="autoFocus" value={name} onChange={pickedName} maxLength="60" placeholder="e.g. Broken plates, spoilt beef" className={inputClass} />
           </label>}
-      {/* Name is derived from the picked stock item in stock mode. */}
 
       <div className="grid grid-cols-3 gap-2">
         <label className="block"><span className={labelClass}>Quantity <span className="text-[#dc2626]">*</span></span>
@@ -1201,12 +1105,9 @@ function RecordDamageModal({ onClose, onSaved }) {
   </Modal>
 }
 
-// ---- Popup for recording one expense — pick one of the expense categories ----
-// ---- from Categories > Expenses, or type a new category name to create it. ----
-
 function RecordExpenseModal({ onClose, onSaved }) {
-  const [categories, setCategories] = useState(null) // null while loading
-  const [mode, setMode] = useState(null) // 'existing' | 'new'
+  const [categories, setCategories] = useState(null)
+  const [mode, setMode] = useState(null)
   const [categoryId, setCategoryId] = useState('')
   const [newName, setNewName] = useState('')
   const [amount, setAmount] = useState('')
@@ -1214,9 +1115,6 @@ function RecordExpenseModal({ onClose, onSaved }) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
-  // The category options come from the expense categories the business
-  // already manages; if that list cannot load, a new category can still be
-  // typed by hand.
   useEffect(() => {
     let cancelled = false
     api('/api/owner/expense-categories').then(data => {
@@ -1291,11 +1189,8 @@ function RecordExpenseModal({ onClose, onSaved }) {
   </Modal>
 }
 
-// ---- Edit an unapproved expense until it is approved; approved ones are ----
-// ---- locked. Each save snapshots what it was before into the trail.   ----
-
 function EditExpenseModal({ expense, onClose, onSaved }) {
-  const [mode, setMode] = useState('existing') // 'existing' | 'new'
+  const [mode, setMode] = useState('existing')
   const [categoryId, setCategoryId] = useState(expense.category || '')
   const [newName, setNewName] = useState('')
   const [amount, setAmount] = useState(String(expense.amount ?? ''))
@@ -1309,7 +1204,6 @@ function EditExpenseModal({ expense, onClose, onSaved }) {
     api('/api/owner/expense-categories').then(data => {
       if (cancelled) return
       const list = data.categories || []
-      // Keep the expense's current category selectable even if renamed.
       if (expense.categoryName && !list.some(category => String(category._id) === String(expense.category))) {
         list.unshift({ _id: expense.category, name: expense.categoryName })
       }
@@ -1374,7 +1268,6 @@ function EditExpenseModal({ expense, onClose, onSaved }) {
   </Modal>
 }
 
-// The change trail: each edit snapshots what the expense looked like before it.
 function ExpenseHistoryModal({ expense, onClose }) {
   const previous = expense.edits?.length ? expense.edits[expense.edits.length - 1] : null
   return <Modal title={`Changes to ${expense.categoryName}`} onClose={onClose}>
@@ -1397,13 +1290,10 @@ function ExpenseHistoryModal({ expense, onClose }) {
   </Modal>
 }
 
-// ---- Edit an unapproved damage until it is approved; approved ones are ----
-// ---- locked. Stock-picked records re-price from the stock's unit value. ----
-
 function EditDamageModal({ damage, onClose, onSaved }) {
   const [stock, setStock] = useState([])
-  const [mode, setMode] = useState(damage.stockItem || damage.stockItemId ? 'stock' : 'other') // 'stock' | 'other'
-  const [hasStockList, setHasStockList] = useState(null) // whether the hotel has any stock
+  const [mode, setMode] = useState(damage.stockItem || damage.stockItemId ? 'stock' : 'other')
+  const [hasStockList, setHasStockList] = useState(null)
   const [name, setName] = useState(damage.name || '')
   const [stockId, setStockId] = useState('')
   const [quantity, setQuantity] = useState(String(damage.quantity ?? 1))
@@ -1412,15 +1302,12 @@ function EditDamageModal({ damage, onClose, onSaved }) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
-  // A quiet load — if stock cannot be read, 'other' mode still works.
   useEffect(() => {
     let cancelled = false
     api('/api/stock').then(data => {
       if (cancelled) return
       const list = data.items || []
       setHasStockList(Boolean(list.length))
-      // Keep the record's current stock link selectable even if the entry
-      // is missing from the live list.
       if (damage.stockItem && damage.stockItem._id && !list.some(entry => String(entry._id) === String(damage.stockItem._id))) {
         list.unshift({ _id: damage.stockItem._id, name: damage.stockItem.name })
       }
@@ -1512,7 +1399,6 @@ function EditDamageModal({ damage, onClose, onSaved }) {
   </Modal>
 }
 
-// The change trail: each edit snapshots what the damage looked like before it.
 function DamageHistoryModal({ damage, onClose }) {
   const previous = damage.edits?.length ? damage.edits[damage.edits.length - 1] : null
   return <Modal title={`Changes to ${damage.name}`} onClose={onClose}>

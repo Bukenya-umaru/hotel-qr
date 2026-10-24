@@ -2,7 +2,6 @@ import 'dotenv/config'
 import bcrypt from 'bcryptjs'
 import mongoose from 'mongoose'
 
-// Your exact original model schema definition
 const schema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
@@ -16,7 +15,6 @@ const schema = new mongoose.Schema({
 
 const User = mongoose.model('User', schema)
 
-// Hardcoded developer details and your MongoDB connection string
 const MONGODB_URI = "mongodb+srv://umarubukenya561_db_user:rVEMtauA9Qf8hpFe@cluster0.vfujghf.mongodb.net/hotel_bites?retryWrites=true&w=majority"
 const DEVELOPER_NAME = "bukenya Umaru"
 const DEVELOPER_EMAIL = "umarubukenya561@gmail.com"
@@ -32,7 +30,6 @@ try {
   const email = DEVELOPER_EMAIL.trim().toLowerCase()
   const hashedPassword = await bcrypt.hash(DEVELOPER_PASSWORD, 12)
 
-  // Creates or updates the developer account matching your exact schema structure
   await User.findOneAndUpdate(
     { email },
     {

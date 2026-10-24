@@ -10,7 +10,6 @@ const schema = new mongoose.Schema({
   costPrice: { type: Number, required: true, min: 0, select: false },
   isAvailable: { type: Boolean, default: true },
   imageUrl: { type: String, default: '' },
-  // Optional stock this food item deducts from when sold.
   stockItemId: { type: mongoose.Schema.Types.ObjectId, ref: 'StockItem', default: null },
 }, { timestamps: true })
 

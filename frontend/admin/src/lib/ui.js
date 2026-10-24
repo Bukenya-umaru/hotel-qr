@@ -16,15 +16,10 @@ export const today = new Intl.DateTimeFormat('en-UG', {
 
 export const cx = (...classes) => classes.filter(Boolean).join(' ')
 
-// Minimum password strength: at least 6 characters with both letters and
-// numbers — easy to remember but still a character mix. Shared by every form
-// that sets or resets a password.
 export const PASSWORD_RULE = 'At least 6 characters, including letters and numbers'
 export const isStrongPassword = password =>
   typeof password === 'string' && password.length >= 6 && /[a-zA-Z]/.test(password) && /\d/.test(password)
 
-// 0–4 strength score for the live meter shown under password fields.
-// 0 = empty, 1 = weak, 2 = fair, 3 = strong, 4 = excellent.
 export const passwordStrength = password => {
   if (!password) return 0
   let score = 0
@@ -42,8 +37,6 @@ export const STRENGTH_STEPS = [
   { label: 'Excellent', color: '#16a34a', width: '100%' },
 ]
 
-// Capabilities the owner can grant a chef. A chef with no stored
-// permissions keeps full access, matching how existing accounts behave.
 export const PERMISSIONS = [
   { key: 'view_sales', label: 'View sales' },
   { key: 'manage_stock', label: 'Manage stock' },
@@ -55,8 +48,6 @@ export const PERMISSIONS = [
   { key: 'approve_records', label: 'Approve sales, stock & expenses' },
 ]
 
-// Ways a stock entry or a recorded sale can be counted. 'Other' lets the
-// kitchen name any measure itself, e.g. crates or trays.
 export const UNIT_OPTIONS = [
   { key: 'plates', label: 'Plates' },
   { key: 'items', label: 'Items' },
@@ -64,7 +55,6 @@ export const UNIT_OPTIONS = [
   { key: 'kg', label: 'KG' },
   { key: 'other', label: 'Other' },
 ]
-// The word shown for a unit — 'other' uses the custom name it was given.
 export const unitDisplay = (unit, customUnit = '') => unit === 'kg' ? 'kg'
   : unit === 'items' ? 'items'
   : unit === 'cups' ? 'cups'

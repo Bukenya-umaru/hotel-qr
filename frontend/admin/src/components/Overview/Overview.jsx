@@ -13,14 +13,10 @@ import { ActionProgress } from '../ActionProgress/ActionProgress.jsx'
 const formatDay = value => new Date(`${value}T12:00:00`).toLocaleDateString('en-UG', { weekday: 'short' })
 const formatTime = value => new Date(value).toLocaleTimeString('en-UG', { hour: 'numeric', minute: '2-digit' })
 
-// Heptagon gauge: axes from the centre to each of the 7 corners, a full
-// heptagon in pale peach, and the covered fraction filled in orange.
 const SIDES = 7
 const point = (angle, radius) => `${100 + radius * Math.cos(angle - Math.PI / 2)},${70 + radius * Math.sin(angle - Math.PI / 2)}`
 const polygon = radius => Array.from({ length: SIDES }, (_, index) => point(index * 2 * Math.PI / SIDES, radius)).join(' ')
 
-// Dashboard periods, matching the image's date dropdown + Filter pair.
-// 'today' narrows to the current business day; the others widen the window.
 const PERIODS = [
   { key: 'today', label: 'Today' },
   { key: '7', label: 'Last 7 days' },
@@ -30,7 +26,7 @@ const PERIODS = [
 const periodDates = key => {
   const end = new Date()
   const start = new Date()
-  if (key === 'today') { /* start === end */ }
+  if (key === 'today') {}
   else if (key === '7') start.setDate(start.getDate() - 6)
   else if (key === '30') start.setDate(start.getDate() - 29)
   else if (key === 'month') start.setDate(1)
@@ -40,8 +36,6 @@ const periodDates = key => {
   return { from: day(start), to: day(end) }
 }
 
-// Photo of a sale line's stock item, from the sale's stockImages map
-// returned by the API; empty when the line is not stock-linked or has no photo.
 const saleItemImage = (sale, item) => (sale.stockImages ? sale.stockImages[String(item?.stockItemId || '')] || '' : '')
 
 export function Overview({ hotelName, userId, userRole, onNavigate, analytics, currency, onRange, reportRange }) {
@@ -50,13 +44,6 @@ export function Overview({ hotelName, userId, userRole, onNavigate, analytics, c
   const canViewSales = analytics.canViewSales !== false
   const canViewExpenses = analytics.canViewExpenses !== false
 
-  // Date filter state, shared by the date button and the Filter chip (both
-  // open the same option menu, as in the reference). The first render keeps
-  // the range the dashboard already loaded; later changes re-fetch.
-  // Seed from the range persisted in App (reportRange) so navigating away
-  // and back shows the applied range, not a reset default. If the persisted
-  // range matches a preset period, restore that preset; otherwise treat it
-  // as the custom calendar range.
   const initialPeriod = () => {
     const range = reportRange || { from: periodDates('today').from, to: periodDates('today').to }
     for (const item of PERIODS) {
@@ -67,8 +54,6 @@ export function Overview({ hotelName, userId, userRole, onNavigate, analytics, c
     return { key: 'today', custom: { from: range.from, to: range.to } }
   }
   const [periodKey, setPeriodKey] = useState(() => initialPeriod().key)
-  // Custom from/to range picked from the calendar; null while a preset
-  // period is active.
   const [customRange, setCustomRange] = useState(() => initialPeriod().custom)
   const [menuOpen, setMenuOpen] = useState(false)
   const [loadingRange, setLoadingRange] = useState('')
@@ -77,14 +62,11 @@ export function Overview({ hotelName, userId, userRole, onNavigate, analytics, c
   onRangeRef.current = onRange
   const firstRender = useRef(true)
   useEffect(() => {
-    // Skip the initial mount: App already loaded today's range.
     if (firstRender.current) { firstRender.current = false; return }
     const { from, to } = periodDates(periodKey)
     setLoadingRange(periodKey)
     Promise.resolve(onRangeRef.current?.(from, to)).finally(() => setLoadingRange(''))
   }, [periodKey])
-  // Calendar picking: one click applies that exact date; two clicks apply
-  // the from→to span. Both go through the same fetch as the preset periods.
   const applyRange = (from, to) => {
     setCustomRange({ from, to })
     setLoadingRange('custom')
@@ -99,21 +81,14 @@ export function Overview({ hotelName, userId, userRole, onNavigate, analytics, c
   const period = customRange
     ? { label: `${customRange.from === customRange.to ? 'that day' : 'that range'}` }
     : PERIODS.find(item => item.key === periodKey) || PERIODS[0]
-  // Calendar preview range (fall back to the preset's dates for highlighting).
   const { from: periodFrom, to: periodTo } = customRange || periodDates(periodKey)
-  // 'today'/'in period' wording keys off whether a single day is selected.
   const dayWording = customRange?.from === customRange?.to || (!customRange && periodKey === 'today') ? 'today' : 'in period'
 
-  // Every figure below comes from the analytics payload the selected period
-  // fetched — the dashboard shows exactly the chosen date's or range's data.
   const salesTotal = canViewSales ? Number(analytics.totalRevenue || 0) : null
   const expensesTotal = canViewExpenses ? Number(analytics.totalExpenses || 0) : null
   const profit = canViewSales && canViewExpenses
     ? Number(analytics.totalRevenue || 0) - Number(analytics.totalExpenses || 0)
     : null
-  // Damages load from their own endpoint so the dashboard card is ready
-  // whenever the analytics payload carries one; a quiet load never blocks
-  // the page. The analytics payload's total (when present) wins.
   const [damageTotal, setDamageTotal] = useState(analytics.totalDamages ?? null)
   useEffect(() => {
     if (analytics.totalDamages !== undefined) { setDamageTotal(analytics.totalDamages); return }
@@ -122,15 +97,9 @@ export function Overview({ hotelName, userId, userRole, onNavigate, analytics, c
     return () => { cancelled = true }
   }, [analytics.totalDamages])
   const damagesTotal = damageTotal === null ? null : Number(damageTotal || 0)
-  // What the kitchen added to stock inside the selected period, straight
-  // from the analytics payload the same fetch returns.
   const stockAdditions = analytics.stockAdditions || []
   const stockAdditionUnits = stockAdditions.reduce((sum, item) => sum + (Number(item.plates) || 0), 0)
   const stockUnitNoun = item => item.unit === 'other' && item.customUnit ? item.customUnit : item.unit || 'plates'
-  // Approve straight from the panel: the backend tells the dashboard whether
-  // the signed-in user holds the approval permission. A successful sign-off
-  // is tracked locally so the chip flips to Approved at once; the next
-  // analytics fetch carries the real status.
   const canApproveStock = analytics.canApproveStock !== false
   const [stockApprovals, setStockApprovals] = useState({})
   const [stockActionError, setStockActionError] = useState('')
@@ -150,9 +119,6 @@ export function Overview({ hotelName, userId, userRole, onNavigate, analytics, c
     }
   }
   const stockApprovedNow = item => Boolean(stockApprovals[item._id] ?? item.approved)
-  // Who signed the entry off and when, for the Approved badge's tooltip.
-  // Entries approved during this session before the next fetch only show
-  // that they were signed — the payload refresh brings the full detail.
   const approvedAtText = date => new Date(date).toLocaleDateString('en-UG', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
   const approvedTitle = item => stockApprovedNow(item)
     ? (!stockApprovals[item._id] && item.approvedByName
@@ -174,12 +140,9 @@ export function Overview({ hotelName, userId, userRole, onNavigate, analytics, c
   }
   const periodSales = sales.length
   const uniqueCustomers = new Set(sales.map(sale => sale.customerContact || sale.customerName).filter(Boolean)).size
-  // Share of each recorded day in the period whose sales covered expenses.
   const seriesRaw = analytics.series || []
   const positiveDays = seriesRaw.filter(day => (day.revenue || 0) >= (day.expenses || 0)).length
   const coverage = seriesRaw.length ? Math.max(0, Math.min(1, positiveDays / seriesRaw.length)) : 0.7
-  // The date button reflects the applied range — today's date for the
-  // current-day default, otherwise the exact from–to the user applied.
   const readRange = customRange || periodDates(periodKey)
   const shortDate = value => value ? new Date(`${value}T12:00:00`).toLocaleDateString('en-UG', { month: 'long', day: 'numeric', year: 'numeric' }) : ''
   const reportDate = customRange && customRange.from !== customRange.to
