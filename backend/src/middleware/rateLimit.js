@@ -11,7 +11,7 @@ const limited = eventOptions => (req, res, next, options) => {
   res.status(options.statusCode).json(options.message)
 }
 
-const windowMs = (Number(process.env.RATE_LIMIT_WINDOW_MINUTES) || 15) * 60 * 1000
+const windowMs = (Number(process.env.RATE_LIMIT_WINDOW_MINUTES) ) * 60 * 1000
 const draftHeaders = { standardHeaders: 'draft-7', legacyHeaders: false }
 
 export const apiLimiter = rateLimit({
